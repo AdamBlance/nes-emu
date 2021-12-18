@@ -1,4 +1,3 @@
-
 /* 
 +------+-------------------+---+--------------------------------------------------------------+
 | ACC  | Accumulator       | 1 | operates on the accumulator                                  |
@@ -18,6 +17,51 @@
 | ---- | Absolute indirect | 3 | used for JMP only                                            |
 +------+-------------------+---+--------------------------------------------------------------+
 */
+
+enum Mode {
+   Immediate,
+   Absolute,
+   AbsoluteX,
+   AbsoluteY,
+   ZeroPage,
+   ZeroPageX,
+   ZeroPageY,
+   IndirectX
+   IndirectY,
+   Implied,
+   Relative,
+   AbsoluteIndirect, 
+}
+
+fn get_addr_mode(opcode: u8) -> Mode {
+    
+    // Match outliers
+    match opcode {
+        0x20 => Mode::Absolute,
+        0x6C => Mode::AbsoluteIndirect,
+    }
+
+    // Determine addressing mode from opcode bits
+    // https://wiki.nesdev.org/w/index.php/CPU_unofficial_opcodes
+    let grp_lsb = (opcode & 0b00000001);
+    let grp_msb = (opcode & 0b00000010) >> 1;
+    let col     = (opcode & 0b00011100) >> 2;
+    let row = (opcode & 0b11100000) >> 5;
+
+    match (grp_msb, grp_lsb, col, row) {
+        (_,1,2,_) | (_,0,0,4..=7) => Mode::Immediate,
+        (_,1,6,_) | (1,_,7,4..=5) => Mode::AbsoluteY,
+        (1,_,5,4..=5)             => Mode::ZeroPageY,
+        (_,_,3,_)                 => Mode::Absolute,
+        (_,_,7,_)                 => Mode::AbsoluteX,
+        (_,_,1,_)                 => Mode::ZeroPage,
+        (_,_,5,_)                 => Mode::ZeroPageX
+        (_,1,0,_)                 => Mode::IndirectX,
+        (_,1,4,_)                 => Mode::IndirectY,
+        (0,0,4,_)                 => Mode::Relative,
+        _                         => Mode::Implied,
+    }
+}
 
 pub const ADC_ABS:  u8 = 0x6D;
 pub const ADC_ABSX: u8 = 0x7D;
