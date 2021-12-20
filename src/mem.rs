@@ -16,7 +16,6 @@ fn read_indexed_indirect(addr: u8, index: u8, wram: &[u8], cart: &Cartridge) -> 
     read(concat_u8(msb, lsb), wram, cart)
 }
 
-fn read_indirect_indexed(
 
 fn read(addr: u16, wram: &[u8], cart: &Cartridge) -> u8 {
     match addr {
