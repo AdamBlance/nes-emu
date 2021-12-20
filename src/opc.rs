@@ -18,7 +18,8 @@
 +------+-------------------+---+--------------------------------------------------------------+
 */
 
-enum Mode {
+#[derive(Copy, Clone, Debug)]
+pub enum Mode {
     Immediate,
     Accumulator,
     Absolute,
@@ -27,318 +28,290 @@ enum Mode {
     ZeroPage,
     ZeroPageX,
     ZeroPageY,
-    IndirectX
+    IndirectX,
     IndirectY,
     Implied,
     Relative,
     AbsoluteI, 
 }
 
-enum Dest {
-    A,
-    X,
-    Y,
-    M,
-    PC,
-    U,
-}
-struct Instruction {
-    mode: Mode,
-    cycles: u8,
+#[derive(Copy, Clone)]
+pub struct Info {
+    pub mode: Mode,
+    pub cycles: u8,
 }
 
-const UNIMPLEMENTED: Instruction = Instruction {
+const UNIMPLEMENTED: Info = Info {
     mode: Mode::Immediate,
-    n_z: false,
     cycles: 0,
-}
+};
 
-pub static INSTRUCTION_INFO: [Instruction; 256] = [
-    // 0
-    Instruction {mode: Mode::Implied,     n_z: false, cycles: 7},  // BRK
-    Instruction {mode: Mode::IndirectX,   n_z: true,  cycles: 6},  // ORA
+pub static INSTRUCTION_INFO: [Info; 256] = [
+    Info {mode: Mode::Implied,      cycles: 7},  // BRK
+    Info {mode: Mode::IndirectX,    cycles: 6},  // ORA
     UNIMPLEMENTED,
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 3},  // ORA
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 5},  // ASL
+    Info {mode: Mode::ZeroPage,     cycles: 3},  // ORA
+    Info {mode: Mode::ZeroPage,     cycles: 5},  // ASL
     UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 3},  // PHP
-    Instruction {mode: Mode::Immediate,   n_z: true,  cycles: 2},  // ORA
-    Instruction {mode: Mode::Accumulator, n_z: true,  cycles: 2},  // ASL
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 4},  // ORA
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 6},  // ASL
-    UNIMPLEMENTED,
-
-    // 1
-    Instruction {mode: Mode::Relative,    n_z: false, cycles: 2},  // BPL
-    Instruction {mode: Mode::IndirectY,   n_z: true,  cycles: 5},  // ORA
+    Info {mode: Mode::Implied,       cycles: 3},  // PHP
+    Info {mode: Mode::Immediate,    cycles: 2},  // ORA
+    Info {mode: Mode::Accumulator,  cycles: 2},  // ASL
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 4},  // ORA
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 6},  // ASL
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 2},  // CLC
-    Instruction {mode: Mode::AbsoluteY,   n_z: true,  cycles: 4},  // ORA
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 4},  // ORA
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 7},  // ASL
+    Info {mode: Mode::Absolute,     cycles: 4},  // ORA
+    Info {mode: Mode::Absolute,     cycles: 6},  // ASL
     UNIMPLEMENTED,
 
-    // 2
-    Instruction {mode: Mode::Absolute,    n_z: false, cycles: 6},  // JSR
-    Instruction {mode: Mode::IndirectX,   n_z: true,  cycles: 6},  // AND
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPage,    n_z: false,  cycles: 3},  // BIT
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 3},  // AND
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 5},  // ROL
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 4},  // PLP
-    Instruction {mode: Mode::Immediate,   n_z: true,  cycles: 2},  // AND
-    Instruction {mode: Mode::Accumulator, n_z: true,  cycles: 2},  // ROL
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Absolute,    n_z: false,  cycles: 4},  // BIT
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 4},  // AND
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 6},  // ROL
-    UNIMPLEMENTED,
-
-    // 3
-    Instruction {mode: Mode::Relative,    n_z: false, cycles: 2},  // BMI
-    Instruction {mode: Mode::IndirectY,   n_z: true,  cycles: 5},  // AND
+    Info {mode: Mode::Relative,     cycles: 2},  // BPL
+    Info {mode: Mode::IndirectY,    cycles: 5},  // ORA
     UNIMPLEMENTED,
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 4},  // AND
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 6},  // ROL
+    Info {mode: Mode::ZeroPageX,    cycles: 4},  // ORA
+    Info {mode: Mode::ZeroPageX,    cycles: 6},  // ASL
     UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 2},  // SEC
-    Instruction {mode: Mode::AbsoluteY,   n_z: true,  cycles: 4},  // AND
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 4},  // AND
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 7},  // ROL
-    UNIMPLEMENTED,
-    
-    // 4
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 6},  // RTI
-    Instruction {mode: Mode::IndirectX,   n_z: true,  cycles: 6},  // EOR
+    Info {mode: Mode::Implied,       cycles: 2},  // CLC
+    Info {mode: Mode::AbsoluteY,    cycles: 4},  // ORA
     UNIMPLEMENTED,
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 3},  // EOR
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 5},  // LSR
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 3},  // PHA
-    Instruction {mode: Mode::Immediate,   n_z: true,  cycles: 2},  // EOR
-    Instruction {mode: Mode::Accumulator, n_z: true,  cycles: 2},  // LSR
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Absolute,    n_z: false, cycles: 3},  // JMP
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 4},  // EOR
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 6},  // LSR
+    Info {mode: Mode::AbsoluteX,    cycles: 4},  // ORA
+    Info {mode: Mode::AbsoluteX,    cycles: 7},  // ASL
     UNIMPLEMENTED,
 
-    // 5
-    Instruction {mode: Mode::Relative,    n_z: false, cycles: 2},  // BVC
-    Instruction {mode: Mode::IndirectY,   n_z: true,  cycles: 5},  // EOR
+    Info {mode: Mode::Absolute,     cycles: 6},  // JSR
+    Info {mode: Mode::IndirectX,    cycles: 6},  // AND
     UNIMPLEMENTED,
     UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPage,      cycles: 3},  // BIT
+    Info {mode: Mode::ZeroPage,     cycles: 3},  // AND
+    Info {mode: Mode::ZeroPage,     cycles: 5},  // ROL
     UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 4},  // EOR
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 6},  // LSR
+    Info {mode: Mode::Implied,       cycles: 4},  // PLP
+    Info {mode: Mode::Immediate,    cycles: 2},  // AND
+    Info {mode: Mode::Accumulator,  cycles: 2},  // ROL
     UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 2},  // CLI
-    Instruction {mode: Mode::AbsoluteY,   n_z: true,  cycles: 4},  // EOR
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 4},  // EOR
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 7},  // LSR
-    UNIMPLEMENTED,
-
-    // 6
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 6},  // RTS
-    Instruction {mode: Mode::IndirectX,   n_z: true,  cycles: 6},  // ADC
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 4},  // ADC
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 6},  // ROR
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: true,  cycles: 4},  // PLA
-    Instruction {mode: Mode::Immediate,   n_z: true,  cycles: 2},  // ADC
-    Instruction {mode: Mode::Accumulator, n_z: true,  cycles: 2},  // ROR
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::AbsoluteI,   n_z: false, cycles: 5},  // JMP
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 4},  // ADC
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 6},  // ROR
+    Info {mode: Mode::Absolute,      cycles: 4},  // BIT
+    Info {mode: Mode::Absolute,     cycles: 4},  // AND
+    Info {mode: Mode::Absolute,     cycles: 6},  // ROL
     UNIMPLEMENTED,
 
-    // 7
-    Instruction {mode: Mode::Relative,    n_z: false, cycles: 2},  // BVS
-    Instruction {mode: Mode::IndirectY,   n_z: true,  cycles: 5},  // ADC
+    Info {mode: Mode::Relative,     cycles: 2},  // BMI
+    Info {mode: Mode::IndirectY,    cycles: 5},  // AND
     UNIMPLEMENTED,
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 4},  // ADC
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 6},  // ROR
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 2},  // SEI
-    Instruction {mode: Mode::AbsoluteY,   n_z: true,  cycles: 4},  // ADC
+    Info {mode: Mode::ZeroPageX,    cycles: 4},  // AND
+    Info {mode: Mode::ZeroPageX,    cycles: 6},  // ROL
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,       cycles: 2},  // SEC
+    Info {mode: Mode::AbsoluteY,    cycles: 4},  // AND
     UNIMPLEMENTED,
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 4},  // ADC
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 7},  // ROR
-    UNIMPLEMENTED,
-
-    // 8
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::IndirectX,   n_z: false,  cycles: 6},  // STA
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPage,    n_z: false,  cycles: 3},  // STY
-    Instruction {mode: Mode::ZeroPage,    n_z: false,  cycles: 3},  // STA
-    Instruction {mode: Mode::ZeroPage,    n_z: false,  cycles: 3},  // STX
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: true,  cycles: 2},  // DEY
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: true,  cycles: 2},  // TXA
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Absolute,    n_z: false,  cycles: 4},  // STY
-    Instruction {mode: Mode::Absolute,    n_z: false,  cycles: 4},  // STA
-    Instruction {mode: Mode::Absolute,    n_z: false,  cycles: 4},  // STX
+    Info {mode: Mode::AbsoluteX,    cycles: 4},  // AND
+    Info {mode: Mode::AbsoluteX,    cycles: 7},  // ROL
     UNIMPLEMENTED,
 
-    // 9
-    Instruction {mode: Mode::Relative,    n_z: false, cycles: 2},  // BCC
-    Instruction {mode: Mode::IndirectY,   n_z: false,  cycles: 6},  // STA
+    Info {mode: Mode::Implied,       cycles: 6},  // RTI
+    Info {mode: Mode::IndirectX,    cycles: 6},  // EOR
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPageX,   n_z: false,  cycles: 4},  // STY
-    Instruction {mode: Mode::ZeroPageX,   n_z: false,  cycles: 4},  // STA
-    Instruction {mode: Mode::ZeroPageX,   n_z: false,  cycles: 4},  // STX
     UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: true,  cycles: 2},  // TYA
-    Instruction {mode: Mode::AbsoluteY,   n_z: false,  cycles: 5},  // STA
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 2},  // TXS
+    Info {mode: Mode::ZeroPage,     cycles: 3},  // EOR
+    Info {mode: Mode::ZeroPage,     cycles: 5},  // LSR
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,       cycles: 3},  // PHA
+    Info {mode: Mode::Immediate,    cycles: 2},  // EOR
+    Info {mode: Mode::Accumulator,  cycles: 2},  // LSR
+    UNIMPLEMENTED,
+    Info {mode: Mode::Absolute,     cycles: 3},  // JMP
+    Info {mode: Mode::Absolute,     cycles: 4},  // EOR
+    Info {mode: Mode::Absolute,     cycles: 6},  // LSR
+    UNIMPLEMENTED,
+
+    Info {mode: Mode::Relative,     cycles: 2},  // BVC
+    Info {mode: Mode::IndirectY,    cycles: 5},  // EOR
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Instruction {mode: Mode::AbsoluteX,   n_z: false,  cycles: 5},  // STA
+    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,    cycles: 4},  // EOR
+    Info {mode: Mode::ZeroPageX,    cycles: 6},  // LSR
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,       cycles: 2},  // CLI
+    Info {mode: Mode::AbsoluteY,    cycles: 4},  // EOR
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,    cycles: 4},  // EOR
+    Info {mode: Mode::AbsoluteX,    cycles: 7},  // LSR
+    UNIMPLEMENTED,
+
+    Info {mode: Mode::Implied,       cycles: 6},  // RTS
+    Info {mode: Mode::IndirectX,    cycles: 6},  // ADC
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,    cycles: 4},  // ADC
+    Info {mode: Mode::ZeroPageX,    cycles: 6},  // ROR
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,      cycles: 4},  // PLA
+    Info {mode: Mode::Immediate,    cycles: 2},  // ADC
+    Info {mode: Mode::Accumulator,  cycles: 2},  // ROR
+    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteI,    cycles: 5},  // JMP
+    Info {mode: Mode::Absolute,     cycles: 4},  // ADC
+    Info {mode: Mode::Absolute,     cycles: 6},  // ROR
+    UNIMPLEMENTED,
+
+    Info {mode: Mode::Relative,     cycles: 2},  // BVS
+    Info {mode: Mode::IndirectY,    cycles: 5},  // ADC
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,    cycles: 4},  // ADC
+    Info {mode: Mode::ZeroPageX,    cycles: 6},  // ROR
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,       cycles: 2},  // SEI
+    Info {mode: Mode::AbsoluteY,    cycles: 4},  // ADC
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,    cycles: 4},  // ADC
+    Info {mode: Mode::AbsoluteX,    cycles: 7},  // ROR
+    UNIMPLEMENTED,
+
+    UNIMPLEMENTED,
+    Info {mode: Mode::IndirectX,     cycles: 6},  // STA
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPage,      cycles: 3},  // STY
+    Info {mode: Mode::ZeroPage,      cycles: 3},  // STA
+    Info {mode: Mode::ZeroPage,      cycles: 3},  // STX
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,      cycles: 2},  // DEY
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,      cycles: 2},  // TXA
+    UNIMPLEMENTED,
+    Info {mode: Mode::Absolute,      cycles: 4},  // STY
+    Info {mode: Mode::Absolute,      cycles: 4},  // STA
+    Info {mode: Mode::Absolute,      cycles: 4},  // STX
+    UNIMPLEMENTED,
+
+    Info {mode: Mode::Relative,     cycles: 2},  // BCC
+    Info {mode: Mode::IndirectY,     cycles: 6},  // STA
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,     cycles: 4},  // STY
+    Info {mode: Mode::ZeroPageX,     cycles: 4},  // STA
+    Info {mode: Mode::ZeroPageX,     cycles: 4},  // STX
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,      cycles: 2},  // TYA
+    Info {mode: Mode::AbsoluteY,     cycles: 5},  // STA
+    Info {mode: Mode::Implied,       cycles: 2},  // TXS
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,     cycles: 5},  // STA
     UNIMPLEMENTED,
     UNIMPLEMENTED,
 
-    // A
-    Instruction {mode: Mode::Immediate,   n_z: true,  cycles: 2},  // LDY
-    Instruction {mode: Mode::IndirectX,   n_z: true,  cycles: 6},  // LDA
-    Instruction {mode: Mode::Immediate,   n_z: true,  cycles: 2},  // LDX
+    Info {mode: Mode::Immediate,    cycles: 2},  // LDY
+    Info {mode: Mode::IndirectX,    cycles: 6},  // LDA
+    Info {mode: Mode::Immediate,    cycles: 2},  // LDX
     UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 3},  // LDY
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 3},  // LDA
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 3},  // LDX
+    Info {mode: Mode::ZeroPage,     cycles: 3},  // LDY
+    Info {mode: Mode::ZeroPage,     cycles: 3},  // LDA
+    Info {mode: Mode::ZeroPage,     cycles: 3},  // LDX
     UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: true,  cycles: 2},  // TAY
-    Instruction {mode: Mode::Immediate,   n_z: true,  cycles: 2},  // LDA
-    Instruction {mode: Mode::Implied,     n_z: true,  cycles: 2},  // TAX
+    Info {mode: Mode::Implied,      cycles: 2},  // TAY
+    Info {mode: Mode::Immediate,    cycles: 2},  // LDA
+    Info {mode: Mode::Implied,      cycles: 2},  // TAX
     UNIMPLEMENTED,
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 4},  // LDY
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 4},  // LDA
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 4},  // LDX
-    UNIMPLEMENTED,
-
-    // B
-    Instruction {mode: Mode::Relative,    n_z: false, cycles: 2},  // BCS
-    Instruction {mode: Mode::IndirectY,   n_z: true,  cycles: 5},  // LDA
-    Instruction {mode: Mode::Immediate,   n_z: true,  cycles: 2},  // LDX
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 4},  // LDY
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 4},  // LDA
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 4},  // LDX
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 2},  // CLV
-    Instruction {mode: Mode::AbsoluteY,   n_z: true,  cycles: 4},  // LDA
-    Instruction {mode: Mode::Implied,     n_z: true,  cycles: 2},  // TSX
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 4},  // LDY
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 4},  // LDA
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 4},  // LDX
-    UNIMPLEMENTED,
-    
-    // C
-    Instruction {mode: Mode::Immediate,   n_z: false,  cycles: 2},  // CPY
-    Instruction {mode: Mode::IndirectX,   n_z: false,  cycles: 6},  // CMP
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPage,    n_z: false,  cycles: 3},  // CPY
-    Instruction {mode: Mode::ZeroPage,    n_z: false,  cycles: 3},  // CMP
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 6},  // DEC
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: true,  cycles: 2},  // INY
-    Instruction {mode: Mode::Immediate,   n_z: false,  cycles: 2},  // CMP
-    Instruction {mode: Mode::Implied,     n_z: true,  cycles: 2},  // DEX
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Absolute,    n_z: false,  cycles: 4},  // CPY
-    Instruction {mode: Mode::Absolute,    n_z: false,  cycles: 4},  // CMP
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 6},  // DEC
+    Info {mode: Mode::Absolute,     cycles: 4},  // LDY
+    Info {mode: Mode::Absolute,     cycles: 4},  // LDA
+    Info {mode: Mode::Absolute,     cycles: 4},  // LDX
     UNIMPLEMENTED,
 
-    // D
-    Instruction {mode: Mode::Relative,    n_z: false, cycles: 2},  // BNE
-    Instruction {mode: Mode::IndirectY,   n_z: false,  cycles: 5},  // CMP
+    Info {mode: Mode::Relative,     cycles: 2},  // BCS
+    Info {mode: Mode::IndirectY,    cycles: 5},  // LDA
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,    cycles: 4},  // LDY
+    Info {mode: Mode::ZeroPageX,    cycles: 4},  // LDA
+    Info {mode: Mode::ZeroPageX,    cycles: 4},  // LDX
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,       cycles: 2},  // CLV
+    Info {mode: Mode::AbsoluteY,    cycles: 4},  // LDA
+    Info {mode: Mode::Implied,      cycles: 2},  // TSX
+    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,    cycles: 4},  // LDY
+    Info {mode: Mode::AbsoluteX,    cycles: 4},  // LDA
+    Info {mode: Mode::AbsoluteX,    cycles: 4},  // LDX
+    UNIMPLEMENTED,
+    Info {mode: Mode::Immediate,     cycles: 2},  // CPY
+    Info {mode: Mode::IndirectX,     cycles: 6},  // CMP
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPage,      cycles: 3},  // CPY
+    Info {mode: Mode::ZeroPage,      cycles: 3},  // CMP
+    Info {mode: Mode::ZeroPage,     cycles: 6},  // DEC
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,      cycles: 2},  // INY
+    Info {mode: Mode::Immediate,     cycles: 2},  // CMP
+    Info {mode: Mode::Implied,      cycles: 2},  // DEX
+    UNIMPLEMENTED,
+    Info {mode: Mode::Absolute,      cycles: 4},  // CPY
+    Info {mode: Mode::Absolute,      cycles: 4},  // CMP
+    Info {mode: Mode::Absolute,     cycles: 6},  // DEC
+    UNIMPLEMENTED,
+    Info {mode: Mode::Relative,     cycles: 2},  // BNE
+    Info {mode: Mode::IndirectY,     cycles: 5},  // CMP
     UNIMPLEMENTED,
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPageX,   n_z: false,  cycles: 4},  // CMP
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 6},  // DEC
+    Info {mode: Mode::ZeroPageX,     cycles: 4},  // CMP
+    Info {mode: Mode::ZeroPageX,    cycles: 6},  // DEC
     UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 2},  // CLD
-    Instruction {mode: Mode::AbsoluteY,   n_z: false,  cycles: 4},  // CMP
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::AbsoluteX,   n_z: false,  cycles: 4},  // CMP
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 7},  // DEC
-    UNIMPLEMENTED,
-
-    // E
-    Instruction {mode: Mode::Immediate,   n_z: false,  cycles: 2},  // CPX
-    Instruction {mode: Mode::IndirectX,   n_z: true,  cycles: 6},  // SBC
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPage,    n_z: false,  cycles: 3},  // CPX
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 3},  // SBC
-    Instruction {mode: Mode::ZeroPage,    n_z: true,  cycles: 5},  // INC
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: true,  cycles: 2},  // INX
-    Instruction {mode: Mode::Immediate,   n_z: true,  cycles: 2},  // SBC
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 2},  // NOP
-    UNIMPLEMENTED,
-    Instruction {mode: Mode::Absolute,    n_z: false,  cycles: 4},  // CPX
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 4},  // SBC
-    Instruction {mode: Mode::Absolute,    n_z: true,  cycles: 6},  // INC
-    UNIMPLEMENTED,
-
-    // F
-    Instruction {mode: Mode::Relative,    n_z: false, cycles: 2},  // BEQ
-    Instruction {mode: Mode::IndirectY,   n_z: true,  cycles: 5},  // SBC
+    Info {mode: Mode::Implied,       cycles: 2},  // CLD
+    Info {mode: Mode::AbsoluteY,     cycles: 4},  // CMP
     UNIMPLEMENTED,
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 4},  // SBC
-    Instruction {mode: Mode::ZeroPageX,   n_z: true,  cycles: 6},  // INC
+    Info {mode: Mode::AbsoluteX,     cycles: 4},  // CMP
+    Info {mode: Mode::AbsoluteX,    cycles: 7},  // DEC
     UNIMPLEMENTED,
-    Instruction {mode: Mode::Implied,     n_z: false,  cycles: 2},  // SED
-    Instruction {mode: Mode::AbsoluteY,   n_z: false,  cycles: 4},  // SBC
+    Info {mode: Mode::Immediate,     cycles: 2},  // CPX
+    Info {mode: Mode::IndirectX,    cycles: 6},  // SBC
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPage,      cycles: 3},  // CPX
+    Info {mode: Mode::ZeroPage,     cycles: 3},  // SBC
+    Info {mode: Mode::ZeroPage,     cycles: 5},  // INC
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,      cycles: 2},  // INX
+    Info {mode: Mode::Immediate,    cycles: 2},  // SBC
+    Info {mode: Mode::Implied,       cycles: 2},  // NOP
+    UNIMPLEMENTED,
+    Info {mode: Mode::Absolute,      cycles: 4},  // CPX
+    Info {mode: Mode::Absolute,     cycles: 4},  // SBC
+    Info {mode: Mode::Absolute,     cycles: 6},  // INC
+    UNIMPLEMENTED,
+    Info {mode: Mode::Relative,     cycles: 2},  // BEQ
+    Info {mode: Mode::IndirectY,    cycles: 5},  // SBC
     UNIMPLEMENTED,
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 4},  // SBC
-    Instruction {mode: Mode::AbsoluteX,   n_z: true,  cycles: 7},  // INC
+    Info {mode: Mode::ZeroPageX,    cycles: 4},  // SBC
+    Info {mode: Mode::ZeroPageX,    cycles: 6},  // INC
+    UNIMPLEMENTED,
+    Info {mode: Mode::Implied,       cycles: 2},  // SED
+    Info {mode: Mode::AbsoluteY,     cycles: 4},  // SBC
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,    cycles: 4},  // SBC
+    Info {mode: Mode::AbsoluteX,    cycles: 7},  // INC
     UNIMPLEMENTED
 ];
