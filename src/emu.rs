@@ -8,27 +8,75 @@ pub fn emulate(cart: &hw::Cartridge) {
 
     let mut wram: [u8; 2048] = [0; 2048];
 
-    let test = concat_u8(read_mem(0xFFFD, &wram, cart), read_mem(0xFFFC, &wram, cart));
+    let mut vram: [u8; 2048] = [0; 2048];
+
+    // let test = concat_u8(read_mem(0xFFFD, &wram, cart), read_mem(0xFFFC, &wram, cart));
+
+    
 
     let mut cpu = hw::Cpu {
         a: 0, 
         x: 0, 
         y: 0, 
-        s: 0, 
+        s: 0xFD, 
         p_n: false,
         p_v: false,
-        p_b: false,
-        p_i: false,
+        p_b: true,
+        p_i: true,
         p_z: false,
         p_c: false,
-        pc: test,
+        pc: 0xC000,
         cycles: 0, 
     };
 
+    let mut ppu = hw::Ppu {
+        ppuctrl: 0,
+        ppumask: 0,
+        ppustatus: 0,
+        oamaddr: 0,
+        ppuscroll: 0,
+        ppuaddr: 0,
+        ppudata: 0,
+        oamdata: 0,
+        oamdma: 0,
+
+        t: 0,
+        v: 0,
+        x: 0,
+        w: false,
+    
+        palette_mem: [0; 32],
+        oam: [0; 256],
+
+        odd_frame: false,
+
+        cycles: 0,
+    };
+
     loop {
+
+        
+
         let (opcode, byte2, byte3) = read_three_bytes(cpu.pc, &wram, cart);
-        println!("{:04X?}:  {:02X?}, {:02X?}, {:02X?}", cpu.pc-0x8000, opcode, byte2, byte3);
+        println!(
+            "{:04X?}   {:02X?} {:02X?} {:02X?}    A:{:02X?} X:{:02X?} Y:{:02X?} P:{:02X?} SP:{:02X?} CYC:{:02X?}", 
+            cpu.pc, 
+            opcode, 
+            byte2, 
+            byte3,
+            cpu.a,
+            cpu.x,
+            cpu.y,
+            p_to_byte(&cpu),
+            cpu.s,
+            cpu.cycles
+        );
+
         exec_instr(opcode, byte2, byte3, &mut cpu, &mut wram, cart);
+        // println!("{:04X?}:  {:02X?}, {:02X?}, {:02X?}", cpu.pc-0x8000, opcode, byte2, byte3);
+
+        // do_ppu(&mut ppu, &mut vram, cart);
+
         let mut buffer = String::new();
         let mut stdin = io::stdin(); // We get `Stdin` here.
         stdin.read_line(&mut buffer).expect("it broke");
@@ -48,16 +96,16 @@ fn get_bit(byte: u8, idx: u8) -> bool {
 }
 
 fn was_overflow(original: u8, operand: u8, result: u8) -> bool {
-    ((!(original ^ operand) & (original ^ result)) >> 7) == 1
+    ((!(original ^ operand) & (original ^ result)) >> 7) != 0
 }
 
 fn p_to_byte(cpu: &hw::Cpu) -> u8 {
-    (if cpu.p_n {0b1000_0000} else {0}) & 
-    (if cpu.p_v {0b0100_0000} else {0}) & 
-             0b0011_1000            &
-    (if cpu.p_i {0b0000_0100} else {0}) & 
-    (if cpu.p_z {0b0100_0010} else {0}) & 
-    (if cpu.p_c {0b0100_0001} else {0})
+    (if cpu.p_n {0b1000_0000} else {0}) | 
+    (if cpu.p_v {0b0100_0000} else {0}) | 
+                 0b0010_0000            |
+    (if cpu.p_i {0b0000_0100} else {0}) | 
+    (if cpu.p_z {0b0000_0010} else {0}) | 
+    (if cpu.p_c {0b0000_0001} else {0})
 }
 
 fn read_three_bytes(addr: u16, wram: &[u8], cart: &hw::Cartridge) -> (u8, u8, u8) {
@@ -81,7 +129,7 @@ fn read_mem(addr: u16, wram: &[u8], cart: &hw::Cartridge) -> u8 {
             cart.prg_rom[prg_addr as usize]
         },
         0xC000..=0xFFFF => {
-            let prg_addr = addr - 0x8000;
+            let prg_addr = addr - 0xC000;
             // println!("PRG addr: {:04X?}", prg_addr);
             cart.prg_rom[prg_addr as usize]
         }
@@ -94,13 +142,38 @@ fn write_mem(addr: u16, val: u8, wram: &mut [u8]) {
     }
 }
 
+// Stack grows from 0x01FF down to 0x0100
+// Stack pointer is offset from 0x0100
+// Pushing decrements pointer
+// Pulling increments pointer
+fn stack_push(val: u8, cpu: &mut hw::Cpu, wram: &mut [u8]) {
+    wram[0x0100 + (cpu.s as usize)] = val;
+    cpu.s = cpu.s.wrapping_sub(1);
+}
+fn stack_pop(cpu: &mut hw::Cpu, wram: &[u8]) -> u8 {
+    cpu.s = cpu.s.wrapping_add(1);
+    wram[0x0100 + (cpu.s as usize)]
+}
+
+
+// fn do_ppu(ppu: &mut hw::Ppu, vram: &[u8], cart: &hw::Cartridge) {
+//     // Pre-render scanline
+//     ppu.cycles += 341 - (ppu.odd_frame as u64);
+    
+//     for pixel in 0..256 {
+        
+//     }
+
+
+// }
+
 fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u8], cart: &hw::Cartridge) {
 
     // Tells us the addressing mode and number of cycles
     let instr_info = opc::INSTRUCTION_INFO[opcode as usize];
 
-    println!("Mode - {:?}", instr_info.mode);
-    println!("N={},V={},I={},Z={},C={}", cpu.p_n, cpu.p_v, cpu.p_i, cpu.p_z, cpu.p_c);
+    // println!("Mode - {:?}", instr_info.mode);
+    // println!("N={},V={},I={},Z={},C={}", cpu.p_n, cpu.p_v, cpu.p_i, cpu.p_z, cpu.p_c);
     let instr_addr = match instr_info.mode {
         opc::Mode::Absolute  => concat_u8(byte3, byte2),
         opc::Mode::AbsoluteX => concat_u8(byte3, byte2).wrapping_add(cpu.x as u16),
@@ -108,7 +181,7 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         opc::Mode::ZeroPage  => byte2 as u16,
         opc::Mode::ZeroPageX => byte2.wrapping_add(cpu.x) as u16,
         opc::Mode::ZeroPageY => byte2.wrapping_add(cpu.y) as u16,
-        opc::Mode::Relative  => cpu.pc.wrapping_add_signed((byte2 as i8) as i16),
+        opc::Mode::Relative  => cpu.pc.wrapping_add_signed((byte2 as i8) as i16) + 2u16,  // pc+offset+2 (instr len)
         opc::Mode::IndirectX => {
             let zp_addr_lsb = byte2.wrapping_add(cpu.x);
             let zp_addr_msb = zp_addr_lsb.wrapping_add(1);
@@ -150,6 +223,8 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
     };
 
     cpu.cycles += instr_info.cycles as u64;
+
+    let prev_pc = cpu.pc;
 
     match opcode {
         // LDA
@@ -223,7 +298,7 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         },
         // PHP
         0x08 => {
-            wram[0x0100 + (cpu.s as usize)] = p_to_byte(&cpu);
+            wram[0x0100 + (cpu.s as usize)] = p_to_byte(&cpu) & 0b0001_0000;
             cpu.s = cpu.s.wrapping_sub(1);
         },
         // PLA
@@ -317,7 +392,7 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         0x2C | 0x24 => {
             cpu.p_n = get_bit(instr_val, 7);
             cpu.p_v = get_bit(instr_val, 6);
-            cpu.p_z = (cpu.a & instr_val) != 0;
+            cpu.p_z = (cpu.a & instr_val) == 0;
         },
         // EOR
         0x4D | 0x5D | 0x59 | 0x49 | 0x41 | 0x51 | 0x45 | 0x55 => { 
@@ -371,37 +446,37 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         },
         // DEC
         0xCE | 0xDE | 0xC6 | 0xD6 => {
-            wram[instr_addr as usize] -= 1;
+            wram[instr_addr as usize] = wram[instr_addr as usize].wrapping_sub(1);
             cpu.p_n = is_neg(wram[instr_addr as usize]);
             cpu.p_z = wram[instr_addr as usize] == 0;
         },
         // DEX
         0xCA => {
-            cpu.x -= 1;
+            cpu.x = cpu.x.wrapping_sub(1);
             cpu.p_n = is_neg(cpu.x);
             cpu.p_z = cpu.x == 0;
         },
         // DEY
         0x88 => {
-            cpu.y -= 1;
+            cpu.y -= cpu.y.wrapping_sub(1);
             cpu.p_n = is_neg(cpu.y);
             cpu.p_z = cpu.y == 0;
         },
         // INC
         0xEE | 0xFE | 0xE6 | 0xF6 => {
-            wram[instr_addr as usize] += 1;
+            wram[instr_addr as usize] = wram[instr_addr as usize].wrapping_add(1);
             cpu.p_n = is_neg(wram[instr_addr as usize]);
             cpu.p_z = wram[instr_addr as usize] == 0;
         },
         // INX
         0xE8 => {
-            cpu.x += 1;
+            cpu.x = cpu.x.wrapping_add(1);
             cpu.p_n = is_neg(cpu.x);
             cpu.p_z = cpu.x == 0;
         },
         // INY
         0xC8 => {
-            cpu.y += 1;
+            cpu.y = cpu.y.wrapping_add(1);
             cpu.p_n = is_neg(cpu.y);
             cpu.p_z = cpu.y == 0;
         },
@@ -409,7 +484,7 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         0x00 => {
             wram[0x0100 + (cpu.s as usize)] = (cpu.pc >> 8) as u8;
             wram[0x0100 + (cpu.s as usize) - 1] = (cpu.pc & 0x00FF) as u8;
-            wram[0x0100 + (cpu.s as usize) - 2] = p_to_byte(&cpu);
+            wram[0x0100 + (cpu.s as usize) - 2] = p_to_byte(&cpu) & 0b0001_0000;
             cpu.s = cpu.s.wrapping_sub(3);
             cpu.pc = concat_u8(read_mem(0xFFFF, wram, cart), read_mem(0xFFFE, wram, cart));
         },
@@ -421,7 +496,10 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         0x20 => {
             wram[0x0100 + (cpu.s as usize)] = (cpu.pc >> 8) as u8;
             wram[0x0100 + (cpu.s as usize) - 1] = (cpu.pc & 0x00FF) as u8;
-            cpu.pc = instr_addr.wrapping_add(1);
+            cpu.s = cpu.s.wrapping_sub(2);
+            // cpu.pc = instr_addr.wrapping_add(1);
+            cpu.pc = instr_addr;
+
         },
         // RTI
         0x40 => {
@@ -457,7 +535,7 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         },
         // BMI
         0x30 => {
-            if !cpu.p_z && cpu.p_n {cpu.pc = instr_addr;}
+            if cpu.p_n {cpu.pc = instr_addr;}
         },
         // BNE
         0xD0 => {
@@ -465,7 +543,7 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         },
         // BPL
         0x10 => {
-            if !cpu.p_z && !cpu.p_n {cpu.pc = instr_addr;}
+            if !cpu.p_n {cpu.pc = instr_addr;}
         },
         // BVC
         0x50 => {
@@ -508,6 +586,12 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         _ => println!("Illegal opcodes are not implemented")
         
     }
-    cpu.pc = cpu.pc.wrapping_add(instr_len);
+
+    // If the instruction wasn't a JMP or something that changes the PC,
+    // move the PC to the next instruction.
+    if prev_pc == cpu.pc {
+        cpu.pc = cpu.pc.wrapping_add(instr_len);
+    }
+    
 
 }

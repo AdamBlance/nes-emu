@@ -12,7 +12,7 @@ mod opc;
 
 fn main() {
 
-    let ines_data = fs::read("rom.nes").expect("Failed to read rom");
+    let ines_data = fs::read("nestest.nes").expect("Failed to read rom");
 
     if ines_data.len() < 16 {
         panic!();
@@ -30,6 +30,7 @@ fn main() {
         prg_rom: ines_data[prg_start..prg_end].to_vec(),
         chr_rom: ines_data[prg_end..chr_end].to_vec(),
         mapper: (ines_data[7] & 0xF0) | (ines_data[6] >> 4),
+        v_mirroring: (ines_data[6] & 0b0000_0001) != 0,
     };
 
     emu::emulate(&cart);
