@@ -293,30 +293,26 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         },
         // PHA
         0x48 => {
-            wram[0x0100 + (cpu.s as usize)] = cpu.a;
-            cpu.s = cpu.s.wrapping_sub(1);
+            stack_push(cpu.a, cpu, wram);
         },
         // PHP
         0x08 => {
-            wram[0x0100 + (cpu.s as usize)] = p_to_byte(&cpu) & 0b0001_0000;
-            cpu.s = cpu.s.wrapping_sub(1);
+            stack_push(p_to_byte(&cpu) | 0b0001_0000, cpu, wram);
         },
         // PLA
         0x68 => {
-            cpu.a = wram[0x0100 + (cpu.s as usize)];
-            cpu.s = cpu.s.wrapping_add(1);
+            cpu.a = stack_pop(cpu, wram);
             cpu.p_n = is_neg(cpu.a);
             cpu.p_z = cpu.a == 0;
         },
         // PLP
         0x28 => {
-            let p_reg = wram[0x0100 + (cpu.s as usize)];
+            let p_reg = stack_pop(cpu, wram);
             cpu.p_n = get_bit(p_reg, 7);
             cpu.p_v = get_bit(p_reg, 6);
             cpu.p_i = get_bit(p_reg, 2);
             cpu.p_z = get_bit(p_reg, 1);
             cpu.p_c = get_bit(p_reg, 0);
-            cpu.s = cpu.s.wrapping_add(1);
         },
         // ASL (ACC)
         0x0A => {
@@ -482,10 +478,9 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         },
         // BRK
         0x00 => {
-            wram[0x0100 + (cpu.s as usize)] = (cpu.pc >> 8) as u8;
-            wram[0x0100 + (cpu.s as usize) - 1] = (cpu.pc & 0x00FF) as u8;
-            wram[0x0100 + (cpu.s as usize) - 2] = p_to_byte(&cpu) & 0b0001_0000;
-            cpu.s = cpu.s.wrapping_sub(3);
+            stack_push((cpu.pc >> 8) as u8, cpu, wram);
+            stack_push((cpu.pc & 0x00FF) as u8, cpu, wram);
+            stack_push(p_to_byte(&cpu) | 0b0001_0000, cpu, wram);
             cpu.pc = concat_u8(read_mem(0xFFFF, wram, cart), read_mem(0xFFFE, wram, cart));
         },
         // JMP 
@@ -494,31 +489,26 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         },
         // JSR
         0x20 => {
-            wram[0x0100 + (cpu.s as usize)] = (cpu.pc >> 8) as u8;
-            wram[0x0100 + (cpu.s as usize) - 1] = (cpu.pc & 0x00FF) as u8;
-            cpu.s = cpu.s.wrapping_sub(2);
-            // cpu.pc = instr_addr.wrapping_add(1);
+            stack_push((cpu.pc >> 8) as u8, cpu, wram);
+            stack_push((cpu.pc & 0x00FF) as u8, cpu, wram);
             cpu.pc = instr_addr;
-
         },
         // RTI
         0x40 => {
-            let p_reg = wram[0x0100 + (cpu.s as usize)];
+            let p_reg = stack_pop(cpu, wram);
             cpu.p_n = get_bit(p_reg, 7);
             cpu.p_v = get_bit(p_reg, 6);
             cpu.p_i = get_bit(p_reg, 2);
             cpu.p_z = get_bit(p_reg, 1);
             cpu.p_c = get_bit(p_reg, 0);
-            let lsb = wram[0x0100 + (cpu.s as usize)];
-            let msb = wram[0x0100 + (cpu.s as usize) + 1];
-            cpu.s = cpu.s.wrapping_add(3);
+            let lsb = stack_pop(cpu, wram);
+            let msb = stack_pop(cpu, wram);
             cpu.pc = concat_u8(msb, lsb);
         },
         // RTS 
         0x60 => {
-            let lsb = wram[0x0100 + (cpu.s as usize)];
-            let msb = wram[0x0100 + (cpu.s as usize) + 1];
-            cpu.s = cpu.s.wrapping_add(2);
+            let lsb = stack_pop(cpu, wram);
+            let msb = stack_pop(cpu, wram);
             cpu.pc = concat_u8(msb, lsb) + 1;
         },
         // BCC
