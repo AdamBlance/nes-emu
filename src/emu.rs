@@ -528,7 +528,7 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
             cpu.p_c = instr_val <= cpu.y;
         },
         // SBC
-        0xED | 0xFD | 0xF9 | 0xE9 | 0xE1 | 0xF1 | 0xE5 | 0xF5 => {
+        0xED | 0xFD | 0xF9 | 0xE9 | 0xE1 | 0xF1 | 0xE5 | 0xF5 | 0xEB => {
             let (result, borrow) = cpu.a.borrowing_sub(instr_val, !cpu.p_c);
             println!("{} - {} = {}", cpu.a, instr_val, result);
 
@@ -674,6 +674,11 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         0xEA | 0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xFA | 0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 | 0x0C |
         0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC | 0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 |
         0xD4 | 0xF4 => {}
+        // ALR
+        0x4B => {
+            cpu.a &= instr_val;
+            cpu.a >>= 1;
+        }
         _ => println!("Illegal opcodes are not implemented")
         
     }
