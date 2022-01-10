@@ -18,6 +18,8 @@
 +------+-------------------+---+--------------------------------------------------------------+
 */
 
+// https://wiki.nesdev.org/w/index.php?title=Programming_with_unofficial_opcodes
+
 #[derive(Copy, Clone, Debug)]
 pub enum Mode {
     Immediate,
@@ -52,7 +54,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::IndirectX,    cycles: 6},  // ORA
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPage,     cycles: 3}, // *IGN
     Info {mode: Mode::ZeroPage,     cycles: 3},  // ORA
     Info {mode: Mode::ZeroPage,     cycles: 5},  // ASL
     UNIMPLEMENTED,
@@ -60,7 +62,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Immediate,    cycles: 2},  // ORA
     Info {mode: Mode::Accumulator,  cycles: 2},  // ASL
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::Absolute,     cycles: 4}, // *IGN
     Info {mode: Mode::Absolute,     cycles: 4},  // ORA
     Info {mode: Mode::Absolute,     cycles: 6},  // ASL
     UNIMPLEMENTED,
@@ -70,15 +72,15 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::IndirectY,    cycles: 5},  // ORA
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,     cycles: 4}, // *IGN
     Info {mode: Mode::ZeroPageX,    cycles: 4},  // ORA
     Info {mode: Mode::ZeroPageX,    cycles: 6},  // ASL
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,       cycles: 2},  // CLC
     Info {mode: Mode::AbsoluteY,    cycles: 4},  // ORA
+    Info {mode: Mode::Implied,       cycles: 2}, // *NOP
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,     cycles: 4}, // *IGN
     Info {mode: Mode::AbsoluteX,    cycles: 4},  // ORA
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // ASL
     UNIMPLEMENTED,
@@ -106,15 +108,15 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::IndirectY,    cycles: 5},  // AND
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,     cycles: 4}, // *IGN
     Info {mode: Mode::ZeroPageX,    cycles: 4},  // AND
     Info {mode: Mode::ZeroPageX,    cycles: 6},  // ROL
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,       cycles: 2},  // SEC
     Info {mode: Mode::AbsoluteY,    cycles: 4},  // AND
+    Info {mode: Mode::Implied,       cycles: 2}, // *NOP
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,     cycles: 4}, // *IGN
     Info {mode: Mode::AbsoluteX,    cycles: 4},  // AND
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // ROL
     UNIMPLEMENTED,
@@ -124,14 +126,14 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::IndirectX,    cycles: 6},  // EOR
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPage,     cycles: 3}, // *IGN
     Info {mode: Mode::ZeroPage,     cycles: 3},  // EOR
     Info {mode: Mode::ZeroPage,     cycles: 5},  // LSR
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,       cycles: 3},  // PHA
     Info {mode: Mode::Immediate,    cycles: 2},  // EOR
     Info {mode: Mode::Accumulator,  cycles: 2},  // LSR
-    UNIMPLEMENTED,
+    Info {mode: Mode::Immediate,  cycles: 2},  // *ALR
     Info {mode: Mode::Absolute,     cycles: 3},  // JMP
     Info {mode: Mode::Absolute,     cycles: 4},  // EOR
     Info {mode: Mode::Absolute,     cycles: 6},  // LSR
@@ -142,15 +144,15 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::IndirectY,    cycles: 5},  // EOR
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,     cycles: 4}, // *IGN
     Info {mode: Mode::ZeroPageX,    cycles: 4},  // EOR
     Info {mode: Mode::ZeroPageX,    cycles: 6},  // LSR
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,       cycles: 2},  // CLI
     Info {mode: Mode::AbsoluteY,    cycles: 4},  // EOR
+    Info {mode: Mode::Implied,       cycles: 2}, // *NOP
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,     cycles: 4}, // *IGN
     Info {mode: Mode::AbsoluteX,    cycles: 4},  // EOR
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // LSR
     UNIMPLEMENTED,
@@ -160,7 +162,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::IndirectX,    cycles: 6},  // ADC
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPage,     cycles: 3}, // *IGN
     Info {mode: Mode::ZeroPage,     cycles: 4},  // ADC
     Info {mode: Mode::ZeroPage,    cycles: 6},  // ROR
     UNIMPLEMENTED,
@@ -178,30 +180,30 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::IndirectY,    cycles: 5},  // ADC
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,     cycles: 4}, // *IGN
     Info {mode: Mode::ZeroPageX,    cycles: 4},  // ADC
     Info {mode: Mode::ZeroPageX,    cycles: 6},  // ROR
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,       cycles: 2},  // SEI
     Info {mode: Mode::AbsoluteY,    cycles: 4},  // ADC
+    Info {mode: Mode::Implied,       cycles: 2}, // *NOP
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,     cycles: 4}, // *IGN
     Info {mode: Mode::AbsoluteX,    cycles: 4},  // ADC
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // ROR
     UNIMPLEMENTED,
 
     // 8
-    UNIMPLEMENTED,
+    Info {mode: Mode::Immediate,     cycles: 2}, // *SKB
     Info {mode: Mode::IndirectX,     cycles: 6},  // STA
-    UNIMPLEMENTED,
+    Info {mode: Mode::Immediate,     cycles: 2}, // *SKB
     UNIMPLEMENTED,
     Info {mode: Mode::ZeroPage,      cycles: 3},  // STY
     Info {mode: Mode::ZeroPage,      cycles: 3},  // STA
     Info {mode: Mode::ZeroPage,      cycles: 3},  // STX
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,      cycles: 2},  // DEY
-    UNIMPLEMENTED,
+    Info {mode: Mode::Immediate,     cycles: 2}, // *SKB
     Info {mode: Mode::Implied,      cycles: 2},  // TXA
     UNIMPLEMENTED,
     Info {mode: Mode::Absolute,      cycles: 4},  // STY
@@ -216,7 +218,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     UNIMPLEMENTED,
     Info {mode: Mode::ZeroPageX,     cycles: 4},  // STY
     Info {mode: Mode::ZeroPageX,     cycles: 4},  // STA
-    Info {mode: Mode::ZeroPageX,     cycles: 4},  // STX
+    Info {mode: Mode::ZeroPageY,     cycles: 4},  // STX
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,      cycles: 2},  // TYA
     Info {mode: Mode::AbsoluteY,     cycles: 5},  // STA
@@ -252,7 +254,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     UNIMPLEMENTED,
     Info {mode: Mode::ZeroPageX,    cycles: 4},  // LDY
     Info {mode: Mode::ZeroPageX,    cycles: 4},  // LDA
-    Info {mode: Mode::ZeroPageX,    cycles: 4},  // LDX
+    Info {mode: Mode::ZeroPageY,    cycles: 4},  // LDX
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,       cycles: 2},  // CLV
     Info {mode: Mode::AbsoluteY,    cycles: 4},  // LDA
@@ -260,13 +262,13 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     UNIMPLEMENTED,
     Info {mode: Mode::AbsoluteX,    cycles: 4},  // LDY
     Info {mode: Mode::AbsoluteX,    cycles: 4},  // LDA
-    Info {mode: Mode::AbsoluteX,    cycles: 4},  // LDX
+    Info {mode: Mode::AbsoluteY,    cycles: 4},  // LDX
     UNIMPLEMENTED,
 
     // C
     Info {mode: Mode::Immediate,     cycles: 2},  // CPY
     Info {mode: Mode::IndirectX,     cycles: 6},  // CMP
-    UNIMPLEMENTED,
+    Info {mode: Mode::Immediate,     cycles: 2}, // *SKB
     UNIMPLEMENTED,
     Info {mode: Mode::ZeroPage,      cycles: 3},  // CPY
     Info {mode: Mode::ZeroPage,      cycles: 3},  // CMP
@@ -286,15 +288,15 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::IndirectY,     cycles: 5},  // CMP
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,     cycles: 4}, // *IGN
     Info {mode: Mode::ZeroPageX,     cycles: 4},  // CMP
     Info {mode: Mode::ZeroPageX,    cycles: 6},  // DEC
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,       cycles: 2},  // CLD
     Info {mode: Mode::AbsoluteY,     cycles: 4},  // CMP
+    Info {mode: Mode::Implied,       cycles: 2}, // *NOP
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,     cycles: 4}, // *IGN
     Info {mode: Mode::AbsoluteX,     cycles: 4},  // CMP
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // DEC
     UNIMPLEMENTED,
@@ -302,7 +304,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     // E 
     Info {mode: Mode::Immediate,     cycles: 2},  // CPX
     Info {mode: Mode::IndirectX,    cycles: 6},  // SBC
-    UNIMPLEMENTED,
+    Info {mode: Mode::Immediate,     cycles: 2}, // *SKB
     UNIMPLEMENTED,
     Info {mode: Mode::ZeroPage,      cycles: 3},  // CPX
     Info {mode: Mode::ZeroPage,     cycles: 3},  // SBC
@@ -311,7 +313,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Implied,      cycles: 2},  // INX
     Info {mode: Mode::Immediate,    cycles: 2},  // SBC
     Info {mode: Mode::Implied,       cycles: 2},  // NOP
-    UNIMPLEMENTED,
+    Info {mode: Mode::Immediate,    cycles: 2},  // SBC
     Info {mode: Mode::Absolute,      cycles: 4},  // CPX
     Info {mode: Mode::Absolute,     cycles: 4},  // SBC
     Info {mode: Mode::Absolute,     cycles: 6},  // INC
@@ -322,15 +324,15 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::IndirectY,    cycles: 5},  // SBC
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::ZeroPageX,     cycles: 4}, // *IGN
     Info {mode: Mode::ZeroPageX,    cycles: 4},  // SBC
     Info {mode: Mode::ZeroPageX,    cycles: 6},  // INC
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,       cycles: 2},  // SED
     Info {mode: Mode::AbsoluteY,     cycles: 4},  // SBC
+    Info {mode: Mode::Implied,       cycles: 2}, // *NOP
     UNIMPLEMENTED,
-    UNIMPLEMENTED,
-    UNIMPLEMENTED,
+    Info {mode: Mode::AbsoluteX,     cycles: 4}, // *IGN
     Info {mode: Mode::AbsoluteX,    cycles: 4},  // SBC
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // INC
     UNIMPLEMENTED
