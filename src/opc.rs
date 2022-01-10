@@ -20,7 +20,7 @@
 
 // https://wiki.nesdev.org/w/index.php?title=Programming_with_unofficial_opcodes
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Mode {
     Immediate,
     Accumulator,

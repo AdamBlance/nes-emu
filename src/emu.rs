@@ -301,6 +301,29 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         _ => read_mem(instr_addr, wram, cart),
     };
 
+    /* 
+
+    Instructions with additional page penalties
+
+    All branch instructions have a 1c penalty when taken, 1c penalty if page crossed
+    LAS y-abs
+    LAX y-abs, y-indi
+    LDA x-abs, y-abs, y-indi
+    LDX 
+
+
+    */
+
+    let branch_cycle_penalty: u64 = if instr_info.mode == opc::Mode::Relative {
+        if (cpu.pc >> 8) == (instr_addr >> 8) {
+            1
+        } else {
+            2
+        }
+    } else {
+        0
+    };
+
     let instr_len = match instr_info.mode {
         opc::Mode::Immediate => 2,
         opc::Mode::Accumulator => 1,
@@ -615,35 +638,59 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         },
         // BCC
         0x90 => {
-            if !cpu.p_c {cpu.pc = instr_addr;}
+            if !cpu.p_c {
+                cpu.pc = instr_addr;
+                cpu.cycles += branch_cycle_penalty;
+            }
         },
         // BCS
         0xB0 => {
-            if cpu.p_c {cpu.pc = instr_addr;}
+            if cpu.p_c {
+                cpu.pc = instr_addr;
+                cpu.cycles += branch_cycle_penalty;
+            }
         },
         // BEQ
         0xF0 => {
-            if cpu.p_z {cpu.pc = instr_addr;}
+            if cpu.p_z {
+                cpu.pc = instr_addr;
+                cpu.cycles += branch_cycle_penalty;
+            }
         },
         // BMI
         0x30 => {
-            if cpu.p_n {cpu.pc = instr_addr;}
+            if cpu.p_n {
+                cpu.pc = instr_addr;
+                cpu.cycles += branch_cycle_penalty;
+            }
         },
         // BNE
         0xD0 => {
-            if !cpu.p_z {cpu.pc = instr_addr;}
+            if !cpu.p_z {
+                cpu.pc = instr_addr;
+                cpu.cycles += branch_cycle_penalty;
+            }
         },
         // BPL
         0x10 => {
-            if !cpu.p_n {cpu.pc = instr_addr;}
+            if !cpu.p_n {
+                cpu.pc = instr_addr;
+                cpu.cycles += branch_cycle_penalty;
+            }
         },
         // BVC
         0x50 => {
-            if !cpu.p_v {cpu.pc = instr_addr;}
+            if !cpu.p_v {
+                cpu.pc = instr_addr;
+                cpu.cycles += branch_cycle_penalty;
+            }
         },
         // BVS
         0x70 => {
-            if cpu.p_v {cpu.pc = instr_addr;}
+            if cpu.p_v {
+                cpu.pc = instr_addr;
+                cpu.cycles += branch_cycle_penalty;
+            }
         }
         // CLC 
         0x18 => {
