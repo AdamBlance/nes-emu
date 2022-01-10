@@ -47,6 +47,7 @@ const UNIMPLEMENTED: Info = Info {
 };
 
 pub static INSTRUCTION_INFO: [Info; 256] = [
+    // 0
     Info {mode: Mode::Implied,      cycles: 7},  // BRK
     Info {mode: Mode::IndirectX,    cycles: 6},  // ORA
     UNIMPLEMENTED,
@@ -64,6 +65,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Absolute,     cycles: 6},  // ASL
     UNIMPLEMENTED,
 
+    // 1
     Info {mode: Mode::Relative,     cycles: 2},  // BPL
     Info {mode: Mode::IndirectY,    cycles: 5},  // ORA
     UNIMPLEMENTED,
@@ -81,6 +83,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // ASL
     UNIMPLEMENTED,
 
+    // 2
     Info {mode: Mode::Absolute,     cycles: 6},  // JSR
     Info {mode: Mode::IndirectX,    cycles: 6},  // AND
     UNIMPLEMENTED,
@@ -98,6 +101,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Absolute,     cycles: 6},  // ROL
     UNIMPLEMENTED,
 
+    // 3
     Info {mode: Mode::Relative,     cycles: 2},  // BMI
     Info {mode: Mode::IndirectY,    cycles: 5},  // AND
     UNIMPLEMENTED,
@@ -115,6 +119,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // ROL
     UNIMPLEMENTED,
 
+    // 4
     Info {mode: Mode::Implied,       cycles: 6},  // RTI
     Info {mode: Mode::IndirectX,    cycles: 6},  // EOR
     UNIMPLEMENTED,
@@ -132,6 +137,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Absolute,     cycles: 6},  // LSR
     UNIMPLEMENTED,
 
+    // 5
     Info {mode: Mode::Relative,     cycles: 2},  // BVC
     Info {mode: Mode::IndirectY,    cycles: 5},  // EOR
     UNIMPLEMENTED,
@@ -149,13 +155,14 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // LSR
     UNIMPLEMENTED,
 
+    // 6
     Info {mode: Mode::Implied,       cycles: 6},  // RTS
     Info {mode: Mode::IndirectX,    cycles: 6},  // ADC
     UNIMPLEMENTED,
     UNIMPLEMENTED,
     UNIMPLEMENTED,
-    Info {mode: Mode::ZeroPageX,    cycles: 4},  // ADC
-    Info {mode: Mode::ZeroPageX,    cycles: 6},  // ROR
+    Info {mode: Mode::ZeroPage,     cycles: 4},  // ADC
+    Info {mode: Mode::ZeroPage,    cycles: 6},  // ROR
     UNIMPLEMENTED,
     Info {mode: Mode::Implied,      cycles: 4},  // PLA
     Info {mode: Mode::Immediate,    cycles: 2},  // ADC
@@ -166,6 +173,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Absolute,     cycles: 6},  // ROR
     UNIMPLEMENTED,
 
+    // 7
     Info {mode: Mode::Relative,     cycles: 2},  // BVS
     Info {mode: Mode::IndirectY,    cycles: 5},  // ADC
     UNIMPLEMENTED,
@@ -183,6 +191,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // ROR
     UNIMPLEMENTED,
 
+    // 8
     UNIMPLEMENTED,
     Info {mode: Mode::IndirectX,     cycles: 6},  // STA
     UNIMPLEMENTED,
@@ -200,6 +209,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Absolute,      cycles: 4},  // STX
     UNIMPLEMENTED,
 
+    // 9
     Info {mode: Mode::Relative,     cycles: 2},  // BCC
     Info {mode: Mode::IndirectY,     cycles: 6},  // STA
     UNIMPLEMENTED,
@@ -217,6 +227,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     UNIMPLEMENTED,
     UNIMPLEMENTED,
 
+    // A
     Info {mode: Mode::Immediate,    cycles: 2},  // LDY
     Info {mode: Mode::IndirectX,    cycles: 6},  // LDA
     Info {mode: Mode::Immediate,    cycles: 2},  // LDX
@@ -234,6 +245,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Absolute,     cycles: 4},  // LDX
     UNIMPLEMENTED,
 
+    // B
     Info {mode: Mode::Relative,     cycles: 2},  // BCS
     Info {mode: Mode::IndirectY,    cycles: 5},  // LDA
     UNIMPLEMENTED,
@@ -250,6 +262,8 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::AbsoluteX,    cycles: 4},  // LDA
     Info {mode: Mode::AbsoluteX,    cycles: 4},  // LDX
     UNIMPLEMENTED,
+
+    // C
     Info {mode: Mode::Immediate,     cycles: 2},  // CPY
     Info {mode: Mode::IndirectX,     cycles: 6},  // CMP
     UNIMPLEMENTED,
@@ -266,6 +280,8 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Absolute,      cycles: 4},  // CMP
     Info {mode: Mode::Absolute,     cycles: 6},  // DEC
     UNIMPLEMENTED,
+
+    // D
     Info {mode: Mode::Relative,     cycles: 2},  // BNE
     Info {mode: Mode::IndirectY,     cycles: 5},  // CMP
     UNIMPLEMENTED,
@@ -282,6 +298,8 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::AbsoluteX,     cycles: 4},  // CMP
     Info {mode: Mode::AbsoluteX,    cycles: 7},  // DEC
     UNIMPLEMENTED,
+
+    // E 
     Info {mode: Mode::Immediate,     cycles: 2},  // CPX
     Info {mode: Mode::IndirectX,    cycles: 6},  // SBC
     UNIMPLEMENTED,
@@ -298,6 +316,8 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Absolute,     cycles: 4},  // SBC
     Info {mode: Mode::Absolute,     cycles: 6},  // INC
     UNIMPLEMENTED,
+    
+    // F
     Info {mode: Mode::Relative,     cycles: 2},  // BEQ
     Info {mode: Mode::IndirectY,    cycles: 5},  // SBC
     UNIMPLEMENTED,

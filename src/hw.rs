@@ -36,7 +36,7 @@ pub struct Cpu {
     pub s: u8,
     pub p_n: bool,
     pub p_v: bool,
-    pub p_b: bool,
+    pub p_d: bool,
     pub p_i: bool,
     pub p_z: bool,
     pub p_c: bool,
