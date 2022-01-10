@@ -144,7 +144,7 @@ pub fn emulate(cart: &hw::Cartridge) {
         
         let (opcode, byte2, byte3) = read_three_bytes(cpu.pc, &wram, cart);
         print!(
-            "{:04X?}   {:02X?} {:02X?} {:02X?}    A:{:02X?} X:{:02X?} Y:{:02X?} P:{:02X?} SP:{:02X?} CYC:{}  ", 
+            "{:04X?}   {:02X?} {:02X?} {:02X?}    A:{:02X?} X:{:02X?} Y:{:02X?} P:{:02X?} SP:{:02X?} CYC:{}  $43:{:02X?} $44:{:02X?} ", 
             cpu.pc, 
             opcode, 
             byte2, 
@@ -154,7 +154,9 @@ pub fn emulate(cart: &hw::Cartridge) {
             cpu.y,
             p_to_byte(&cpu),
             cpu.s,
-            cpu.cycles
+            cpu.cycles,
+            wram[0x43],
+            wram[0x44],
         );
 
         if cpu.pc != pc_list[count as usize] {
@@ -283,6 +285,7 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         opc::Mode::IndirectY => {
             let zp_lsb = wram[byte2 as usize];
             let zp_msb = wram[byte2.wrapping_add(1) as usize];
+            // println!("zp_lsb: {}, zp_msb: {}, concat+y: {}", zp_lsb, zp_msb, concat_u8(zp_msb, zp_lsb).wrapping_add(cpu.y as u16));
             concat_u8(zp_msb, zp_lsb).wrapping_add(cpu.y as u16)
         },
         opc::Mode::AbsoluteI => {
@@ -679,8 +682,81 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
             cpu.a &= instr_val;
             cpu.a >>= 1;
         }
+        // LAX
+        0xAB | 0xAF | 0xBF | 0xA7 | 0xB7 | 0xA3 | 0xB3 => {
+            cpu.a = instr_val;
+            cpu.x = instr_val;
+            cpu.p_n = is_neg(cpu.x);
+            cpu.p_z = cpu.x == 0;
+        }
+        // SAX
+        0x83 | 0x87 | 0x8F | 0x97 => {
+            write_mem(instr_addr, cpu.a & cpu.x, wram); 
+        }
+        // DCP
+        0xC3 | 0xC7 | 0xCF | 0xD3 | 0xD7 | 0xDB | 0xDF => {
+            wram[instr_addr as usize] = wram[instr_addr as usize].wrapping_sub(1);
+            cpu.p_z = cpu.a == wram[instr_addr as usize];
+            cpu.p_n = is_neg(cpu.a.wrapping_sub(wram[instr_addr as usize]));
+            cpu.p_c = wram[instr_addr as usize] <= cpu.a;
+        }
+        // ISC
+        0xE3 | 0xE7 | 0xEF | 0xF3 | 0xF7 | 0xFB | 0xFF => {
+            wram[instr_addr as usize] = wram[instr_addr as usize].wrapping_add(1);            
+            let (result, borrow) = cpu.a.borrowing_sub(wram[instr_addr as usize], !cpu.p_c);
+
+            cpu.p_v = was_overflow(cpu.a, (-(wram[instr_addr as usize] as i8) as u8), result);
+            cpu.a = result;
+            cpu.p_n = is_neg(cpu.a);
+            cpu.p_z = cpu.a == 0;
+            cpu.p_c = !borrow;
+        }
+        // SLO
+        0x03 | 0x07 | 0x0F | 0x13 | 0x17 | 0x1B | 0x1F => {
+            cpu.p_c = wram[instr_addr as usize] > 127;
+            wram[instr_addr as usize] <<= 1;
+            cpu.a |= wram[instr_addr as usize];
+            cpu.p_n = is_neg(cpu.a);
+            cpu.p_z = cpu.a == 0;
+        }
+        // RLA
+        0x23 | 0x27 | 0x2F | 0x33 | 0x37 | 0x3B | 0x3F => {
+            let initial_carry = cpu.p_c;
+            cpu.p_c = wram[instr_addr as usize] > 127;
+            wram[instr_addr as usize] <<= 1;
+            wram[instr_addr as usize] |= initial_carry as u8;
+
+            cpu.a &=wram[instr_addr as usize];
+            cpu.p_n = is_neg(cpu.a);
+            cpu.p_z = cpu.a == 0;
+        }
+        // SRE
+        0x43 | 0x47 | 0x4F | 0x53 | 0x57 | 0x5B | 0x5F => {
+            cpu.p_c = (wram[instr_addr as usize] & 0x01) == 1;
+            wram[instr_addr as usize] >>= 1;
+
+            cpu.a ^= wram[instr_addr as usize];
+            cpu.p_n = is_neg(cpu.a);
+            cpu.p_z = cpu.a == 0;
+        }
+        // RRA 
+        0x63 | 0x67 | 0x6F | 0x73 | 0x77 | 0x7B | 0x7F => {
+            let initial_carry = cpu.p_c;
+            cpu.p_c = (wram[instr_addr as usize] & 0x01) == 1;
+            wram[instr_addr as usize] >>= 1;
+            wram[instr_addr as usize] |= (initial_carry as u8) << 7;
+
+            let (result, carry) = cpu.a.carrying_add(wram[instr_addr as usize], cpu.p_c);
+            
+            cpu.p_v = was_overflow(cpu.a, wram[instr_addr as usize], result);
+            cpu.a = result;
+            cpu.p_n = is_neg(cpu.a);
+            cpu.p_z = cpu.a == 0;
+            cpu.p_c = carry;
+
+        }
         _ => println!("Illegal opcodes are not implemented")
-        
+           
     }
 
     // If the instruction wasn't a JMP or something that changes the PC,

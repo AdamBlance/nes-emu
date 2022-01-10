@@ -251,7 +251,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Relative,    cycles: 2},  //  BCS
     Info {mode: Mode::IndirectY,   cycles: 5},  //  LDA
     Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::ZeroPageY,   cycles: 4},  // *LAX
+    Info {mode: Mode::IndirectY,   cycles: 4},  // *LAX
     Info {mode: Mode::ZeroPageX,   cycles: 4},  //  LDY
     Info {mode: Mode::ZeroPageX,   cycles: 4},  //  LDA
     Info {mode: Mode::ZeroPageY,   cycles: 4},  //  LDX
@@ -269,7 +269,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Immediate,   cycles: 2},  //  CPY
     Info {mode: Mode::IndirectX,   cycles: 6},  //  CMP
     Info {mode: Mode::Immediate,   cycles: 2},  // *SKB
-    Info {mode: Mode::ZeroPageX,   cycles: 8},  // *DCP
+    Info {mode: Mode::IndirectX,   cycles: 8},  // *DCP
     Info {mode: Mode::ZeroPage,    cycles: 3},  //  CPY
     Info {mode: Mode::ZeroPage,    cycles: 3},  //  CMP
     Info {mode: Mode::ZeroPage,    cycles: 6},  //  DEC
@@ -331,7 +331,7 @@ pub static INSTRUCTION_INFO: [Info; 256] = [
     Info {mode: Mode::Implied,     cycles: 2},  //  SED
     Info {mode: Mode::AbsoluteY,   cycles: 4},  //  SBC
     Info {mode: Mode::Implied,     cycles: 2},  // *NOP
-    Info {mode: Mode::IndirectY,   cycles: 8},  // *ISC
+    Info {mode: Mode::AbsoluteY,   cycles: 8},  // *ISC
     Info {mode: Mode::AbsoluteY,   cycles: 7},  // *IGN
     Info {mode: Mode::AbsoluteX,   cycles: 4},  //  SBC
     Info {mode: Mode::AbsoluteX,   cycles: 7},  //  INC
