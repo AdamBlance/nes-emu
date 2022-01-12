@@ -14,10 +14,11 @@ use winit::{
 use winit_input_helper::WinitInputHelper;
 
 use std::fs;
-// mod emu;
+mod emu;
 mod hw;
 mod opc;
 mod util;
+mod mem;
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;

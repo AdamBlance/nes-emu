@@ -1,13 +1,15 @@
-use crate::hw;
+use crate::hw::*;
+use crate::mem::*;
 use crate::opc::*;
+use crate::util::*;
 use std::io;
 
-pub fn nes_main_loop(cart: hw::Cartridge) {
+pub fn nes_main_loop(cart: Cartridge) {
 
     // Hardware definition
-    let mut nes = hw::NES {
+    let mut nes = Nes {
         wram: [0; 2048],
-        cpu: hw::Cpu {
+        cpu: Cpu {
             a: 0, 
             x: 0, 
             y: 0, 
@@ -21,7 +23,7 @@ pub fn nes_main_loop(cart: hw::Cartridge) {
             pc: 0,
             cycles: 7, 
         },
-        ppu: hw::Ppu {
+        ppu: Ppu {
             vram: [0; 2048],
             ppu_ctrl: 0,
             ppu_mask: 0,
@@ -128,40 +130,14 @@ pub fn nes_main_loop(cart: hw::Cartridge) {
     0xF6D3, 0xF6D4, 0xF6D5, 0xF6D6, 0xF6D7, 0xFAFF, 0xFB01, 0xFB03, 0xFB05, 0xFB07, 0xFB09, 0xF6DA, 0xF6DC, 0xF6DE, 0xF6E2, 0xF6E3, 0xF6E5, 0xF6E7, 0xFB0A, 0xFB0C, 0xFB0D, 0xFB0F, 0xF6EA, 0xF6EC, 0xF6ED, 0xF6EE, 0xF6EF, 0xF6F0, 0xFB10, 0xFB12, 0xFB14, 0xFB16, 0xFB18, 0xFB1A, 0xF6F3, 0xF6F5, 0xF6F7, 0xF6FB, 0xF6FD, 0xF700, 0xF702, 0xFAE9, 0xFAEB, 0xFAEC, 0xFAEE, 0xF705, 0xF708, 0xF709, 0xF70A, 0xF70B, 0xF70C, 0xF70E, 0xF70F, 0xF710, 0xFAEF, 0xFAF1, 0xFAF3, 0xFAF5, 0xFAF7, 0xFAF9, 0xF713, 0xF716, 0xF718, 0xF71C, 0xF71E, 0xF720, 0xF723, 0xFAFA, 0xFAFB, 0xFAFC, 0xFAFE, 0xF726, 0xF729, 0xF72A, 0xF72B, 0xF72C, 0xF72D, 0xF72F, 0xF730, 0xF731, 0xFAFF, 0xFB01, 0xFB03, 0xFB05, 0xFB07, 0xFB09, 0xF734, 0xF737, 0xF739, 0xF73D, 0xF73F, 0xF741, 0xF744, 0xFB0A, 0xFB0C, 0xFB0D, 0xFB0F, 0xF747, 0xF74A, 0xF74B, 0xF74C, 0xF74D, 0xF74E, 0xF750, 0xF751, 0xF752, 0xFB10, 0xFB12, 0xFB14, 
     0xFB16, 0xFB18, 0xFB1A, 0xF755, 0xF758, 0xF75A, 0xF75E, 0xF760, 0xF762, 0xF764, 0xF767, 0xFAE9, 0xFAEB, 0xFAEC, 0xFAEE, 0xF76A, 0xF76D, 0xF76E, 0xF76F, 0xF770, 0xF771, 0xFAEF, 0xFAF1, 0xFAF3, 0xFAF5, 0xFAF7, 0xFAF9, 0xF774, 0xF777, 0xF779, 0xF77D, 0xF77E, 0xF780, 0xF783, 0xFAFA, 0xFAFB, 0xFAFC, 0xFAFE, 0xF786, 0xF789, 0xF78A, 0xF78B, 0xF78C, 0xF78D, 0xFAFF, 0xFB01, 0xFB03, 0xFB05, 0xFB07, 0xFB09, 0xF790, 0xF793, 0xF795, 0xF799, 0xF79A, 0xF79C, 0xF79F, 0xFB0A, 0xFB0C, 0xFB0D, 0xFB0F, 0xF7A2, 0xF7A5, 0xF7A6, 0xF7A7, 0xF7A8, 0xF7A9, 0xFB10, 0xFB12, 0xFB14, 0xFB16, 0xFB18, 0xFB1A, 0xF7AC, 0xF7AF, 0xF7B1, 0xF7B5, 0xC655, 0xC657, 0xC659, 0xC65B, 0xC66B, 0xC689, 0xC68B, 0xC68E, 0xC690, 0xC693, 0xC695, 0xC698, 0xC69A, 0xC69D, 0xC69F, 0xC6A2, 0xC66E];
 
-    let mut count = 0;
 
     loop {
-        
-        let (opcode, byte2, byte3) = read_three_bytes(cpu.pc, &wram, cart);
-        print!(
-            "{:04X?}   {:02X?} {:02X?} {:02X?}    A:{:02X?} X:{:02X?} Y:{:02X?} P:{:02X?} SP:{:02X?} CYC:{}  $43:{:02X?} $44:{:02X?} ", 
-            cpu.pc, 
-            opcode, 
-            byte2, 
-            byte3,
-            cpu.a,
-            cpu.x,
-            cpu.y,
-            p_to_byte(&cpu),
-            cpu.s,
-            cpu.cycles,
-            wram[0x43],
-            wram[0x44],
-        );
-
-        if cpu.pc != pc_list[count as usize] {
-            panic!("Error! {:04X?}, {:04X?}", cpu.pc, pc_list[count as usize]);
-        }
-        if cpu.pc == 0xC66E && count == 8990 {
-            panic!("You did it!")
-        }
-        count += 1;
-        next(opcode, byte2, byte3, &mut cpu, &mut wram, cart);
+        next(&mut nes);
     }
 
 }
 
-fn byte_to_p(byte: u8, nes: &mut hw::Nes) {
+fn byte_to_p(byte: u8, nes: &mut Nes) {
     nes.cpu.p_n = get_bit(byte, 7);
     nes.cpu.p_v = get_bit(byte, 6);
     nes.cpu.p_d = get_bit(byte, 3);
@@ -169,7 +145,7 @@ fn byte_to_p(byte: u8, nes: &mut hw::Nes) {
     nes.cpu.p_z = get_bit(byte, 1);
     nes.cpu.p_c = get_bit(byte, 0);
 }
-fn p_to_byte(nes: &hw::Nes) -> u8 {
+fn p_to_byte(nes: &Nes) -> u8 {
     (if nes.cpu.p_n {0b1000_0000} else {0}) | 
     (if nes.cpu.p_v {0b0100_0000} else {0}) | 
                      0b0010_0000            |
@@ -178,172 +154,166 @@ fn p_to_byte(nes: &hw::Nes) -> u8 {
     (if nes.cpu.p_z {0b0000_0010} else {0}) | 
     (if nes.cpu.p_c {0b0000_0001} else {0})
 }
-fn stack_push(val: u8, nes: &mut hw::Nes) {
-    wram[0x0100 + (cpu.s as usize)] = val;
-    cpu.s = cpu.s.wrapping_sub(1);
+fn stack_push(val: u8, nes: &mut Nes) {
+    nes.wram[0x0100 + (nes.cpu.s as usize)] = val;
+    nes.cpu.s = nes.cpu.s.wrapping_sub(1);
 }
-fn stack_pop(nes: &mut hw::Nes) -> u8 {
-    cpu.s = cpu.s.wrapping_add(1);
-    wram[0x0100 + (cpu.s as usize)]
+fn stack_pop(nes: &mut Nes) -> u8 {
+    nes.cpu.s = nes.cpu.s.wrapping_add(1);
+    nes.wram[0x0100 + (nes.cpu.s as usize)]
 }
-fn stack_push_u16(val: u16, nes: &mut hw::Nes) {
+fn stack_push_u16(val: u16, nes: &mut Nes) {
     stack_push((val >> 8)     as u8, nes);
     stack_push((val & 0x00FF) as u8, nes);
 }
-fn stack_pop_u16(nes: &mut hw::Nes) -> u16 {
+fn stack_pop_u16(nes: &mut Nes) -> u16 {
     let lsb = stack_pop(nes);
     let msb = stack_pop(nes);
     concat_u8(msb, lsb)
 }
-fn update_p_nz(val: u8, nes: &mut hw::Nes) {
+fn update_p_nz(val: u8, nes: &mut Nes) {
     nes.cpu.p_n = val > 0x7F;
     nes.cpu.p_z = val == 0;
 }
-fn shift_left(val: u8, rotate: bool, nes: &mut hw::Nes) -> u8 {
-    let prev_carry = cpu.p_c;
-    cpu.p_c = get_bit(cpu.a, 7);
-    (cpu.a << 1) |= ((prev_carry && rotate) as u8)
+fn shift_left(val: u8, rotate: bool, nes: &mut Nes) -> u8 {
+    let prev_carry = nes.cpu.p_c;
+    nes.cpu.p_c = get_bit(nes.cpu.a, 7);
+    (nes.cpu.a << 1) | ((prev_carry && rotate) as u8)
 }
-fn shift_right(val: u8, rotate: bool, nes: &mut hw::Nes) -> u8 {
-    let prev_carry = cpu.p_c;
-    cpu.p_c = get_bit(cpu.a, 0);
-    (cpu.a >> 1) |= (((prev_carry && rotate) as u8) << 7)
+fn shift_right(val: u8, rotate: bool, nes: &mut Nes) -> u8 {
+    let prev_carry = nes.cpu.p_c;
+    nes.cpu.p_c = get_bit(nes.cpu.a, 0);
+    (nes.cpu.a >> 1) | (((prev_carry && rotate) as u8) << 7)
 }
-fn add_with_carry(val: u8, nes: &mut hw::Nes) {
-    let (result, carry) = cpu.a.carrying_add(val, cpu.p_c);
-    cpu.p_v = was_overflow(cpu.a, val, result);
-    cpu.p_c = carry;
-    cpu.a = result;  
-    update_p_nz(cpu.a, nes);
+fn add_with_carry(val: u8, nes: &mut Nes) {
+    let (result, carry) = nes.cpu.a.carrying_add(val, nes.cpu.p_c);
+    nes.cpu.p_v = was_signed_overflow(nes.cpu.a, val, result);
+    nes.cpu.p_c = carry;
+    nes.cpu.a = result;  
+    update_p_nz(nes.cpu.a, nes);
 }
 
-fn get_instr_addr(addressing_mode: Mode, byte2: u8, byte3: u8, pc: u16) -> u16 {
-    match instr_info.mode {
-        Mode::Absolute  => concat_u8(byte3, byte2),
-        Mode::AbsoluteX => concat_u8(byte3, byte2).wrapping_add(cpu.x as u16),
-        Mode::AbsoluteY => concat_u8(byte3, byte2).wrapping_add(cpu.y as u16),
-        Mode::ZeroPage  => byte2 as u16,
-        Mode::ZeroPageX => byte2.wrapping_add(cpu.x) as u16,
-        Mode::ZeroPageY => byte2.wrapping_add(cpu.y) as u16,
-        Mode::IndirectX => read_mem_u16(byte2.wrapping_add(cpu.x)),
-        Mode::IndirectY => read_mem_u16(byte2).wrapping_add(cpu.y as u16),
-        Mode::AbsoluteI => {
+fn get_instr_addr(addressing_mode: Mode, byte2: u8, byte3: u8, nes: &Nes) -> u16 {
+    match addressing_mode {
+        Mode::Abs  => concat_u8(byte3, byte2),
+        Mode::AbsX => concat_u8(byte3, byte2).wrapping_add(nes.cpu.x as u16),
+        Mode::AbsY => concat_u8(byte3, byte2).wrapping_add(nes.cpu.y as u16),
+        Mode::Zpg  => byte2 as u16,
+        Mode::ZpgX => byte2.wrapping_add(nes.cpu.x) as u16,
+        Mode::ZpgY => byte2.wrapping_add(nes.cpu.y) as u16,
+        Mode::IndX => read_mem_u16(byte2.wrapping_add(nes.cpu.x) as u16, nes),
+        Mode::IndY => read_mem_u16(byte2 as u16, nes).wrapping_add(nes.cpu.y as u16),
+        Mode::AbsI => {
             // MSB not incremented when indirect address sits on page boundary
             let lsb = read_mem(concat_u8(byte3, byte2), nes);
             let msb = read_mem(concat_u8(byte3, byte2.wrapping_add(1)), nes);
             concat_u8(msb, lsb)
         },
-        Mode::Relative  => {
+        Mode::Rel  => {
             // u8 -> i8 uses bit 7 as sign, i8 -> i16 sign extends
             let signed_offset = (byte2 as i8) as i16;
-            cpu.pc.wrapping_add_signed(signed_offset).wrapping_add(2)
+            nes.cpu.pc.wrapping_add_signed(signed_offset).wrapping_add(2)
         },
         _ => 0,
-    };
+    }
 }
 
 
-fn next(nes: &mut hw::Nes) {
+fn next(nes: &mut Nes) {
 
-    let opcode = read_mem(nes.cpu.pc);
-    let instr_info = opc::INSTRUCTION_INFO[opcode as usize];
+    let opcode = read_mem(nes.cpu.pc, nes);
+    let instr_info = INSTRUCTION_INFO[opcode as usize];
 
     // Gets the relevant address referenced by the instruction, if any
     let byte2 = read_mem(nes.cpu.pc.wrapping_add(1), nes);
     let byte3 = read_mem(nes.cpu.pc.wrapping_add(2), nes);
-    let instr_addr = get_instr_addr(instr_info.mode, byte2, byte3, nes.cpu.pc);
+    let instr_addr = get_instr_addr(instr_info.mode, byte2, byte3, nes);
 
     // Gets the immediate value, or value located at instr_addr
     let instr_val = match instr_info.mode {
-        Mode::Immediate => byte2,
+        Mode::Imm => byte2,
         _ => read_mem(instr_addr, nes),
     };
 
-    let prev_pc = cpu.pc;
+    let prev_pc = nes.cpu.pc;
 
-    exec_instruction(instr_addr, instr_val, nes);
+    exec_instruction(opcode, instr_addr, instr_val, nes);
     
-    cpu.cycles += instr_info.cycles as u64;
+    nes.cpu.cycles += instr_info.cycles as u64;
 
     // If branch was taken (if pc has changed)...
-    if cpu.pc != prev_pc {
+    if nes.cpu.pc != prev_pc {
         // If 256B page was crossed
-        if (prev_pc >> 8) != (cpu.pc >> 8) {
-            cpu.cycles += 2;
+        if (prev_pc >> 8) != (nes.cpu.pc >> 8) {
+            nes.cpu.cycles += 2;
         } else {
-            cpu.cycles += 1;
+            nes.cpu.cycles += 1;
         }
     }
 
-    // If the instruction wasn't a JMP or something that changes the PC,
-    // move the PC to the next instruction.
-    if prev_pc == cpu.pc {
-        cpu.pc = cpu.pc.wrapping_add(instr_len);
-    }
-    
 }
 
-fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
+fn exec_instruction(opcode: u8, instr_addr: u16, instr_val: u8, nes: &mut Nes) {
     match opcode {
         // LDA
         0xAD | 0xBD | 0xA9 | 0xB9 | 0xA1 | 0xB1 | 0xA5 | 0xB5 => {
-            cpu.a = instr_val;
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a = instr_val;
+            update_p_nz(nes.cpu.a, nes);
         },
         // LDX
         0xAE | 0xBE | 0xA2 | 0xA6 | 0xB6 => {
-            cpu.x = instr_val;
-            update_p_nz(cpu.x, nes);
+            nes.cpu.x = instr_val;
+            update_p_nz(nes.cpu.x, nes);
         },
         // LDY
         0xAC | 0xBC | 0xA0 | 0xA4 | 0xB4 => {
-            cpu.y = instr_val;
-            update_p_nz(cpu.y, nes);
+            nes.cpu.y = instr_val;
+            update_p_nz(nes.cpu.y, nes);
         },
         // STA
         0x8D | 0x9D | 0x99 | 0x81 | 0x91 | 0x85 | 0x95 => {
-            write_mem(instr_addr, cpu.a, wram);
+            write_mem(instr_addr, nes.cpu.a, nes);
         },        
         // STX
         0x8E | 0x86 | 0x96 => {
-            write_mem(instr_addr, cpu.x, wram);
+            write_mem(instr_addr, nes.cpu.x, nes);
         },        
         // STY
         0x8C | 0x84 | 0x94 => {
-            write_mem(instr_addr, cpu.y, wram);
+            write_mem(instr_addr, nes.cpu.y, nes);
         },
         // TAX
         0xAA => {
-            cpu.x = cpu.a;
-            update_p_nz(cpu.x, nes);
+            nes.cpu.x = nes.cpu.a;
+            update_p_nz(nes.cpu.x, nes);
         },
         // TAY
         0xA8 => {
-            cpu.y = cpu.a;
-            update_p_nz(cpu.y, nes);
+            nes.cpu.y = nes.cpu.a;
+            update_p_nz(nes.cpu.y, nes);
         },
         // TSX
         0xBA => {
-            cpu.x = cpu.s;
-            update_p_nz(cpu.x, nes);
+            nes.cpu.x = nes.cpu.s;
+            update_p_nz(nes.cpu.x, nes);
         },
         // TXA
         0x8A => {
-            cpu.a = cpu.x;
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a = nes.cpu.x;
+            update_p_nz(nes.cpu.a, nes);
         },
         // TXS
         0x9A => {
-            cpu.s = cpu.x;
+            nes.cpu.s = nes.cpu.x;
         },
         // TYA
         0x98 => {
-            cpu.a = cpu.y;
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a = nes.cpu.y;
+            update_p_nz(nes.cpu.a, nes);
         },
         // PHA
         0x48 => {
-            stack_push(cpu.a, nes);
+            stack_push(nes.cpu.a, nes);
         },
         // PHP
         0x08 => {
@@ -351,8 +321,8 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
         },
         // PLA
         0x68 => {
-            cpu.a = stack_pop(nes);
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a = stack_pop(nes);
+            update_p_nz(nes.cpu.a, nes);
         },
         // PLP
         0x28 => {
@@ -361,8 +331,8 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
         },
         // ASL (ACC)
         0x0A => {
-            cpu.a = shift_left(cpu.a, false, nes);
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a = shift_left(nes.cpu.a, false, nes);
+            update_p_nz(nes.cpu.a, nes);
         },
         // ASL (RMW)
         0x0E | 0x1E | 0x06 | 0x16 => {
@@ -372,8 +342,8 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
         },
         // LSR (ACC)
         0x4A => {
-            cpu.a = shift_right(cpu.a, false, nes);
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a = shift_right(nes.cpu.a, false, nes);
+            update_p_nz(nes.cpu.a, nes);
         },
         // LSR (RMW)
         0x4E | 0x5E | 0x46 | 0x56 => {
@@ -383,8 +353,8 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
         },
         // ROL (ACC)
         0x2A => {
-            cpu.a = shift_left(cpu.a, true, nes);
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a = shift_left(nes.cpu.a, true, nes);
+            update_p_nz(nes.cpu.a, nes);
         },
         // ROL (RMW)
         0x2E | 0x3E | 0x26 | 0x36 => {
@@ -394,8 +364,8 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
         },
         // ROR (ACC)
         0x6A => {
-            cpu.a = shift_right(cpu.a, true, nes);
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a = shift_right(nes.cpu.a, true, nes);
+            update_p_nz(nes.cpu.a, nes);
         },
         // ROR (RMW)
         0x6E | 0x7E | 0x66 | 0x76 => {
@@ -405,24 +375,24 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
         },
         // AND
         0x2D | 0x3D | 0x39 | 0x29 | 0x21 | 0x31 | 0x25 | 0x35 =>  {
-            cpu.a &= instr_val;
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a &= instr_val;
+            update_p_nz(nes.cpu.a, nes);
         },
         // BIT
         0x2C | 0x24 => {
-            cpu.p_n = get_bit(instr_val, 7);
-            cpu.p_v = get_bit(instr_val, 6);
-            cpu.p_z = (cpu.a & instr_val) == 0;
+            nes.cpu.p_n = get_bit(instr_val, 7);
+            nes.cpu.p_v = get_bit(instr_val, 6);
+            nes.cpu.p_z = (nes.cpu.a & instr_val) == 0;
         },
         // EOR
         0x4D | 0x5D | 0x59 | 0x49 | 0x41 | 0x51 | 0x45 | 0x55 => { 
-            cpu.a ^= instr_val;
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a ^= instr_val;
+            update_p_nz(nes.cpu.a, nes);
         },
         // ORA
         0x0D | 0x1D | 0x19 | 0x09 | 0x01 | 0x11 | 0x05 | 0x15 => {
-            cpu.a |= instr_val;
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a |= instr_val;
+            update_p_nz(nes.cpu.a, nes);
         },
         // ADC
         0x6D | 0x7D | 0x79 | 0x69 | 0x61 | 0x71 | 0x65 | 0x75 => {
@@ -430,18 +400,18 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
         },
         // CMP
         0xCD | 0xDD | 0xD9 | 0xC9 | 0xC1 | 0xD1 | 0xC5 | 0xD5 => {
-            cpu.p_c = instr_val <= cpu.a;
-            update_p_nz(cpu.a.wrapping_sub(instr_val), nes);
+            nes.cpu.p_c = instr_val <= nes.cpu.a;
+            update_p_nz(nes.cpu.a.wrapping_sub(instr_val), nes);
         },
         // CPX
         0xEC | 0xE0 | 0xE4 => {
-            cpu.p_c = instr_val <= cpu.x;
-            update_p_nz(cpu.x.wrapping_sub(instr_val), nes);
+            nes.cpu.p_c = instr_val <= nes.cpu.x;
+            update_p_nz(nes.cpu.x.wrapping_sub(instr_val), nes);
         },
         // CPY
         0xCC | 0xC0 | 0xC4 => {
-            cpu.p_c = instr_val <= cpu.y;
-            update_p_nz(cpu.y.wrapping_sub(instr_val), nes);
+            nes.cpu.p_c = instr_val <= nes.cpu.y;
+            update_p_nz(nes.cpu.y.wrapping_sub(instr_val), nes);
         },
         // SBC
         0xED | 0xFD | 0xF9 | 0xE9 | 0xE1 | 0xF1 | 0xE5 | 0xF5 | 0xEB => {
@@ -455,13 +425,13 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
         },
         // DEX
         0xCA => {
-            cpu.x = cpu.x.wrapping_sub(1);
-            update_p_nz(cpu.x, nes);
+            nes.cpu.x = nes.cpu.x.wrapping_sub(1);
+            update_p_nz(nes.cpu.x, nes);
         },
         // DEY
         0x88 => {
-            cpu.y = cpu.y.wrapping_sub(1);
-            update_p_nz(cpu.y, nes);
+            nes.cpu.y = nes.cpu.y.wrapping_sub(1);
+            update_p_nz(nes.cpu.y, nes);
         },
         // INC
         0xEE | 0xFE | 0xE6 | 0xF6 => {
@@ -471,69 +441,69 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
         },
         // INX
         0xE8 => {
-            cpu.x = cpu.x.wrapping_add(1);
-            update_p_nz(cpu.x, nes);
+            nes.cpu.x = nes.cpu.x.wrapping_add(1);
+            update_p_nz(nes.cpu.x, nes);
         },
         // INY
         0xC8 => {
-            cpu.y = cpu.y.wrapping_add(1);
-            update_p_nz(cpu.y, nes);
+            nes.cpu.y = nes.cpu.y.wrapping_add(1);
+            update_p_nz(nes.cpu.y, nes);
         },
         // BRK
         0x00 => {
-            stack_push_u16(cpu.pc, nes);
+            stack_push_u16(nes.cpu.pc, nes);
             stack_push(p_to_byte(nes) | 0b0001_0000, nes);
-            cpu.pc = read_mem_u16(0xFFFE, nes);
+            nes.cpu.pc = read_mem_u16(0xFFFE, nes);
         },
         // JMP 
         0x4C | 0x6C => {
-            cpu.pc = instr_addr;
+            nes.cpu.pc = instr_addr;
         }
         // JSR
         0x20 => {
-            stack_push_u16(cpu.pc.wrapping_add(2), nes);
-            cpu.pc = instr_addr;
+            stack_push_u16(nes.cpu.pc.wrapping_add(2), nes);
+            nes.cpu.pc = instr_addr;
         },
         // RTI
         0x40 => {
-            let p_reg = stack_pop(cpu, wram);
+            let p_reg = stack_pop(nes);
             byte_to_p(p_reg, nes);
-            cpu.pc = stack_pop_u16(nes);
+            nes.cpu.pc = stack_pop_u16(nes);
         },
         // RTS 
-        0x60 => cpu.pc = {
-            cpu.pc = stack_pop_u16(nes).wrapping_add(1);
+        0x60 => {
+            nes.cpu.pc = stack_pop_u16(nes).wrapping_add(1);
         },
         // BCC
-        0x90 => if !cpu.p_c {cpu.pc = instr_val},
+        0x90 => if !nes.cpu.p_c {nes.cpu.pc = instr_addr},
         // BCS
-        0xB0 => if cpu.p_c  {cpu.pc = instr_val},
+        0xB0 => if nes.cpu.p_c  {nes.cpu.pc = instr_addr},
         // BVC
-        0x50 => if !cpu.p_v {cpu.pc = instr_val},
+        0x50 => if !nes.cpu.p_v {nes.cpu.pc = instr_addr},
         // BVS
-        0x70 => if cpu.p_v  {cpu.pc = instr_val},
+        0x70 => if nes.cpu.p_v  {nes.cpu.pc = instr_addr},
         // BEQ
-        0xF0 => if cpu.p_z  {cpu.pc = instr_val},
+        0xF0 => if nes.cpu.p_z  {nes.cpu.pc = instr_addr},
         // BNE
-        0xD0 => if !cpu.p_z {cpu.pc = instr_val},
+        0xD0 => if !nes.cpu.p_z {nes.cpu.pc = instr_addr},
         // BMI
-        0x30 => if cpu.p_n  {cpu.pc = instr_val},
+        0x30 => if nes.cpu.p_n  {nes.cpu.pc = instr_addr},
         // BPL
-        0x10 => if !cpu.p_n {cpu.pc = instr_val},
+        0x10 => if !nes.cpu.p_n {nes.cpu.pc = instr_addr},
         // CLC 
-        0x18 => cpu.p_c = false,
+        0x18 => nes.cpu.p_c = false,
         // CLD
-        0xD8 => cpu.p_d = false,
+        0xD8 => nes.cpu.p_d = false,
         // CLI 
-        0x58 => cpu.p_i = false,
+        0x58 => nes.cpu.p_i = false,
         // CLV 
-        0xB8 => cpu.p_v = false,
+        0xB8 => nes.cpu.p_v = false,
         // SEC
-        0x38 => cpu.p_c = true,
+        0x38 => nes.cpu.p_c = true,
         // SED
-        0xF8 => cpu.p_d = true,
+        0xF8 => nes.cpu.p_d = true,
         // SEI
-        0x78 => cpu.p_i = true,
+        0x78 => nes.cpu.p_i = true,
         // NOP
         0xEA => {}
         
@@ -541,21 +511,21 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
 
         // LAS
         0xBB => {
-            let new_val = cpu.s & instr_val;
-            cpu.a = new_val;
-            cpu.x = new_val;
-            cpu.s = new_val;
-            update_p_nz(cpu.a, nes);
+            let new_val = nes.cpu.s & instr_val;
+            nes.cpu.a = new_val;
+            nes.cpu.x = new_val;
+            nes.cpu.s = new_val;
+            update_p_nz(nes.cpu.a, nes);
         }
         // LAX
         0xAB | 0xAF | 0xBF | 0xA7 | 0xB7 | 0xA3 | 0xB3 => {
-            cpu.a = instr_val;
-            cpu.x = instr_val;
-            update_p_nz(cpu.a, nes);
+            nes.cpu.a = instr_val;
+            nes.cpu.x = instr_val;
+            update_p_nz(nes.cpu.a, nes);
         }
         // SAX
         0x83 | 0x87 | 0x8F | 0x97 => {
-            write_mem(instr_addr, cpu.a & cpu.x, nes); 
+            write_mem(instr_addr, nes.cpu.a & nes.cpu.x, nes); 
         }
         // SHA (AbsY)
         0x9F => {}
@@ -573,61 +543,61 @@ fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
         0x6B => {}
         // ASR
         0x4B => {
-            cpu.p_c = (input & 0x01) == 1;
-            (cpu.a & input) >> 1   
+            nes.cpu.p_c = (instr_val & 0x01) == 1;
+            (nes.cpu.a & instr_val) >> 1;
         }
         // DCP
         0xC3 | 0xC7 | 0xCF | 0xD3 | 0xD7 | 0xDB | 0xDF => {
-            wram[instr_addr as usize] = wram[instr_addr as usize].wrapping_sub(1);
-            cpu.p_z = cpu.a == wram[instr_addr as usize];
-            cpu.p_n = is_neg(cpu.a.wrapping_sub(wram[instr_addr as usize]));
-            cpu.p_c = wram[instr_addr as usize] <= cpu.a;
+            nes.wram[instr_addr as usize] = nes.wram[instr_addr as usize].wrapping_sub(1);
+            nes.cpu.p_z = nes.cpu.a == nes.wram[instr_addr as usize];
+            nes.cpu.p_n = is_neg(nes.cpu.a.wrapping_sub(nes.wram[instr_addr as usize]));
+            nes.cpu.p_c = nes.wram[instr_addr as usize] <= nes.cpu.a;
         }
         // ISC
         0xE3 | 0xE7 | 0xEF | 0xF3 | 0xF7 | 0xFB | 0xFF => {
-            wram[instr_addr as usize] = wram[instr_addr as usize].wrapping_add(1);            
-            let (result, borrow) = cpu.a.borrowing_sub(wram[instr_addr as usize], !cpu.p_c);
+            nes.wram[instr_addr as usize] = nes.wram[instr_addr as usize].wrapping_add(1);            
+            let (result, borrow) = nes.cpu.a.borrowing_sub(nes.wram[instr_addr as usize], !nes.cpu.p_c);
 
-            cpu.p_v = was_overflow(cpu.a, (-(wram[instr_addr as usize] as i8) as u8), result);
-            cpu.a = result;
-            cpu.p_c = !borrow;
+            nes.cpu.p_v = was_signed_overflow(nes.cpu.a, (-(nes.wram[instr_addr as usize] as i8) as u8), result);
+            nes.cpu.a = result;
+            nes.cpu.p_c = !borrow;
         }
         // RLA
         0x23 | 0x27 | 0x2F | 0x33 | 0x37 | 0x3B | 0x3F => {
-            let initial_carry = cpu.p_c;
-            cpu.p_c = wram[instr_addr as usize] > 127;
-            wram[instr_addr as usize] <<= 1;
-            wram[instr_addr as usize] |= initial_carry as u8;
+            let initial_carry = nes.cpu.p_c;
+            nes.cpu.p_c = nes.wram[instr_addr as usize] > 127;
+            nes.wram[instr_addr as usize] <<= 1;
+            nes.wram[instr_addr as usize] |= initial_carry as u8;
 
-            cpu.a &=wram[instr_addr as usize];
+            nes.cpu.a &=nes.wram[instr_addr as usize];
         }
         // RRA 
         0x63 | 0x67 | 0x6F | 0x73 | 0x77 | 0x7B | 0x7F => {
-            let initial_carry = cpu.p_c;
-            cpu.p_c = (wram[instr_addr as usize] & 0x01) == 1;
-            wram[instr_addr as usize] >>= 1;
-            wram[instr_addr as usize] |= (initial_carry as u8) << 7;
+            let initial_carry = nes.cpu.p_c;
+            nes.cpu.p_c = (nes.wram[instr_addr as usize] & 0x01) == 1;
+            nes.wram[instr_addr as usize] >>= 1;
+            nes.wram[instr_addr as usize] |= (initial_carry as u8) << 7;
 
-            let (result, carry) = cpu.a.carrying_add(wram[instr_addr as usize], cpu.p_c);
+            let (result, carry) = nes.cpu.a.carrying_add(nes.wram[instr_addr as usize], nes.cpu.p_c);
             
-            cpu.p_v = was_overflow(cpu.a, wram[instr_addr as usize], result);
-            cpu.a = result;
-            cpu.p_c = carry;
+            nes.cpu.p_v = was_signed_overflow(nes.cpu.a, nes.wram[instr_addr as usize], result);
+            nes.cpu.a = result;
+            nes.cpu.p_c = carry;
         }
         // SBX
         0xCB => {}
         // SLO
         0x03 | 0x07 | 0x0F | 0x13 | 0x17 | 0x1B | 0x1F => {
-            cpu.p_c = wram[instr_addr as usize] > 127;
-            wram[instr_addr as usize] <<= 1;
-            cpu.a |= wram[instr_addr as usize];
+            nes.cpu.p_c = nes.wram[instr_addr as usize] > 127;
+            nes.wram[instr_addr as usize] <<= 1;
+            nes.cpu.a |= nes.wram[instr_addr as usize];
         }
         // SRE
         0x43 | 0x47 | 0x4F | 0x53 | 0x57 | 0x5B | 0x5F => {
-            cpu.p_c = (wram[instr_addr as usize] & 0x01) == 1;
-            wram[instr_addr as usize] >>= 1;
+            nes.cpu.p_c = (nes.wram[instr_addr as usize] & 0x01) == 1;
+            nes.wram[instr_addr as usize] >>= 1;
 
-            cpu.a ^= wram[instr_addr as usize];
+            nes.cpu.a ^= nes.wram[instr_addr as usize];
         }
         // XAA
         0x8B => {}
