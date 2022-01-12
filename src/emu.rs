@@ -1,56 +1,47 @@
 use crate::hw;
-use crate::opc;
+use crate::opc::*;
 use std::io;
 
-pub fn emulate(cart: &hw::Cartridge) {
-    
-    // Create and init hardware
+pub fn nes_main_loop(cart: hw::Cartridge) {
 
-    let mut wram: [u8; 2048] = [0; 2048];
-
-    let mut vram: [u8; 2048] = [0; 2048];
-
-    // let test = concat_u8(read_mem(0xFFFD, &wram, cart), read_mem(0xFFFC, &wram, cart));
-
-    
-
-    let mut cpu = hw::Cpu {
-        a: 0, 
-        x: 0, 
-        y: 0, 
-        s: 0xFD, 
-        p_n: false,
-        p_v: false,
-        p_d: false,
-        p_i: true,
-        p_z: false,
-        p_c: false,
-        pc: 0xC000,
-        cycles: 7, 
-    };
-
-    let mut ppu = hw::Ppu {
-        ppuctrl: 0,
-        ppumask: 0,
-        ppustatus: 0,
-        oamaddr: 0,
-        ppuscroll: 0,
-        ppuaddr: 0,
-        ppudata: 0,
-        oamdata: 0,
-        oamdma: 0,
-
-        t: 0,
-        v: 0,
-        x: 0,
-        w: false,
-    
-        palette_mem: [0; 32],
-        oam: [0; 256],
-
-        odd_frame: false,
-
-        cycles: 0,
+    // Hardware definition
+    let mut nes = hw::NES {
+        wram: [0; 2048],
+        cpu: hw::Cpu {
+            a: 0, 
+            x: 0, 
+            y: 0, 
+            s: 0xFD, 
+            p_n: false,
+            p_v: false,
+            p_d: false,
+            p_i: true,
+            p_z: false,
+            p_c: false,
+            pc: 0,
+            cycles: 7, 
+        },
+        ppu: hw::Ppu {
+            vram: [0; 2048],
+            ppu_ctrl: 0,
+            ppu_mask: 0,
+            ppu_status: 0,
+            oam_addr: 0,
+            ppu_scroll: 0,
+            ppu_addr: 0,
+            ppu_data: 0,
+            oam_data: 0,
+            oam_dma: 0,
+            t: 0,
+            v: 0,
+            x: 0,
+            w: false,
+            palette_mem: [0; 32],
+            oam: [0; 256],
+            odd_frame: false,
+            cycles: 0,
+        },
+        cart: cart,
     };
 
     let pc_list: [u16; 8991] = [0xC000, 0xC5F5, 0xC5F7, 0xC5F9, 0xC5FB, 0xC5FD, 0xC72D, 0xC72E, 0xC72F, 0xC735, 0xC736, 0xC737, 0xC739, 0xC740, 0xC741, 0xC742, 0xC744, 0xC74B, 0xC74C, 0xC74D, 0xC753, 0xC754, 0xC756, 0xC75C, 0xC75D, 0xC75F, 0xC761, 0xC768, 0xC769, 0xC76B, 0xC771, 0xC772, 0xC774, 0xC776, 0xC77D, 0xC77E, 0xC780, 0xC782, 0xC784, 0xC78A, 0xC78B, 0xC78D, 0xC78F, 0xC796, 0xC797, 0xC799, 0xC79B, 0xC79D, 0xC7A3, 0xC7A4, 0xC7A6, 0xC7A8, 0xC7AF, 0xC7B0, 0xC7B2, 0xC7B8, 0xC7B9, 0xC7BB, 0xC7BD, 0xC7D9, 0xC7DA, 0xC600, 0xC7DB, 0xC7DC, 0xC7DE, 0xC7E0, 0xC7E2, 0xC7E4, 
@@ -140,7 +131,6 @@ pub fn emulate(cart: &hw::Cartridge) {
     let mut count = 0;
 
     loop {
-
         
         let (opcode, byte2, byte3) = read_three_bytes(cpu.pc, &wram, cart);
         print!(
@@ -166,204 +156,149 @@ pub fn emulate(cart: &hw::Cartridge) {
             panic!("You did it!")
         }
         count += 1;
-        exec_instr(opcode, byte2, byte3, &mut cpu, &mut wram, cart);
-        // println!("{:04X?}:  {:02X?}, {:02X?}, {:02X?}", cpu.pc-0x8000, opcode, byte2, byte3);
-
-        // do_ppu(&mut ppu, &mut vram, cart);
-
-        // let mut buffer = String::new();
-        // let mut stdin = io::stdin(); // We get `Stdin` here.
-        // stdin.read_line(&mut buffer).expect("it broke");
+        next(opcode, byte2, byte3, &mut cpu, &mut wram, cart);
     }
+
 }
 
-fn concat_u8(msb: u8, lsb: u8) -> u16 {
-    ((msb as u16) << 8) + (lsb as u16)
+fn byte_to_p(byte: u8, nes: &mut hw::Nes) {
+    nes.cpu.p_n = get_bit(byte, 7);
+    nes.cpu.p_v = get_bit(byte, 6);
+    nes.cpu.p_d = get_bit(byte, 3);
+    nes.cpu.p_i = get_bit(byte, 2);
+    nes.cpu.p_z = get_bit(byte, 1);
+    nes.cpu.p_c = get_bit(byte, 0);
 }
-
-fn is_neg(val: u8) -> bool {
-    val > 0x7F
+fn p_to_byte(nes: &hw::Nes) -> u8 {
+    (if nes.cpu.p_n {0b1000_0000} else {0}) | 
+    (if nes.cpu.p_v {0b0100_0000} else {0}) | 
+                     0b0010_0000            |
+    (if nes.cpu.p_d {0b0000_1000} else {0}) | 
+    (if nes.cpu.p_i {0b0000_0100} else {0}) | 
+    (if nes.cpu.p_z {0b0000_0010} else {0}) | 
+    (if nes.cpu.p_c {0b0000_0001} else {0})
 }
-
-fn get_bit(byte: u8, idx: u8) -> bool {
-    (byte & (0x01 << idx)) != 0
-}
-
-fn was_overflow(original: u8, operand: u8, result: u8) -> bool {
-    ((!(original ^ operand) & (original ^ result)) >> 7) == 1
-}
-
-fn p_to_byte(cpu: &hw::Cpu) -> u8 {
-    (if cpu.p_n {0b1000_0000} else {0}) | 
-    (if cpu.p_v {0b0100_0000} else {0}) | 
-                 0b0010_0000            |
-    (if cpu.p_d {0b0000_1000} else {0}) | 
-    (if cpu.p_i {0b0000_0100} else {0}) | 
-    (if cpu.p_z {0b0000_0010} else {0}) | 
-    (if cpu.p_c {0b0000_0001} else {0})
-}
-
-fn read_three_bytes(addr: u16, wram: &[u8], cart: &hw::Cartridge) -> (u8, u8, u8) {
-    (
-        read_mem(addr, wram, cart),
-        read_mem(addr.saturating_add(1), wram, cart),
-        read_mem(addr.saturating_add(2), wram, cart)
-    )
-}
-
-fn read_mem(addr: u16, wram: &[u8], cart: &hw::Cartridge) -> u8 {
-    match addr {
-        0x0000..=0x1FFF => wram[(addr % 0x800) as usize],
-        0x2000..=0x3FFF => 0,
-        0x4000..=0x401F => 0,
-        0x4020..=0x5FFF => 0,
-        0x6000..=0x7FFF => 0,
-        0x8000..=0xBFFF => {
-            let prg_addr = addr - 0x8000;
-            // println!("PRG addr: {:04X?}", prg_addr);
-            cart.prg_rom[prg_addr as usize]
-        },
-        0xC000..=0xFFFF => {
-            let prg_addr = addr - 0xC000;
-            // println!("PRG addr: {:04X?}", prg_addr);
-            cart.prg_rom[prg_addr as usize]
-        }
-    }
-}
-
-fn write_mem(addr: u16, val: u8, wram: &mut [u8]) {
-    if addr < 0x2000 {
-        wram[(addr % 0x800) as usize] = val;
-    }
-}
-
-// Stack grows from 0x01FF down to 0x0100
-// Stack pointer is offset from 0x0100
-// Pushing decrements pointer
-// Pulling increments pointer
-fn stack_push(val: u8, cpu: &mut hw::Cpu, wram: &mut [u8]) {
+fn stack_push(val: u8, nes: &mut hw::Nes) {
     wram[0x0100 + (cpu.s as usize)] = val;
     cpu.s = cpu.s.wrapping_sub(1);
 }
-fn stack_pop(cpu: &mut hw::Cpu, wram: &[u8]) -> u8 {
+fn stack_pop(nes: &mut hw::Nes) -> u8 {
     cpu.s = cpu.s.wrapping_add(1);
     wram[0x0100 + (cpu.s as usize)]
 }
+fn stack_push_u16(val: u16, nes: &mut hw::Nes) {
+    stack_push((val >> 8)     as u8, nes);
+    stack_push((val & 0x00FF) as u8, nes);
+}
+fn stack_pop_u16(nes: &mut hw::Nes) -> u16 {
+    let lsb = stack_pop(nes);
+    let msb = stack_pop(nes);
+    concat_u8(msb, lsb)
+}
+fn update_p_nz(val: u8, nes: &mut hw::Nes) {
+    nes.cpu.p_n = val > 0x7F;
+    nes.cpu.p_z = val == 0;
+}
+fn shift_left(val: u8, rotate: bool, nes: &mut hw::Nes) -> u8 {
+    let prev_carry = cpu.p_c;
+    cpu.p_c = get_bit(cpu.a, 7);
+    (cpu.a << 1) |= ((prev_carry && rotate) as u8)
+}
+fn shift_right(val: u8, rotate: bool, nes: &mut hw::Nes) -> u8 {
+    let prev_carry = cpu.p_c;
+    cpu.p_c = get_bit(cpu.a, 0);
+    (cpu.a >> 1) |= (((prev_carry && rotate) as u8) << 7)
+}
+fn add_with_carry(val: u8, nes: &mut hw::Nes) {
+    let (result, carry) = cpu.a.carrying_add(val, cpu.p_c);
+    cpu.p_v = was_overflow(cpu.a, val, result);
+    cpu.p_c = carry;
+    cpu.a = result;  
+    update_p_nz(cpu.a, nes);
+}
 
-
-// fn do_ppu(ppu: &mut hw::Ppu, vram: &[u8], cart: &hw::Cartridge) {
-//     // Pre-render scanline
-//     ppu.cycles += 341 - (ppu.odd_frame as u64);
-    
-//     for pixel in 0..256 {
-        
-//     }
-
-
-// }
-
-fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u8], cart: &hw::Cartridge) {
-
-    // Tells us the addressing mode and number of cycles
-    let instr_info = opc::INSTRUCTION_INFO[opcode as usize];
-
-    // println!("Mode - {:?}", instr_info.mode);
-    // println!("N={},V={},I={},Z={},C={}", cpu.p_n, cpu.p_v, cpu.p_i, cpu.p_z, cpu.p_c);
-    let instr_addr = match instr_info.mode {
-        opc::Mode::Absolute  => concat_u8(byte3, byte2),
-        opc::Mode::AbsoluteX => concat_u8(byte3, byte2).wrapping_add(cpu.x as u16),
-        opc::Mode::AbsoluteY => concat_u8(byte3, byte2).wrapping_add(cpu.y as u16),
-        opc::Mode::ZeroPage  => byte2 as u16,
-        opc::Mode::ZeroPageX => byte2.wrapping_add(cpu.x) as u16,
-        opc::Mode::ZeroPageY => byte2.wrapping_add(cpu.y) as u16,
-        opc::Mode::Relative  => cpu.pc.wrapping_add_signed((byte2 as i8) as i16) + 2u16,  // pc+offset+2 (instr len)
-        opc::Mode::IndirectX => {
-            let zp_addr_lsb = byte2.wrapping_add(cpu.x);
-            let zp_addr_msb = zp_addr_lsb.wrapping_add(1);
-            concat_u8(wram[zp_addr_msb as usize], wram[zp_addr_lsb as usize])
-        },
-        opc::Mode::IndirectY => {
-            let zp_lsb = wram[byte2 as usize];
-            let zp_msb = wram[byte2.wrapping_add(1) as usize];
-            // println!("zp_lsb: {}, zp_msb: {}, concat+y: {}", zp_lsb, zp_msb, concat_u8(zp_msb, zp_lsb).wrapping_add(cpu.y as u16));
-            concat_u8(zp_msb, zp_lsb).wrapping_add(cpu.y as u16)
-        },
-        opc::Mode::AbsoluteI => {
-            let lsb = read_mem(concat_u8(byte3, byte2), wram, cart);
-            let msb = read_mem(concat_u8(byte3, byte2.wrapping_add(1)), wram, cart);
+fn get_instr_addr(addressing_mode: Mode, byte2: u8, byte3: u8, pc: u16) -> u16 {
+    match instr_info.mode {
+        Mode::Absolute  => concat_u8(byte3, byte2),
+        Mode::AbsoluteX => concat_u8(byte3, byte2).wrapping_add(cpu.x as u16),
+        Mode::AbsoluteY => concat_u8(byte3, byte2).wrapping_add(cpu.y as u16),
+        Mode::ZeroPage  => byte2 as u16,
+        Mode::ZeroPageX => byte2.wrapping_add(cpu.x) as u16,
+        Mode::ZeroPageY => byte2.wrapping_add(cpu.y) as u16,
+        Mode::IndirectX => read_mem_u16(byte2.wrapping_add(cpu.x)),
+        Mode::IndirectY => read_mem_u16(byte2).wrapping_add(cpu.y as u16),
+        Mode::AbsoluteI => {
+            // MSB not incremented when indirect address sits on page boundary
+            let lsb = read_mem(concat_u8(byte3, byte2), nes);
+            let msb = read_mem(concat_u8(byte3, byte2.wrapping_add(1)), nes);
             concat_u8(msb, lsb)
+        },
+        Mode::Relative  => {
+            // u8 -> i8 uses bit 7 as sign, i8 -> i16 sign extends
+            let signed_offset = (byte2 as i8) as i16;
+            cpu.pc.wrapping_add_signed(signed_offset).wrapping_add(2)
         },
         _ => 0,
     };
+}
 
+
+fn next(nes: &mut hw::Nes) {
+
+    let opcode = read_mem(nes.cpu.pc);
+    let instr_info = opc::INSTRUCTION_INFO[opcode as usize];
+
+    // Gets the relevant address referenced by the instruction, if any
+    let byte2 = read_mem(nes.cpu.pc.wrapping_add(1), nes);
+    let byte3 = read_mem(nes.cpu.pc.wrapping_add(2), nes);
+    let instr_addr = get_instr_addr(instr_info.mode, byte2, byte3, nes.cpu.pc);
+
+    // Gets the immediate value, or value located at instr_addr
     let instr_val = match instr_info.mode {
-        opc::Mode::Immediate | opc::Mode::Accumulator => byte2,
-        _ => read_mem(instr_addr, wram, cart),
+        Mode::Immediate => byte2,
+        _ => read_mem(instr_addr, nes),
     };
-
-    /* 
-
-    Instructions with additional page penalties
-
-    All branch instructions have a 1c penalty when taken, 1c penalty if page crossed
-    LAS y-abs
-    LAX y-abs, y-indi
-    LDA x-abs, y-abs, y-indi
-    LDX 
-
-
-    */
-
-    let branch_cycle_penalty: u64 = if instr_info.mode == opc::Mode::Relative {
-        if (cpu.pc >> 8) == (instr_addr >> 8) {
-            1
-        } else {
-            2
-        }
-    } else {
-        0
-    };
-
-    let instr_len = match instr_info.mode {
-        opc::Mode::Immediate => 2,
-        opc::Mode::Accumulator => 1,
-        opc::Mode::Implied => 1,
-        opc::Mode::Absolute  => 3,
-        opc::Mode::AbsoluteX => 3,
-        opc::Mode::AbsoluteY => 3,
-        opc::Mode::ZeroPage  => 2,
-        opc::Mode::ZeroPageX => 2,
-        opc::Mode::ZeroPageY => 2,
-        opc::Mode::Relative  => 2,
-        opc::Mode::IndirectX => 2,
-        opc::Mode::IndirectY => 2,
-        opc::Mode::AbsoluteI => 3,
-    };
-
-    println!("instr_val = {:02X?}, instr_addr = {:02X?}", instr_val, instr_addr);
-
-    cpu.cycles += instr_info.cycles as u64;
 
     let prev_pc = cpu.pc;
 
+    exec_instruction(instr_addr, instr_val, nes);
+    
+    cpu.cycles += instr_info.cycles as u64;
+
+    // If branch was taken (if pc has changed)...
+    if cpu.pc != prev_pc {
+        // If 256B page was crossed
+        if (prev_pc >> 8) != (cpu.pc >> 8) {
+            cpu.cycles += 2;
+        } else {
+            cpu.cycles += 1;
+        }
+    }
+
+    // If the instruction wasn't a JMP or something that changes the PC,
+    // move the PC to the next instruction.
+    if prev_pc == cpu.pc {
+        cpu.pc = cpu.pc.wrapping_add(instr_len);
+    }
+    
+}
+
+fn exec_instruction(instr_addr: u16, instr_val: u8, nes: &mut hw::Nes) {
     match opcode {
         // LDA
         0xAD | 0xBD | 0xA9 | 0xB9 | 0xA1 | 0xB1 | 0xA5 | 0xB5 => {
             cpu.a = instr_val;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
+            update_p_nz(cpu.a, nes);
         },
         // LDX
         0xAE | 0xBE | 0xA2 | 0xA6 | 0xB6 => {
             cpu.x = instr_val;
-            cpu.p_n = is_neg(cpu.x);
-            cpu.p_z = cpu.x == 0;
+            update_p_nz(cpu.x, nes);
         },
         // LDY
         0xAC | 0xBC | 0xA0 | 0xA4 | 0xB4 => {
             cpu.y = instr_val;
-            cpu.p_n = is_neg(cpu.y);
-            cpu.p_z = cpu.y == 0;
+            update_p_nz(cpu.y, nes);
         },
         // STA
         0x8D | 0x9D | 0x99 | 0x81 | 0x91 | 0x85 | 0x95 => {
@@ -380,26 +315,22 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         // TAX
         0xAA => {
             cpu.x = cpu.a;
-            cpu.p_n = is_neg(cpu.x);
-            cpu.p_z = cpu.x == 0;
+            update_p_nz(cpu.x, nes);
         },
         // TAY
         0xA8 => {
             cpu.y = cpu.a;
-            cpu.p_n = is_neg(cpu.y);
-            cpu.p_z = cpu.y == 0;
+            update_p_nz(cpu.y, nes);
         },
         // TSX
         0xBA => {
             cpu.x = cpu.s;
-            cpu.p_n = is_neg(cpu.x);
-            cpu.p_z = cpu.x == 0;
+            update_p_nz(cpu.x, nes);
         },
         // TXA
         0x8A => {
             cpu.a = cpu.x;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
+            update_p_nz(cpu.a, nes);
         },
         // TXS
         0x9A => {
@@ -408,102 +339,74 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         // TYA
         0x98 => {
             cpu.a = cpu.y;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
+            update_p_nz(cpu.a, nes);
         },
         // PHA
         0x48 => {
-            stack_push(cpu.a, cpu, wram);
+            stack_push(cpu.a, nes);
         },
         // PHP
         0x08 => {
-            stack_push(p_to_byte(&cpu) | 0b0001_0000, cpu, wram);
+            stack_push(p_to_byte(nes) | 0b0001_0000, nes);
         },
         // PLA
         0x68 => {
-            cpu.a = stack_pop(cpu, wram);
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
+            cpu.a = stack_pop(nes);
+            update_p_nz(cpu.a, nes);
         },
         // PLP
         0x28 => {
-            let p_reg = stack_pop(cpu, wram);
-            cpu.p_n = get_bit(p_reg, 7);
-            cpu.p_v = get_bit(p_reg, 6);
-            cpu.p_d = get_bit(p_reg, 3);
-            cpu.p_i = get_bit(p_reg, 2);
-            cpu.p_z = get_bit(p_reg, 1);
-            cpu.p_c = get_bit(p_reg, 0);
+            let p_byte = stack_pop(nes);
+            byte_to_p(p_byte, nes);
         },
         // ASL (ACC)
         0x0A => {
-            cpu.p_c = cpu.a > 127;
-            cpu.a <<= 1;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
+            cpu.a = shift_left(cpu.a, false, nes);
+            update_p_nz(cpu.a, nes);
         },
         // ASL (RMW)
         0x0E | 0x1E | 0x06 | 0x16 => {
-            cpu.p_c = wram[instr_addr as usize] > 127;
-            wram[instr_addr as usize] <<= 1;
-            cpu.p_n = is_neg(wram[instr_addr as usize]);
-            cpu.p_z = wram[instr_addr as usize] == 0;
+            let new_val = shift_left(instr_val, false, nes);
+            write_mem(instr_addr, new_val, nes);
+            update_p_nz(new_val, nes);
         },
         // LSR (ACC)
         0x4A => {
-            cpu.p_c = (cpu.a & 0x01) == 1;
-            cpu.a >>= 1;
-            cpu.p_n = false;
-            cpu.p_z = cpu.a == 0;
+            cpu.a = shift_right(cpu.a, false, nes);
+            update_p_nz(cpu.a, nes);
         },
         // LSR (RMW)
         0x4E | 0x5E | 0x46 | 0x56 => {
-            cpu.p_c = (wram[instr_addr as usize] & 0x01) == 1;
-            wram[instr_addr as usize] >>= 1;
-            cpu.p_n = false;
-            cpu.p_z = wram[instr_addr as usize] == 0;
+            let new_val = shift_right(instr_val, false, nes);
+            write_mem(instr_addr, new_val, nes);
+            update_p_nz(new_val, nes);
         },
         // ROL (ACC)
         0x2A => {
-            let initial_carry = cpu.p_c;
-            cpu.p_c = cpu.a > 127;
-            cpu.a <<= 1;
-            cpu.a |= initial_carry as u8;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
+            cpu.a = shift_left(cpu.a, true, nes);
+            update_p_nz(cpu.a, nes);
         },
         // ROL (RMW)
         0x2E | 0x3E | 0x26 | 0x36 => {
-            let initial_carry = cpu.p_c;
-            cpu.p_c = wram[instr_addr as usize] > 127;
-            wram[instr_addr as usize] <<= 1;
-            wram[instr_addr as usize] |= initial_carry as u8;
-            cpu.p_n = is_neg(wram[instr_addr as usize]);
-            cpu.p_z = wram[instr_addr as usize] == 0;
+            let new_val = shift_left(instr_val, true, nes);
+            write_mem(instr_addr, new_val, nes);
+            update_p_nz(new_val, nes);
         },
         // ROR (ACC)
         0x6A => {
-            let initial_carry = cpu.p_c;
-            cpu.p_c = (cpu.a & 0x01) == 1;
-            cpu.a >>= 1;
-            cpu.a |= (initial_carry as u8) << 7;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
+            cpu.a = shift_right(cpu.a, true, nes);
+            update_p_nz(cpu.a, nes);
         },
         // ROR (RMW)
         0x6E | 0x7E | 0x66 | 0x76 => {
-            let initial_carry = cpu.p_c;
-            cpu.p_c = (wram[instr_addr as usize] & 0x01) == 1;
-            wram[instr_addr as usize] >>= 1;
-            wram[instr_addr as usize] |= (initial_carry as u8) << 7;
-            cpu.p_n = is_neg(wram[instr_addr as usize]);
-            cpu.p_z = wram[instr_addr as usize] == 0;
+            let new_val = shift_right(instr_val, true, nes);
+            write_mem(instr_addr, new_val, nes);
+            update_p_nz(new_val, nes);
         },
         // AND
         0x2D | 0x3D | 0x39 | 0x29 | 0x21 | 0x31 | 0x25 | 0x35 =>  {
             cpu.a &= instr_val;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
+            update_p_nz(cpu.a, nes);
         },
         // BIT
         0x2C | 0x24 => {
@@ -514,231 +417,164 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
         // EOR
         0x4D | 0x5D | 0x59 | 0x49 | 0x41 | 0x51 | 0x45 | 0x55 => { 
             cpu.a ^= instr_val;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
+            update_p_nz(cpu.a, nes);
         },
         // ORA
         0x0D | 0x1D | 0x19 | 0x09 | 0x01 | 0x11 | 0x05 | 0x15 => {
             cpu.a |= instr_val;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
+            update_p_nz(cpu.a, nes);
         },
         // ADC
         0x6D | 0x7D | 0x79 | 0x69 | 0x61 | 0x71 | 0x65 | 0x75 => {
-            let (result, carry) = cpu.a.carrying_add(instr_val, cpu.p_c);
-            println!("carry = {}, {} + {} = {}", cpu.p_c, cpu.a, instr_val, result);
-            
-            cpu.p_v = was_overflow(cpu.a, instr_val, result);
-            cpu.a = result;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
-            cpu.p_c = carry;
+            add_with_carry(instr_val, nes);
         },
         // CMP
         0xCD | 0xDD | 0xD9 | 0xC9 | 0xC1 | 0xD1 | 0xC5 | 0xD5 => {
-            cpu.p_z = cpu.a == instr_val;
-            cpu.p_n = is_neg(cpu.a.wrapping_sub(instr_val));
             cpu.p_c = instr_val <= cpu.a;
-            // println!("{} - {} = {}", cpu.a, instr_val, result);
+            update_p_nz(cpu.a.wrapping_sub(instr_val), nes);
         },
         // CPX
         0xEC | 0xE0 | 0xE4 => {
-            cpu.p_z = cpu.x == instr_val;
-            cpu.p_n = is_neg(cpu.x.wrapping_sub(instr_val));
             cpu.p_c = instr_val <= cpu.x;
+            update_p_nz(cpu.x.wrapping_sub(instr_val), nes);
         },
         // CPY
         0xCC | 0xC0 | 0xC4 => {
-            cpu.p_z = cpu.y == instr_val;
-            cpu.p_n = is_neg(cpu.y.wrapping_sub(instr_val));
             cpu.p_c = instr_val <= cpu.y;
+            update_p_nz(cpu.y.wrapping_sub(instr_val), nes);
         },
         // SBC
         0xED | 0xFD | 0xF9 | 0xE9 | 0xE1 | 0xF1 | 0xE5 | 0xF5 | 0xEB => {
-            let (result, borrow) = cpu.a.borrowing_sub(instr_val, !cpu.p_c);
-            println!("{} - {} = {}", cpu.a, instr_val, result);
-
-            cpu.p_v = was_overflow(cpu.a, (-(instr_val as i8) as u8), result);
-            cpu.a = result;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
-            cpu.p_c = !borrow;
+            add_with_carry(instr_val ^ 0xFF, nes);
         },
         // DEC
         0xCE | 0xDE | 0xC6 | 0xD6 => {
-            wram[instr_addr as usize] = wram[instr_addr as usize].wrapping_sub(1);
-            cpu.p_n = is_neg(wram[instr_addr as usize]);
-            cpu.p_z = wram[instr_addr as usize] == 0;
+            let new_val = instr_val.wrapping_sub(1);
+            write_mem(instr_addr, new_val, nes);
+            update_p_nz(new_val, nes);
         },
         // DEX
         0xCA => {
             cpu.x = cpu.x.wrapping_sub(1);
-            cpu.p_n = is_neg(cpu.x);
-            cpu.p_z = cpu.x == 0;
+            update_p_nz(cpu.x, nes);
         },
         // DEY
         0x88 => {
             cpu.y = cpu.y.wrapping_sub(1);
-            cpu.p_n = is_neg(cpu.y);
-            cpu.p_z = cpu.y == 0;
+            update_p_nz(cpu.y, nes);
         },
         // INC
         0xEE | 0xFE | 0xE6 | 0xF6 => {
-            wram[instr_addr as usize] = wram[instr_addr as usize].wrapping_add(1);
-            cpu.p_n = is_neg(wram[instr_addr as usize]);
-            cpu.p_z = wram[instr_addr as usize] == 0;
+            let new_val = instr_val.wrapping_add(1);
+            write_mem(instr_addr, new_val, nes);
+            update_p_nz(new_val, nes);
         },
         // INX
         0xE8 => {
             cpu.x = cpu.x.wrapping_add(1);
-            cpu.p_n = is_neg(cpu.x);
-            cpu.p_z = cpu.x == 0;
+            update_p_nz(cpu.x, nes);
         },
         // INY
         0xC8 => {
             cpu.y = cpu.y.wrapping_add(1);
-            cpu.p_n = is_neg(cpu.y);
-            cpu.p_z = cpu.y == 0;
+            update_p_nz(cpu.y, nes);
         },
         // BRK
         0x00 => {
-            stack_push((cpu.pc >> 8) as u8, cpu, wram);
-            stack_push((cpu.pc & 0x00FF) as u8, cpu, wram);
-            stack_push(p_to_byte(&cpu) | 0b0001_0000, cpu, wram);
-            cpu.pc = concat_u8(read_mem(0xFFFF, wram, cart), read_mem(0xFFFE, wram, cart));
+            stack_push_u16(cpu.pc, nes);
+            stack_push(p_to_byte(nes) | 0b0001_0000, nes);
+            cpu.pc = read_mem_u16(0xFFFE, nes);
         },
         // JMP 
         0x4C | 0x6C => {
             cpu.pc = instr_addr;
-        },
+        }
         // JSR
         0x20 => {
-            let pc_add2 = cpu.pc.wrapping_add(2);
-            stack_push((pc_add2 >> 8) as u8, cpu, wram);
-            stack_push((pc_add2 & 0x00FF) as u8, cpu, wram);
+            stack_push_u16(cpu.pc.wrapping_add(2), nes);
             cpu.pc = instr_addr;
         },
         // RTI
         0x40 => {
             let p_reg = stack_pop(cpu, wram);
-            cpu.p_n = get_bit(p_reg, 7);
-            cpu.p_v = get_bit(p_reg, 6);
-            cpu.p_i = get_bit(p_reg, 2);
-            cpu.p_z = get_bit(p_reg, 1);
-            cpu.p_c = get_bit(p_reg, 0);
-            let lsb = stack_pop(cpu, wram);
-            let msb = stack_pop(cpu, wram);
-            cpu.pc = concat_u8(msb, lsb);
+            byte_to_p(p_reg, nes);
+            cpu.pc = stack_pop_u16(nes);
         },
         // RTS 
-        0x60 => {
-            let lsb = stack_pop(cpu, wram);
-            let msb = stack_pop(cpu, wram);
-            cpu.pc = concat_u8(msb, lsb) + 1;
+        0x60 => cpu.pc = {
+            cpu.pc = stack_pop_u16(nes).wrapping_add(1);
         },
         // BCC
-        0x90 => {
-            if !cpu.p_c {
-                cpu.pc = instr_addr;
-                cpu.cycles += branch_cycle_penalty;
-            }
-        },
+        0x90 => if !cpu.p_c {cpu.pc = instr_val},
         // BCS
-        0xB0 => {
-            if cpu.p_c {
-                cpu.pc = instr_addr;
-                cpu.cycles += branch_cycle_penalty;
-            }
-        },
-        // BEQ
-        0xF0 => {
-            if cpu.p_z {
-                cpu.pc = instr_addr;
-                cpu.cycles += branch_cycle_penalty;
-            }
-        },
-        // BMI
-        0x30 => {
-            if cpu.p_n {
-                cpu.pc = instr_addr;
-                cpu.cycles += branch_cycle_penalty;
-            }
-        },
-        // BNE
-        0xD0 => {
-            if !cpu.p_z {
-                cpu.pc = instr_addr;
-                cpu.cycles += branch_cycle_penalty;
-            }
-        },
-        // BPL
-        0x10 => {
-            if !cpu.p_n {
-                cpu.pc = instr_addr;
-                cpu.cycles += branch_cycle_penalty;
-            }
-        },
+        0xB0 => if cpu.p_c  {cpu.pc = instr_val},
         // BVC
-        0x50 => {
-            if !cpu.p_v {
-                cpu.pc = instr_addr;
-                cpu.cycles += branch_cycle_penalty;
-            }
-        },
+        0x50 => if !cpu.p_v {cpu.pc = instr_val},
         // BVS
-        0x70 => {
-            if cpu.p_v {
-                cpu.pc = instr_addr;
-                cpu.cycles += branch_cycle_penalty;
-            }
-        }
+        0x70 => if cpu.p_v  {cpu.pc = instr_val},
+        // BEQ
+        0xF0 => if cpu.p_z  {cpu.pc = instr_val},
+        // BNE
+        0xD0 => if !cpu.p_z {cpu.pc = instr_val},
+        // BMI
+        0x30 => if cpu.p_n  {cpu.pc = instr_val},
+        // BPL
+        0x10 => if !cpu.p_n {cpu.pc = instr_val},
         // CLC 
-        0x18 => {
-            cpu.p_c = false;
-        }
+        0x18 => cpu.p_c = false,
         // CLD
-        0xD8 => {
-            cpu.p_d = false;
-        }
+        0xD8 => cpu.p_d = false,
         // CLI 
-        0x58 => {
-            cpu.p_i = false;
-        }
+        0x58 => cpu.p_i = false,
         // CLV 
-        0xB8 => {
-            cpu.p_v = false;
-        }
+        0xB8 => cpu.p_v = false,
         // SEC
-        0x38 => {
-            cpu.p_c = true;
-        }
+        0x38 => cpu.p_c = true,
         // SED
-        0xF8 => {
-            cpu.p_d = true;
-        }
+        0xF8 => cpu.p_d = true,
         // SEI
-        0x78 => {
-            cpu.p_i = true;
-        }
+        0x78 => cpu.p_i = true,
         // NOP
-        0xEA | 0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xFA | 0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 | 0x0C |
-        0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC | 0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 |
-        0xD4 | 0xF4 => {}
-        // ALR
-        0x4B => {
-            cpu.a &= instr_val;
-            cpu.a >>= 1;
+        0xEA => {}
+        
+        // UNOFFICIAL OPCODES
+
+        // LAS
+        0xBB => {
+            let new_val = cpu.s & instr_val;
+            cpu.a = new_val;
+            cpu.x = new_val;
+            cpu.s = new_val;
+            update_p_nz(cpu.a, nes);
         }
         // LAX
         0xAB | 0xAF | 0xBF | 0xA7 | 0xB7 | 0xA3 | 0xB3 => {
             cpu.a = instr_val;
             cpu.x = instr_val;
-            cpu.p_n = is_neg(cpu.x);
-            cpu.p_z = cpu.x == 0;
+            update_p_nz(cpu.a, nes);
         }
         // SAX
         0x83 | 0x87 | 0x8F | 0x97 => {
-            write_mem(instr_addr, cpu.a & cpu.x, wram); 
+            write_mem(instr_addr, cpu.a & cpu.x, nes); 
+        }
+        // SHA (AbsY)
+        0x9F => {}
+        // SHA (IndY)
+        0x93 => {}
+        // SHX
+        0x9E => {}
+        // SHY
+        0x9C => {}
+        // SHS
+        0x9B => {}
+        // ANC
+        0x0B | 0x2B => {}
+        // ARR
+        0x6B => {}
+        // ASR
+        0x4B => {
+            cpu.p_c = (input & 0x01) == 1;
+            (cpu.a & input) >> 1   
         }
         // DCP
         0xC3 | 0xC7 | 0xCF | 0xD3 | 0xD7 | 0xDB | 0xDF => {
@@ -754,17 +590,7 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
 
             cpu.p_v = was_overflow(cpu.a, (-(wram[instr_addr as usize] as i8) as u8), result);
             cpu.a = result;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
             cpu.p_c = !borrow;
-        }
-        // SLO
-        0x03 | 0x07 | 0x0F | 0x13 | 0x17 | 0x1B | 0x1F => {
-            cpu.p_c = wram[instr_addr as usize] > 127;
-            wram[instr_addr as usize] <<= 1;
-            cpu.a |= wram[instr_addr as usize];
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
         }
         // RLA
         0x23 | 0x27 | 0x2F | 0x33 | 0x37 | 0x3B | 0x3F => {
@@ -774,17 +600,6 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
             wram[instr_addr as usize] |= initial_carry as u8;
 
             cpu.a &=wram[instr_addr as usize];
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
-        }
-        // SRE
-        0x43 | 0x47 | 0x4F | 0x53 | 0x57 | 0x5B | 0x5F => {
-            cpu.p_c = (wram[instr_addr as usize] & 0x01) == 1;
-            wram[instr_addr as usize] >>= 1;
-
-            cpu.a ^= wram[instr_addr as usize];
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
         }
         // RRA 
         0x63 | 0x67 | 0x6F | 0x73 | 0x77 | 0x7B | 0x7F => {
@@ -797,20 +612,30 @@ fn exec_instr(opcode: u8, byte2: u8, byte3: u8, cpu: &mut hw::Cpu, wram: &mut [u
             
             cpu.p_v = was_overflow(cpu.a, wram[instr_addr as usize], result);
             cpu.a = result;
-            cpu.p_n = is_neg(cpu.a);
-            cpu.p_z = cpu.a == 0;
             cpu.p_c = carry;
-
         }
-        _ => println!("Illegal opcodes are not implemented")
-           
-    }
+        // SBX
+        0xCB => {}
+        // SLO
+        0x03 | 0x07 | 0x0F | 0x13 | 0x17 | 0x1B | 0x1F => {
+            cpu.p_c = wram[instr_addr as usize] > 127;
+            wram[instr_addr as usize] <<= 1;
+            cpu.a |= wram[instr_addr as usize];
+        }
+        // SRE
+        0x43 | 0x47 | 0x4F | 0x53 | 0x57 | 0x5B | 0x5F => {
+            cpu.p_c = (wram[instr_addr as usize] & 0x01) == 1;
+            wram[instr_addr as usize] >>= 1;
 
-    // If the instruction wasn't a JMP or something that changes the PC,
-    // move the PC to the next instruction.
-    if prev_pc == cpu.pc {
-        cpu.pc = cpu.pc.wrapping_add(instr_len);
+            cpu.a ^= wram[instr_addr as usize];
+        }
+        // XAA
+        0x8B => {}
+        // JAM
+        0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xB2 | 0xD2 | 0xF2 => {}
+        // NOP
+        0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xFA | 0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 | 0x0C |
+        0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC | 0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 |
+        0xD4 | 0xF4 => {}
     }
-    
-
 }

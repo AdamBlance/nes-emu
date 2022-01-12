@@ -21,319 +21,316 @@
 // https://wiki.nesdev.org/w/index.php?title=Programming_with_unofficial_opcodes
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum Mode {
-    Immediate,
-    Accumulator,
-    Absolute,
-    AbsoluteX,
-    AbsoluteY,
-    ZeroPage,
-    ZeroPageX,
-    ZeroPageY,
-    IndirectX,
-    IndirectY,
-    Implied,
-    Relative,
-    AbsoluteI, 
+pub enum Mode { 
+    Acc,
+    Imp,
+    Imm,
+    Abs,
+    AbsX,
+    AbsY,
+    Zpg,
+    ZpgX,
+    ZpgY,
+    IndX,
+    IndY,
+    Rel,
+    AbsI, 
 }
+use Mode::*;
 
 #[derive(Copy, Clone)]
-pub struct Info {
+pub enum Location {
+    Mem,
+    A,
+    X,
+    Y,
+    Pc,
+    None
+}
+use Location::*;
+
+#[derive(Copy, Clone)]
+pub struct Info { 
+    pub name: &'static str,
     pub mode: Mode,
     pub cycles: u8,
+    pub pg_penalty: bool,
+    pub updates_nz: bool,
+    pub src: Location,
+    pub dest: Location,
 }
-
-const UNIMPLEMENTED: Info = Info {
-    mode: Mode::Immediate,
-    cycles: 0,
-};
 
 pub static INSTRUCTION_INFO: [Info; 256] = [
     // 0
-    Info {mode: Mode::Implied,     cycles: 7},  //  BRK
-    Info {mode: Mode::IndirectX,   cycles: 6},  //  ORA
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectX,   cycles: 8},  // *SLO
-    Info {mode: Mode::ZeroPage,    cycles: 3},  // *IGN
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  ORA
-    Info {mode: Mode::ZeroPage,    cycles: 5},  //  ASL
-    Info {mode: Mode::ZeroPage,    cycles: 5},  // *SLO
-    Info {mode: Mode::Implied,     cycles: 3},  //  PHP
-    Info {mode: Mode::Immediate,   cycles: 2},  //  ORA
-    Info {mode: Mode::Accumulator, cycles: 2},  //  ASL
-    Info {mode: Mode::Immediate,   cycles: 2},  // *ANC
-    Info {mode: Mode::Absolute,    cycles: 4},  // *IGN
-    Info {mode: Mode::Absolute,    cycles: 4},  //  ORA
-    Info {mode: Mode::Absolute,    cycles: 6},  //  ASL
-    Info {mode: Mode::Absolute,    cycles: 6},  // *SLO
-
+    Info {name:  "BRK", mode: Imp,  src: None, dest: None, cycles: 7, pg_penalty: false, updates_nz: false},
+    Info {name:  "ORA", mode: IndX, src: Mem, dest: A, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: None, dest: None, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*SLO", mode: IndX, src: Mem,  dest: A, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: Zpg,  src: None, dest: None, cycles: 3, pg_penalty: false, updates_nz: false},
+    Info {name:  "ORA", mode: Zpg,  src: Mem,  dest: A, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "ASL", mode: Zpg,  src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: true},
+    Info {name: "*SLO", mode: Zpg,  src: Mem, dest: A, cycles: 5, pg_penalty: false, updates_nz: true},
+    Info {name:  "PHP", mode: Imp,  src: Mem, dest: None, cycles: 3, pg_penalty: false, updates_nz: false},
+    Info {name:  "ORA", mode: Imm,  src: Mem, dest: A, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "ASL", mode: Acc,  src: Mem, dest: A, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*ANC", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: Abs,  src: Mem, dest: None, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "ORA", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "ASL", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*SLO", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
     // 1
-    Info {mode: Mode::Relative,    cycles: 2},  //  BPL
-    Info {mode: Mode::IndirectY,   cycles: 5},  //  ORA
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectY,   cycles: 8},  // *SLO
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  // *IGN
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  //  ORA
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  //  ASL
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  // *SLO
-    Info {mode: Mode::Implied,     cycles: 2},  //  CLC
-    Info {mode: Mode::AbsoluteY,   cycles: 4},  //  ORA
-    Info {mode: Mode::Implied,     cycles: 2},  // *NOP
-    Info {mode: Mode::AbsoluteY,   cycles: 7},  // *SLO
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  // *IGN
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  //  ORA
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  //  ASL
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  // *SLO
-
+    Info {name:  "BPL", mode: Rel,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "ORA", mode: IndY, src: Mem, dest: Mem, cycles: 5, pg_penalty: true, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: None, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*SLO", mode: IndY, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: ZpgX, src: Mem, dest: None, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "ORA", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "ASL", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*SLO", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name:  "CLC", mode: Imp,  src: Mem, dest: None, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "ORA", mode: AbsY, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name: "*NOP", mode: Imp,  src: Mem, dest: None, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name: "*SLO", mode: AbsY, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: AbsX, src: Mem, dest: None, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "ORA", mode: AbsX, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "ASL", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    Info {name: "*SLO", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
     // 2
-    Info {mode: Mode::Absolute,    cycles: 6},  //  JSR
-    Info {mode: Mode::IndirectX,   cycles: 6},  //  AND
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectX,   cycles: 8},  // *RLA
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  BIT
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  AND
-    Info {mode: Mode::ZeroPage,    cycles: 5},  //  ROL
-    Info {mode: Mode::ZeroPage,    cycles: 5},  // *RLA
-    Info {mode: Mode::Implied,     cycles: 4},  //  PLP
-    Info {mode: Mode::Immediate,   cycles: 2},  //  AND
-    Info {mode: Mode::Accumulator, cycles: 2},  //  ROL
-    Info {mode: Mode::Immediate,   cycles: 2},  // *ANC
-    Info {mode: Mode::Absolute,    cycles: 4},  //  BIT
-    Info {mode: Mode::Absolute,    cycles: 4},  //  AND
-    Info {mode: Mode::Absolute,    cycles: 6},  //  ROL
-    Info {mode: Mode::Absolute,    cycles: 6},  // *RLA
-
+    Info {name:  "JSR", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: false},
+    Info {name:  "AND", mode: IndX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: None, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*RLA", mode: IndX, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name:  "BIT", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "AND", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "ROL", mode: Zpg,  src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: true},
+    Info {name: "*RLA", mode: Zpg,  src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: true},
+    Info {name:  "PLP", mode: Imp,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "AND", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "ROL", mode: Acc,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*ANC", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "BIT", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "AND", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "ROL", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*RLA", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
     // 3
-    Info {mode: Mode::Relative,    cycles: 2},  //  BMI
-    Info {mode: Mode::IndirectY,   cycles: 5},  //  AND
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectY,   cycles: 8},  // *RLA
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  // *IGN
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  //  AND
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  //  ROL
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  // *RLA
-    Info {mode: Mode::Implied,     cycles: 2},  //  SEC
-    Info {mode: Mode::AbsoluteY,   cycles: 4},  //  AND
-    Info {mode: Mode::Implied,     cycles: 2},  // *NOP
-    Info {mode: Mode::AbsoluteY,   cycles: 8},  // *RLA
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  // *IGN
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  //  AND
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  //  ROL
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  // *RLA
-
+    Info {name:  "BMI", mode: Rel,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "AND", mode: IndY, src: Mem, dest: Mem, cycles: 5, pg_penalty: true, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: None, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*RLA", mode: IndY, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: ZpgX, src: Mem, dest: None, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "AND", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "ROL", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*RLA", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name:  "SEC", mode: Imp,  src: Mem, dest: None, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "AND", mode: AbsY, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name: "*NOP", mode: Imp,  src: Mem, dest: None, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name: "*RLA", mode: AbsY, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: AbsX, src: Mem, dest: None, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "AND", mode: AbsX, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "ROL", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    Info {name: "*RLA", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
     // 4
-    Info {mode: Mode::Implied,     cycles: 6},  //  RTI
-    Info {mode: Mode::IndirectX,   cycles: 6},  //  EOR
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectX,   cycles: 8},  // *SRE
-    Info {mode: Mode::ZeroPage,    cycles: 3},  // *IGN
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  EOR
-    Info {mode: Mode::ZeroPage,    cycles: 5},  //  LSR
-    Info {mode: Mode::ZeroPage,    cycles: 5},  // *SRE
-    Info {mode: Mode::Implied,     cycles: 3},  //  PHA
-    Info {mode: Mode::Immediate,   cycles: 2},  //  EOR
-    Info {mode: Mode::Accumulator, cycles: 2},  //  LSR
-    Info {mode: Mode::Immediate,   cycles: 2},  // *ALR
-    Info {mode: Mode::Absolute,    cycles: 3},  //  JMP
-    Info {mode: Mode::Absolute,    cycles: 4},  //  EOR
-    Info {mode: Mode::Absolute,    cycles: 6},  //  LSR
-    Info {mode: Mode::Absolute,    cycles: 6},  // *SRE
-
+    Info {name:  "RTI", mode: Imp,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name:  "EOR", mode: IndX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: Mem, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*SRE", mode: IndX, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: false},
+    Info {name:  "EOR", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "LSR", mode: Zpg,  src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: true},
+    Info {name: "*SRE", mode: Zpg,  src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: true},
+    Info {name:  "PHA", mode: Imp,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: false},
+    Info {name:  "EOR", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "LSR", mode: Acc,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*ALR", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "JMP", mode: Abs,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: false},
+    Info {name:  "EOR", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "LSR", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*SRE", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
     // 5
-    Info {mode: Mode::Relative,    cycles: 2},  //  BVC
-    Info {mode: Mode::IndirectY,   cycles: 5},  //  EOR
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectY,   cycles: 8},  // *SRE
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  // *IGN
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  //  EOR
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  //  LSR
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  // *SRE
-    Info {mode: Mode::Implied,     cycles: 2},  //  CLI
-    Info {mode: Mode::AbsoluteY,   cycles: 4},  //  EOR
-    Info {mode: Mode::Implied,     cycles: 2},  // *NOP
-    Info {mode: Mode::AbsoluteY,   cycles: 7},  // *SRE
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  // *IGN
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  //  EOR
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  //  LSR
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  // *SRE
-
+    Info {name:  "BVC", mode: Rel,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "EOR", mode: IndY, src: Mem, dest: Mem, cycles: 5, pg_penalty: true, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: Mem, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*SRE", mode: IndY, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "EOR", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "LSR", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*SRE", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name:  "CLI", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "EOR", mode: AbsY, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name: "*NOP", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name: "*SRE", mode: AbsY, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: AbsX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "EOR", mode: AbsX, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "LSR", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    Info {name: "*SRE", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
     // 6
-    Info {mode: Mode::Implied,     cycles: 6},  //  RTS
-    Info {mode: Mode::IndirectX,   cycles: 6},  //  ADC
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectX,   cycles: 8},  // *RRA
-    Info {mode: Mode::ZeroPage,    cycles: 3},  // *IGN
-    Info {mode: Mode::ZeroPage,    cycles: 4},  //  ADC
-    Info {mode: Mode::ZeroPage,    cycles: 6},  //  ROR
-    Info {mode: Mode::ZeroPage,    cycles: 5},  // *RRA
-    Info {mode: Mode::Implied,     cycles: 4},  //  PLA
-    Info {mode: Mode::Immediate,   cycles: 2},  //  ADC
-    Info {mode: Mode::Accumulator, cycles: 2},  //  ROR
-    Info {mode: Mode::Immediate,   cycles: 2},  // *ARR
-    Info {mode: Mode::AbsoluteI,   cycles: 5},  //  JMP
-    Info {mode: Mode::Absolute,    cycles: 4},  //  ADC
-    Info {mode: Mode::Absolute,    cycles: 6},  //  ROR
-    Info {mode: Mode::Absolute,    cycles: 6},  // *RRA
-
+    Info {name:  "RTS", mode: Imp,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: false},
+    Info {name:  "ADC", mode: IndX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: Mem, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*RRA", mode: IndX, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: false},
+    Info {name:  "ADC", mode: Zpg,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "ROR", mode: Zpg,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*RRA", mode: Zpg,  src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: true},
+    Info {name:  "PLA", mode: Imp,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "ADC", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "ROR", mode: Acc,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*ARR", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "JMP", mode: AbsI, src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: false},
+    Info {name:  "ADC", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "ROR", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*RRA", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
     // 7
-    Info {mode: Mode::Relative,    cycles: 2},  //  BVS
-    Info {mode: Mode::IndirectY,   cycles: 5},  //  ADC
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectY,   cycles: 8},  // *RRA
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  // *IGN
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  //  ADC
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  //  ROR
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  // *RRA
-    Info {mode: Mode::Implied,     cycles: 2},  //  SEI
-    Info {mode: Mode::AbsoluteY,   cycles: 4},  //  ADC
-    Info {mode: Mode::Implied,     cycles: 2},  // *NOP
-    Info {mode: Mode::AbsoluteY,   cycles: 7},  // *RRA
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  // *IGN
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  //  ADC
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  //  ROR
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  // *RRA
-
+    Info {name:  "BVS", mode: Rel,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "ADC", mode: IndY, src: Mem, dest: Mem, cycles: 5, pg_penalty: true, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: Mem, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*RRA", mode: IndY, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "ADC", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "ROR", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*RRA", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name:  "SEI", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "ADC", mode: AbsY, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name: "*NOP", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name: "*RRA", mode: AbsY, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: AbsX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "ADC", mode: AbsX, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "ROR", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    Info {name: "*RRA", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
     // 8
-    Info {mode: Mode::Immediate,   cycles: 2},  // *SKB
-    Info {mode: Mode::IndirectX,   cycles: 6},  //  STA
-    Info {mode: Mode::Immediate,   cycles: 2},  // *SKB
-    Info {mode: Mode::IndirectX,   cycles: 6},  // *SAX
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  STY
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  STA
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  STX
-    Info {mode: Mode::ZeroPage,    cycles: 3},  // *SAX
-    Info {mode: Mode::Implied,     cycles: 2},  //  DEY
-    Info {mode: Mode::Immediate,   cycles: 2},  // *SKB
-    Info {mode: Mode::Implied,     cycles: 2},  //  TXA
-    Info {mode: Mode::Immediate,   cycles: 2},  // *XAA
-    Info {mode: Mode::Absolute,    cycles: 4},  //  STY
-    Info {mode: Mode::Absolute,    cycles: 4},  //  STA
-    Info {mode: Mode::Absolute,    cycles: 4},  //  STX
-    Info {mode: Mode::Absolute,    cycles: 4},  // *SAX
-
+    Info {name: "*SKB", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "STA", mode: IndX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: false},
+    Info {name: "*SKB", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name: "*SAX", mode: IndX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: false},
+    Info {name:  "STY", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: false},
+    Info {name:  "STA", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: false},
+    Info {name:  "STX", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: false},
+    Info {name: "*SAX", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: false},
+    Info {name:  "DEY", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*SKB", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "TXA", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*XAA", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "STY", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "STA", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "STX", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name: "*SAX", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
     // 9
-    Info {mode: Mode::Relative,    cycles: 2},  //  BCC
-    Info {mode: Mode::IndirectY,   cycles: 6},  //  STA
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectY,   cycles: 6},  // *SHA
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  //  STY
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  //  STA
-    Info {mode: Mode::ZeroPageY,   cycles: 4},  //  STX
-    Info {mode: Mode::ZeroPageY,   cycles: 4},  // *SAX
-    Info {mode: Mode::Implied,     cycles: 2},  //  TYA
-    Info {mode: Mode::AbsoluteY,   cycles: 5},  //  STA
-    Info {mode: Mode::Implied,     cycles: 2},  //  TXS
-    Info {mode: Mode::AbsoluteY,   cycles: 5},  // *SHS
-    Info {mode: Mode::AbsoluteX,   cycles: 5},  // *SHY
-    Info {mode: Mode::AbsoluteX,   cycles: 5},  //  STA
-    Info {mode: Mode::AbsoluteY,   cycles: 5},  // *SHX
-    Info {mode: Mode::AbsoluteY,   cycles: 5},  // *SHA
-
+    Info {name:  "BCC", mode: Rel,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "STA", mode: IndY, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: false},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: Mem, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*SHA", mode: IndY, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: false},
+    Info {name:  "STY", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "STA", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "STX", mode: ZpgY, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name: "*SAX", mode: ZpgY, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "TYA", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "STA", mode: AbsY, src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: false},
+    Info {name:  "TXS", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name: "*SHS", mode: AbsY, src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: false},
+    Info {name: "*SHY", mode: AbsX, src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: false},
+    Info {name:  "STA", mode: AbsX, src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: false},
+    Info {name: "*SHX", mode: AbsY, src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: false},
+    Info {name: "*SHA", mode: AbsY, src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: false},
     // A
-    Info {mode: Mode::Immediate,   cycles: 2},  //  LDY
-    Info {mode: Mode::IndirectX,   cycles: 6},  //  LDA
-    Info {mode: Mode::Immediate,   cycles: 2},  //  LDX
-    Info {mode: Mode::IndirectX,   cycles: 6},  // *LAX
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  LDY
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  LDA
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  LDX
-    Info {mode: Mode::ZeroPage,    cycles: 3},  // *LAX
-    Info {mode: Mode::Implied,     cycles: 2},  //  TAY
-    Info {mode: Mode::Immediate,   cycles: 2},  //  LDA
-    Info {mode: Mode::Implied,     cycles: 2},  //  TAX
-    Info {mode: Mode::Immediate,   cycles: 2},  // *LAX
-    Info {mode: Mode::Absolute,    cycles: 4},  //  LDY
-    Info {mode: Mode::Absolute,    cycles: 4},  //  LDA
-    Info {mode: Mode::Absolute,    cycles: 4},  //  LDX
-    Info {mode: Mode::Absolute,    cycles: 4},  // *LAX
-
+    Info {name:  "LDY", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDA", mode: IndX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDX", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*LAX", mode: IndX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDY", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDA", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDX", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name: "*LAX", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "TAY", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDA", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "TAX", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*LAX", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDY", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDA", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDX", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name: "*LAX", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
     // B
-    Info {mode: Mode::Relative,    cycles: 2},  //  BCS
-    Info {mode: Mode::IndirectY,   cycles: 5},  //  LDA
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectY,   cycles: 4},  // *LAX
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  //  LDY
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  //  LDA
-    Info {mode: Mode::ZeroPageY,   cycles: 4},  //  LDX
-    Info {mode: Mode::ZeroPageY,   cycles: 4},  // *LAX
-    Info {mode: Mode::Implied,     cycles: 2},  //  CLV
-    Info {mode: Mode::AbsoluteY,   cycles: 4},  //  LDA
-    Info {mode: Mode::Implied,     cycles: 2},  //  TSX
-    Info {mode: Mode::AbsoluteY,   cycles: 4},  // *LAS
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  //  LDY
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  //  LDA
-    Info {mode: Mode::AbsoluteY,   cycles: 4},  //  LDX
-    Info {mode: Mode::AbsoluteY,   cycles: 4},  // *LAX
-
+    Info {name:  "BCS", mode: Rel,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "LDA", mode: IndY, src: Mem, dest: Mem, cycles: 5, pg_penalty: true, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: Mem, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*LAX", mode: IndY, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "LDY", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDA", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "LDX", mode: ZpgY, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name: "*LAX", mode: ZpgY, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "CLV", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "LDA", mode: AbsY, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "TSX", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*LAS", mode: AbsY, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "LDY", mode: AbsX, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "LDA", mode: AbsX, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "LDX", mode: AbsY, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name: "*LAX", mode: AbsY, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
     // C
-    Info {mode: Mode::Immediate,   cycles: 2},  //  CPY
-    Info {mode: Mode::IndirectX,   cycles: 6},  //  CMP
-    Info {mode: Mode::Immediate,   cycles: 2},  // *SKB
-    Info {mode: Mode::IndirectX,   cycles: 8},  // *DCP
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  CPY
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  CMP
-    Info {mode: Mode::ZeroPage,    cycles: 6},  //  DEC
-    Info {mode: Mode::ZeroPage,    cycles: 5},  // *DCP
-    Info {mode: Mode::Implied,     cycles: 2},  //  INY
-    Info {mode: Mode::Immediate,   cycles: 2},  //  CMP
-    Info {mode: Mode::Implied,     cycles: 2},  //  DEX
-    Info {mode: Mode::Immediate,   cycles: 2},  // *AXS
-    Info {mode: Mode::Absolute,    cycles: 4},  //  CPY
-    Info {mode: Mode::Absolute,    cycles: 4},  //  CMP
-    Info {mode: Mode::Absolute,    cycles: 6},  //  DEC
-    Info {mode: Mode::Absolute,    cycles: 6},  // *DCP
-
+    Info {name:  "CPY", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "CMP", mode: IndX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*SKB", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name: "*DCP", mode: IndX, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name:  "CPY", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "CMP", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "DEC", mode: Zpg,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*DCP", mode: Zpg,  src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: true},
+    Info {name:  "INY", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "CMP", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "DEX", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name: "*AXS", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "CPY", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "CMP", mode: Abs,  src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "DEC", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*DCP", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
     // D
-    Info {mode: Mode::Relative,    cycles: 2},  //  BNE
-    Info {mode: Mode::IndirectY,   cycles: 5},  //  CMP
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectY,   cycles: 8},  // *DCP
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  // *IGN
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  //  CMP
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  //  DEC
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  // *DCP
-    Info {mode: Mode::Implied,     cycles: 2},  //  CLD
-    Info {mode: Mode::AbsoluteY,   cycles: 4},  //  CMP
-    Info {mode: Mode::Implied,     cycles: 2},  // *NOP
-    Info {mode: Mode::AbsoluteY,   cycles: 7},  // *DCP
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  // *IGN
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  //  CMP
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  //  DEC
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  // *DCP
-
-    // E 
-    Info {mode: Mode::Immediate,   cycles: 2},  //  CPX
-    Info {mode: Mode::IndirectX,   cycles: 6},  //  SBC
-    Info {mode: Mode::Immediate,   cycles: 2},  // *SKB
-    Info {mode: Mode::IndirectX,   cycles: 8},  // *ISC
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  CPX
-    Info {mode: Mode::ZeroPage,    cycles: 3},  //  SBC
-    Info {mode: Mode::ZeroPage,    cycles: 5},  //  INC
-    Info {mode: Mode::ZeroPage,    cycles: 5},  // *ISC
-    Info {mode: Mode::Implied,     cycles: 2},  //  INX
-    Info {mode: Mode::Immediate,   cycles: 2},  //  SBC
-    Info {mode: Mode::Implied,     cycles: 2},  //  NOP
-    Info {mode: Mode::Immediate,   cycles: 2},  //  SBC
-    Info {mode: Mode::Absolute,    cycles: 4},  //  CPX
-    Info {mode: Mode::Absolute,    cycles: 4},  //  SBC
-    Info {mode: Mode::Absolute,    cycles: 6},  //  INC
-    Info {mode: Mode::Absolute,    cycles: 6},  // *ISC
-    
+    Info {name:  "BNE", mode: Rel,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "CMP", mode: IndY, src: Mem, dest: Mem, cycles: 5, pg_penalty: true, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: Mem, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*DCP", mode: IndY, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "CMP", mode: ZpgX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "DEC", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*DCP", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name:  "CLD", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "CMP", mode: AbsY, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name: "*NOP", mode: Imp,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name: "*DCP", mode: AbsY, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: AbsX, src: Mem, dest: Mem, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "CMP", mode: AbsX, src: Mem, dest: Mem, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "DEC", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    Info {name: "*DCP", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    // E
+    Info {name:  "CPX", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "SBC", mode: IndX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*SKB", mode: Imm,  src: Mem, dest: Mem, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name: "*ISC", mode: IndX, src: Mem, dest: Mem, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name:  "CPX", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "SBC", mode: Zpg,  src: Mem, dest: Mem, cycles: 3, pg_penalty: false, updates_nz: true},
+    Info {name:  "INC", mode: Zpg,  src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: true},
+    Info {name: "*ISC", mode: Zpg,  src: Mem, dest: Mem, cycles: 5, pg_penalty: false, updates_nz: true},
+    Info {name:  "INX", mode: Imp,  src: Mem, dest: None, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "SBC", mode: Imm,  src: Mem, dest: A, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "NOP", mode: Imp,  src: Mem, dest: None, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "SBC", mode: Imm,  src: Mem, dest: A, cycles: 2, pg_penalty: false, updates_nz: true},
+    Info {name:  "CPX", mode: Abs,  src: Mem, dest: None, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "SBC", mode: Abs,  src: Mem, dest: A, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "INC", mode: Abs,  src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*ISC", mode: Abs,  src: Mem, dest: A, cycles: 6, pg_penalty: false, updates_nz: true},
     // F
-    Info {mode: Mode::Relative,    cycles: 2},  //  BEQ
-    Info {mode: Mode::IndirectY,   cycles: 5},  //  SBC
-    Info {mode: Mode::Implied,     cycles: 0},  // *JAM
-    Info {mode: Mode::IndirectY,   cycles: 8},  // *ISC
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  // *IGN
-    Info {mode: Mode::ZeroPageX,   cycles: 4},  //  SBC
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  //  INC
-    Info {mode: Mode::ZeroPageX,   cycles: 6},  // *ISC
-    Info {mode: Mode::Implied,     cycles: 2},  //  SED
-    Info {mode: Mode::AbsoluteY,   cycles: 4},  //  SBC
-    Info {mode: Mode::Implied,     cycles: 2},  // *NOP
-    Info {mode: Mode::AbsoluteY,   cycles: 8},  // *ISC
-    Info {mode: Mode::AbsoluteY,   cycles: 7},  // *IGN
-    Info {mode: Mode::AbsoluteX,   cycles: 4},  //  SBC
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  //  INC
-    Info {mode: Mode::AbsoluteX,   cycles: 7},  // *ISC
+    Info {name:  "BEQ", mode: Rel,  src: Mem, dest: None, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "SBC", mode: IndY, src: Mem, dest: A, cycles: 5, pg_penalty: true, updates_nz: true},
+    Info {name: "*JAM", mode: Imp,  src: Mem, dest: None, cycles: 0, pg_penalty: false, updates_nz: false},
+    Info {name: "*ISC", mode: IndY, src: Mem, dest: A, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: ZpgX, src: Mem, dest: None, cycles: 4, pg_penalty: false, updates_nz: false},
+    Info {name:  "SBC", mode: ZpgX, src: Mem, dest: A, cycles: 4, pg_penalty: false, updates_nz: true},
+    Info {name:  "INC", mode: ZpgX, src: Mem, dest: Mem, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name: "*ISC", mode: ZpgX, src: Mem, dest: A, cycles: 6, pg_penalty: false, updates_nz: true},
+    Info {name:  "SED", mode: Imp,  src: Mem, dest: None, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name:  "SBC", mode: AbsY, src: Mem, dest: A, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name: "*NOP", mode: Imp,  src: Mem, dest: None, cycles: 2, pg_penalty: false, updates_nz: false},
+    Info {name: "*ISC", mode: AbsY, src: Mem, dest: A, cycles: 8, pg_penalty: false, updates_nz: true},
+    Info {name: "*IGN", mode: AbsY, src: Mem, dest: None, cycles: 7, pg_penalty: false, updates_nz: false},
+    Info {name:  "SBC", mode: AbsX, src: Mem, dest: A, cycles: 4, pg_penalty: true, updates_nz: true},
+    Info {name:  "INC", mode: AbsX, src: Mem, dest: Mem, cycles: 7, pg_penalty: false, updates_nz: true},
+    Info {name: "*ISC", mode: AbsX, src: Mem, dest: A, cycles: 7, pg_penalty: false, updates_nz: true},
 ];

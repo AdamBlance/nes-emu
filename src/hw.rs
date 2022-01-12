@@ -1,3 +1,10 @@
+pub struct Nes {
+    pub cpu: Cpu,
+    pub wram: [u8; 2048],
+    pub ppu: Ppu,
+    pub cart: Cartridge,
+}
+
 pub struct Cartridge {
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
@@ -6,26 +13,27 @@ pub struct Cartridge {
 }
 
 pub struct Ppu {
-    // memory mapped registers
-    pub ppuctrl: u8,
-    pub ppumask: u8,
-    pub ppustatus: u8,
-    pub oamaddr: u8,
-    pub oamdata: u8,
-    pub ppuscroll: u8,
-    pub ppuaddr: u8,
-    pub ppudata: u8,
-    pub oamdma: u8,
+    pub palette_mem: [u8; 32],
+    pub oam: [u8; 256],
+    pub vram: [u8; 2048],
+
+    pub odd_frame: bool,
+
+    pub ppu_ctrl: u8,
+    pub ppu_mask: u8,
+    pub ppu_status: u8,
+    pub ppu_scroll: u8,
+    pub ppu_addr: u8,
+    pub ppu_data: u8,
+    pub oam_addr: u8,
+    pub oam_data: u8,
+    pub oam_dma: u8,
 
     pub t: u16,
     pub v: u16,
     pub x: u8,
     pub w: bool,
     
-    pub palette_mem: [u8; 32],
-    pub oam: [u8; 256],
-
-    pub odd_frame: bool,
     pub cycles: u64,
 }
 
