@@ -4,17 +4,12 @@
 #![allow(unused_parens)]
 #![feature(mixed_integer_ops)]
 
-use pixels::{Error, Pixels, SurfaceTexture};
-use winit::{
-    dpi::LogicalSize,
-    event::{Event, VirtualKeyCode},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
-use winit_input_helper::WinitInputHelper;
-
 use std::fs;
-mod emu;
+
+use ggez::{Context, ContextBuilder, GameResult};
+use ggez::event::{self, EventHandler};
+
+// mod emu;
 mod hw;
 mod opc;
 mod util;
@@ -22,6 +17,26 @@ mod mem;
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;
+
+struct Emulator {
+    frames: u64,
+    nes: hw::Nes,
+}
+
+impl EventHandler<ggez::GameError> for Emulator {
+    fn update(&mut self, _ctx: &mut Context) -> GameResult {
+        Ok(())
+    }
+
+    fn draw(&mut self, ctx: &mut Context) -> GameResult {
+        self.frames += 1;
+        if (self.frames % 100) == 0 {
+            println!("FPS: {}", ggez::timer::fps(ctx));
+        }
+
+        Ok(())
+    }
+}
 
 fn main() {
 
@@ -46,61 +61,24 @@ fn main() {
         v_mirroring: (ines_data[6] & 0b0000_0001) != 0,
     };
 
-    println!("size is {}B", std::mem::size_of_val(&opc::INSTRUCTION_INFO));
+    let nes = hw::Nes {
+        cpu: Default::default(),
+        wram: [0; 2048],
+        ppu: Default::default(),
+        ppu_written_to: false,
+        cart
+    };
+
+    let emulator = Emulator {
+        frames: 0,
+        nes,
+    };
+
+    // Make a Context.
+    let (mut ctx, event_loop) = ContextBuilder::new("my_game", "Cool Game Author").build().expect("Something went wrong");
+    event::run(ctx, event_loop, emulator);
 
 
 
-    emu::nes_main_loop(cart);
-
-
-    // let event_loop = EventLoop::new();
-    // let mut input = WinitInputHelper::new();
-
-    // let window = {
-    //     let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
-    //     let scaled_size = LogicalSize::new(WIDTH as f64 * 3.0, HEIGHT as f64 * 3.0);
-    //     WindowBuilder::new()
-    //         .with_title("Balls")
-    //         .with_inner_size(scaled_size)
-    //         .with_min_inner_size(size)
-    //         .build(&event_loop)
-    //         .unwrap()
-    // };
-
-    // let mut pixels = {
-    //     let window_size = window.inner_size();
-    //     let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-    //     Pixels::new(WIDTH, HEIGHT, surface_texture)?
-    // };
-
-    // event_loop.run(move |event, _, control_flow| {
-    //     // The one and only event that winit_input_helper doesn't have for us...
-    //     if let Event::RedrawRequested(_) = event {
-    //         make_red(pixels.get_frame());
-    //         if pixels
-    //             .render()
-    //             .map_err(|e| panic!("pixels.render() failed: {}", e))
-    //             .is_err()
-    //         {
-    //             *control_flow = ControlFlow::Exit;
-    //             return;
-    //         }
-    //     }
-
-    //     if input.update(&event) {
-    //         window.request_redraw();
-    //     }
-    // });
 
 }
-
-// fn make_red(pix: &mut [u8]) {
-//     for (i, pixel) in pix.chunks_exact_mut(4).enumerate() {
-//         if i % 2 == 0 {
-//             pixel[0] = 0xff; // R
-//             pixel[1] = 0xaa; // G
-//             pixel[2] = 0x00; // B
-//             pixel[3] = 0xff; // A
-//         }
-//     }
-// }

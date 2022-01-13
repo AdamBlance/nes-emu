@@ -10,7 +10,8 @@ pub fn read_mem_u16(addr: u16, nes: &Nes) -> u16 {
 pub fn read_mem(addr: u16, nes: &Nes) -> u8 {
     match addr {
         0x0000..=0x1FFF => nes.wram[(addr % 0x800) as usize],
-        0x2000..=0x3FFF => 0,
+        0x2000..=0x2007 => 0,
+        0x2008..=0x3FFF => 0,
         0x4000..=0x401F => 0,
         0x4020..=0x5FFF => 0,
         0x6000..=0x7FFF => 0,
@@ -19,6 +20,7 @@ pub fn read_mem(addr: u16, nes: &Nes) -> u8 {
     }
 }
 
+// Needs to set ppu_written_to when affecting registers
 pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
     if addr < 0x2000 {
         nes.wram[(addr % 0x800) as usize] = val;
