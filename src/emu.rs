@@ -4,95 +4,39 @@ use crate::opc::*;
 use crate::util::*;
 use std::io;
 
-fn step_ppu(nes: &mut Nes) {
+// PPU shouldn't be touched until 29658 CPU cycles have passed.
+// Some registers will work immediately on start up, like PPUSTATUS
+// Constantly checking PPUSTATUS bit-7 VBLANK flag with BIT instruction in a loop
+// will let 27,000 odd cycles pass
+// Doing it again will let 50,000 odd cycles pass
+// By this point, everything should work
 
-    
+// PPU needs to report how many cycles are left until it will raise VBLANK NMI
+// CPU should run until it either affects the PPU, has run up to VBLANK as reported by PPU
+// On NTSC, 1 CPU tick to 3 PPU ticks
 
+// 341 cycles per scanline
+// 262 scanlines
+
+pub fn run_to_vblank(nes: &mut Nes) {
+
+    // Initially, run CPU for 1 cycle
+
+    // PPU then catches up to CPU, running for 3 cycles
+    // PPU then reports time left until VBLANK
+
+    // Try to run CPU for reported time
+
+    // CPU will stop early and return false if it depends on PPU to advance
+    // Catch PPU up to CPU and report time left until VBLANK
+
+    // Continue CPU
+
+    // Once VBLANK reached, return
+
+    // Main loop can then package RGBA array into image texture and render
 }
 
-pub fn nes_main_loop(cart: Cartridge) {
-
-    let mut nes = Nes {
-        wram: [0; 2048],
-        cpu: Cpu {
-            a: 0, 
-            x: 0, 
-            y: 0, 
-            s: 0xFD, 
-            p_n: false,
-            p_v: false,
-            p_d: false,
-            p_i: true,
-            p_z: false,
-            p_c: false,
-            pc: 0,
-            cycles: 7, 
-        },
-        ppu: Ppu {
-            vram: [0; 2048],
-            ppu_ctrl: 0,
-            ppu_mask: 0,
-            ppu_status: 0,
-            oam_addr: 0,
-            ppu_scroll: 0,
-            ppu_addr: 0,
-            ppu_data: 0,
-            oam_data: 0,
-            oam_dma: 0,
-            t: 0,
-            v: 0,
-            x: 0,
-            w: false,
-            palette_mem: [0; 32],
-            oam: [0; 256],
-            odd_frame: false,
-            scanline: 0,
-            pixel: 0,
-            cycles: 0,
-        },
-        cart: cart,
-        ppu_written_to: false,
-    };
-
-    let mut needs_ppu = false;
-
-    loop {
-
-        // PPU shouldn't be touched until 29658 CPU cycles have passed.
-        // Some registers will work immediately on start up, like PPUSTATUS
-        // Constantly checking PPUSTATUS bit-7 VBLANK flag with BIT instruction in a loop
-        // will let 27,000 odd cycles pass
-        // Doing it again will let 50,000 odd cycles pass
-        // By this point, everything should work
-
-        // PPU needs to report how many cycles are left until it will raise VBLANK NMI
-        // CPU should run until it either affects the PPU, has run up to VBLANK as reported by PPU
-        // On NTSC, 1 CPU tick to 3 PPU ticks
-
-        // 341 cycles per scanline
-        // 262 scanlines
-
-    }
-}
-
-
-fn byte_to_p(byte: u8, nes: &mut Nes) {
-    nes.cpu.p_n = get_bit(byte, 7);
-    nes.cpu.p_v = get_bit(byte, 6);
-    nes.cpu.p_d = get_bit(byte, 3);
-    nes.cpu.p_i = get_bit(byte, 2);
-    nes.cpu.p_z = get_bit(byte, 1);
-    nes.cpu.p_c = get_bit(byte, 0);
-}
-fn p_to_byte(nes: &Nes) -> u8 {
-    (if nes.cpu.p_n {0b1000_0000} else {0}) | 
-    (if nes.cpu.p_v {0b0100_0000} else {0}) | 
-                     0b0010_0000            |
-    (if nes.cpu.p_d {0b0000_1000} else {0}) | 
-    (if nes.cpu.p_i {0b0000_0100} else {0}) | 
-    (if nes.cpu.p_z {0b0000_0010} else {0}) | 
-    (if nes.cpu.p_c {0b0000_0001} else {0})
-}
 fn stack_push(val: u8, nes: &mut Nes) {
     nes.wram[0x0100 + (nes.cpu.s as usize)] = val;
     nes.cpu.s = nes.cpu.s.wrapping_sub(1);
@@ -111,12 +55,12 @@ fn stack_pop_u16(nes: &mut Nes) -> u16 {
     concat_u8(msb, lsb)
 }
 fn update_p_nz(val: u8, nes: &mut Nes) {
-    nes.cpu.p_n = val > 0x7F;
-    nes.cpu.p_z = val == 0;
+    nes.cpu.p.set(CpuP::N, val > 0x7F);
+    nes.cpu.p.set(CpuP::Z, val == 0);
 }
 fn shift_left(val: u8, rotate: bool, nes: &mut Nes) -> u8 {
-    let prev_carry = nes.cpu.p_c;
-    nes.cpu.p_c = get_bit(nes.cpu.a, 7);
+    let prev_carry = nes.cpu.p.contains(CpuP::C);
+    nes.cpu.p.set(CpuP::C, get_bit(nes.cpu.a, 7));
     (nes.cpu.a << 1) | ((prev_carry && rotate) as u8)
 }
 fn shift_right(val: u8, rotate: bool, nes: &mut Nes) -> u8 {
@@ -261,7 +205,7 @@ fn exec_instruction(opcode: u8, instr_addr: u16, instr_val: u8, nes: &mut Nes) {
         },
         // PHP
         0x08 => {
-            stack_push(p_to_byte(nes) | 0b0001_0000, nes);
+            stack_push(nes.cpu.p.bits() | 0b0001_0000, nes);
         },
         // PLA
         0x68 => {
@@ -271,7 +215,7 @@ fn exec_instruction(opcode: u8, instr_addr: u16, instr_val: u8, nes: &mut Nes) {
         // PLP
         0x28 => {
             let p_byte = stack_pop(nes);
-            byte_to_p(p_byte, nes);
+            CpuP::from_bits_truncate(p_byte);
         },
         // ASL (ACC)
         0x0A => {
@@ -419,35 +363,35 @@ fn exec_instruction(opcode: u8, instr_addr: u16, instr_val: u8, nes: &mut Nes) {
             nes.cpu.pc = stack_pop_u16(nes).wrapping_add(1);
         },
         // BCC
-        0x90 => if !nes.cpu.p_c {nes.cpu.pc = instr_addr},
+        0x90 => if !nes.cpu.p.contains(CpuP::C) {nes.cpu.pc = instr_addr},
         // BCS
-        0xB0 => if nes.cpu.p_c  {nes.cpu.pc = instr_addr},
+        0xB0 => if nes.cpu.p.contains(CpuP::C)  {nes.cpu.pc = instr_addr},
         // BVC
-        0x50 => if !nes.cpu.p_v {nes.cpu.pc = instr_addr},
+        0x50 => if !nes.cpu.p.contains(CpuP::V) {nes.cpu.pc = instr_addr},
         // BVS
-        0x70 => if nes.cpu.p_v  {nes.cpu.pc = instr_addr},
+        0x70 => if nes.cpu.p.contains(CpuP::V)  {nes.cpu.pc = instr_addr},
         // BEQ
-        0xF0 => if nes.cpu.p_z  {nes.cpu.pc = instr_addr},
+        0xF0 => if nes.cpu.p.contains(CpuP::Z)  {nes.cpu.pc = instr_addr},
         // BNE
-        0xD0 => if !nes.cpu.p_z {nes.cpu.pc = instr_addr},
+        0xD0 => if !nes.cpu.p.contains(CpuP::Z) {nes.cpu.pc = instr_addr},
         // BMI
-        0x30 => if nes.cpu.p_n  {nes.cpu.pc = instr_addr},
+        0x30 => if nes.cpu.p.contains(CpuP::N)  {nes.cpu.pc = instr_addr},
         // BPL
-        0x10 => if !nes.cpu.p_n {nes.cpu.pc = instr_addr},
+        0x10 => if !nes.cpu.p.contains(CpuP::N) {nes.cpu.pc = instr_addr},
         // CLC 
-        0x18 => nes.cpu.p_c = false,
+        0x18 => nes.cpu.p.set(CpuP::C, false),
         // CLD
-        0xD8 => nes.cpu.p_d = false,
+        0xD8 => nes.cpu.p.set(CpuP::D, false),
         // CLI 
-        0x58 => nes.cpu.p_i = false,
+        0x58 => nes.cpu.p.set(CpuP::I, false),
         // CLV 
-        0xB8 => nes.cpu.p_v = false,
+        0xB8 => nes.cpu.p.set(CpuP::V, false),
         // SEC
-        0x38 => nes.cpu.p_c = true,
+        0x38 => nes.cpu.p.set(CpuP::C, true),
         // SED
-        0xF8 => nes.cpu.p_d = true,
+        0xF8 => nes.cpu.p.set(CpuP::D, true),
         // SEI
-        0x78 => nes.cpu.p_i = true,
+        0x78 => nes.cpu.p.set(CpuP::I, true),
         // NOP
         0xEA => {}
         

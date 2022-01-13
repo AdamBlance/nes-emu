@@ -9,7 +9,7 @@ use std::fs;
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
 
-// mod emu;
+mod emu;
 mod hw;
 mod opc;
 mod util;
@@ -25,15 +25,15 @@ struct Emulator {
 
 impl EventHandler<ggez::GameError> for Emulator {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
+        emu::run_to_vblank(&mut self.nes);
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         self.frames += 1;
-        if (self.frames % 100) == 0 {
+        if (self.frames % 60) == 0 {
             println!("FPS: {}", ggez::timer::fps(ctx));
         }
-
         Ok(())
     }
 }
@@ -66,6 +66,7 @@ fn main() {
         wram: [0; 2048],
         ppu: Default::default(),
         ppu_written_to: false,
+        frame: [0; 256*240*4],
         cart
     };
 

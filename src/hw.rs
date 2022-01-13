@@ -1,11 +1,10 @@
-use bitflags::bitflags;
-
 pub struct Nes {
     pub cpu: Cpu,
     pub wram: [u8; 2048],
     pub ppu: Ppu,
     pub cart: Cartridge,
     pub ppu_written_to: bool,
+    pub frame: [u8; 256*240*4]
 }
 
 pub struct Cartridge {
@@ -73,7 +72,12 @@ pub struct Cpu {
     pub x: u8,
     pub y: u8,
     pub s: u8,
-    pub p: CpuP,
+    pub p_n: bool,
+    pub p_v: bool,
+    pub p_d: bool,
+    pub p_i: bool,
+    pub p_z: bool,
+    pub p_c: bool,
     pub pc: u16,
     pub cycles: u64,
 }
