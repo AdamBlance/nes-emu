@@ -4,7 +4,7 @@ pub struct Nes {
     pub ppu: Ppu,
     pub cart: Cartridge,
     pub ppu_written_to: bool,
-    pub frame: [u8; 256*240*4]
+    pub frame: Vec<u8>
 }
 
 pub struct Cartridge {
@@ -14,11 +14,28 @@ pub struct Cartridge {
     pub v_mirroring: bool,
 }
 
-
 pub struct Ppu {
-    pub ppu_ctrl: PpuCtrl,
-    pub ppu_mask: PpuMask,
-    pub ppu_status: PpuStatus,
+    pub nmi_enable: bool,
+    pub master_slave: bool,
+    pub sprite_height: bool,
+    pub background_tile_select: bool,
+    pub sprite_tile_select: bool,
+    pub increment_mode: bool,
+    pub nametable_select: u8,
+
+    pub blue_emphasis: bool,
+    pub green_emphasis: bool,
+    pub red_emphasis: bool,
+    pub sprite_enable: bool,
+    pub background_enable: bool,
+    pub sprite_left_column_enable: bool,
+    pub background_left_column_enable: bool,
+    pub greyscale: bool,
+
+    pub vblank: bool,
+    pub sprite_zero_hit: bool,
+    pub sprite_overflow: bool,
+
     pub oam_addr: u8,
     pub ppu_scroll: u8,
     pub ppu_addr: u8,
@@ -36,14 +53,33 @@ pub struct Ppu {
     pub w: bool,
     pub odd_frame: bool,
     pub cycles: u64,
+
+    pub nmi: bool,
 }
 
 impl Default for Ppu {
     fn default() -> Ppu {
         Ppu {
-            ppu_ctrl: Default::default(),
-            ppu_mask: Default::default(),
-            ppu_status: Default::default(),
+            nmi_enable: false,
+            master_slave: false,
+            sprite_height: false,
+            background_tile_select: false,
+            sprite_tile_select: false,
+            increment_mode: false,
+            nametable_select: 0,
+        
+            blue_emphasis: false,
+            green_emphasis: false,
+            red_emphasis: false,
+            sprite_enable: false,
+            background_enable: false,
+            sprite_left_column_enable: false,
+            background_left_column_enable: false,
+            greyscale: false,
+        
+            vblank: false,
+            sprite_zero_hit: false,
+            sprite_overflow: false,
             oam_addr: 0,
             ppu_scroll: 0,
             ppu_addr: 0,
@@ -61,6 +97,8 @@ impl Default for Ppu {
             w: false,
             odd_frame: false,
             cycles: 0,
+
+            nmi: false,
             
         }
     }
@@ -80,43 +118,5 @@ pub struct Cpu {
     pub p_c: bool,
     pub pc: u16,
     pub cycles: u64,
-}
-
-bitflags! {
-    #[derive(Default)]
-    pub struct CpuP: u8 {
-        const N = 0b1000_0000;
-        const V = 0b0100_0000;
-        const D = 0b0000_1000;
-        const I = 0b0000_0100;
-        const Z = 0b0000_0010;
-        const C = 0b0000_0001;
-    }
-    #[derive(Default)]
-    pub struct PpuCtrl: u8 {
-        const NMI_ENABLE             = 0b1000_0000;
-        const MASTER_SLAVE           = 0b0100_0000;
-        const SPRITE_HEIGHT          = 0b0010_0000;
-        const BACKGROUND_TILE_SELECT = 0b0001_0000;
-        const SPRITE_TILE_SELECT     = 0b0000_1000;
-        const INCREMENT_MODE         = 0b0000_0100;
-        const NAMETABLE_SELECT       = 0b0000_0011;
-    }
-    #[derive(Default)]
-    pub struct PpuMask: u8 {
-        const BLUE_EMPHASIS      = 0b1000_0000;
-        const GREEN_EMPHASIS     = 0b0100_0000;
-        const RED_EMPHASIS       = 0b0010_0000;
-        const SPRITE_ENABLE      = 0b0001_0000;
-        const BACKGROUND_ENABLE  = 0b0000_1000;
-        const SPRITE_LEFT_COLUMN_ENABLE  = 0b0000_0100;
-        const BACKGROUND_LEFT_COLUMN_ENABLE  = 0b0000_0100;
-        const GREYSCALE  = 0b0000_0100;
-    }
-    #[derive(Default)]
-    pub struct PpuStatus: u8 {
-        const VBLANK      = 0b1000_0000;
-        const SPRITE_ZERO_HIT     = 0b0100_0000;
-        const SPRITE_OVERFLOW       = 0b0010_0000;
-    }
+    pub counter: u64,
 }

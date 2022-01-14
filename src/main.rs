@@ -8,6 +8,7 @@ use std::fs;
 
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
+use ggez::graphics::{self, Color, DrawMode, DrawParam};
 
 mod emu;
 mod hw;
@@ -34,11 +35,17 @@ impl EventHandler<ggez::GameError> for Emulator {
         if (self.frames % 60) == 0 {
             println!("FPS: {}", ggez::timer::fps(ctx));
         }
+
+        let image = graphics::Image::from_rgba8(ctx, 256, 240, &self.nes.frame)?;
+        graphics::draw(ctx, &image, graphics::DrawParam::new())?;
         Ok(())
     }
 }
 
 fn main() {
+
+    println!("Balls");
+
 
     let ines_data = fs::read("nestest.nes").expect("Failed to read rom");
 
@@ -54,6 +61,8 @@ fn main() {
     println!("prg_end size {}", prg_end-prg_start);
     let chr_end = prg_end + (ines_data[5] as usize) * 8192;
 
+
+
     let cart = hw::Cartridge {
         prg_rom: ines_data[prg_start..prg_end].to_vec(),
         chr_rom: ines_data[prg_end..chr_end].to_vec(),
@@ -61,12 +70,14 @@ fn main() {
         v_mirroring: (ines_data[6] & 0b0000_0001) != 0,
     };
 
+    let mut frame = vec![0u8; 256*240*4];
+
     let nes = hw::Nes {
         cpu: Default::default(),
         wram: [0; 2048],
         ppu: Default::default(),
         ppu_written_to: false,
-        frame: [0; 256*240*4],
+        frame,
         cart
     };
 
