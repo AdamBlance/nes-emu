@@ -16,6 +16,8 @@ mod opc;
 mod util;
 mod mem;
 mod log;
+mod cpu; 
+mod ppu;
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;

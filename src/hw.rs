@@ -45,8 +45,8 @@ pub struct Ppu {
     pub palette_mem: [u8; 32],
     pub oam: [u8; 256],
     pub vram: [u8; 2048],
-    pub scanline: u16,
-    pub pixel: u16,
+    pub scanline: u32,
+    pub pixel: u32,
     pub t: u16,
     pub v: u16,
     pub x: u8,
@@ -55,7 +55,6 @@ pub struct Ppu {
     pub cycles: u64,
 
     pub internal_latch: u8,
-    pub nmi: bool,
 }
 
 impl Default for Ppu {
@@ -99,9 +98,7 @@ impl Default for Ppu {
             odd_frame: false,
             cycles: 0,
 
-            internal_latch: 0,
-            nmi: false,
-            
+            internal_latch: 0,            
         }
     }
 }
