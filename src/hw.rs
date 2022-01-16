@@ -54,6 +54,7 @@ pub struct Ppu {
     pub odd_frame: bool,
     pub cycles: u64,
 
+    pub internal_latch: u8,
     pub nmi: bool,
 }
 
@@ -98,6 +99,7 @@ impl Default for Ppu {
             odd_frame: false,
             cycles: 0,
 
+            internal_latch: 0,
             nmi: false,
             
         }
@@ -117,6 +119,7 @@ pub struct Cpu {
     pub p_z: bool,
     pub p_c: bool,
     pub pc: u16,
+    pub nmi_interrupt: bool,
     pub cycles: u64,
     pub counter: u64,
 }

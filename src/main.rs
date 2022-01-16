@@ -15,6 +15,7 @@ mod hw;
 mod opc;
 mod util;
 mod mem;
+mod log;
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;
@@ -27,27 +28,28 @@ struct Emulator {
 impl EventHandler<ggez::GameError> for Emulator {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
         emu::run_to_vblank(&mut self.nes);
+        println!("Frames - {}", self.frames);
+
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         self.frames += 1;
-        if (self.frames % 60) == 0 {
-            println!("FPS: {}", ggez::timer::fps(ctx));
-        }
+        // if (self.frames % 60) == 0 {
+        //     println!("FPS: {}", ggez::timer::fps(ctx));
+        // }
 
         let image = graphics::Image::from_rgba8(ctx, 256, 240, &self.nes.frame)?;
-        graphics::draw(ctx, &image, graphics::DrawParam::new())?;
+        // let image = graphics::Image::solid(ctx, 240, Color::from_rgb(255, 0, 255))?;
+        graphics::draw(ctx, &image, DrawParam::new())?;
+        graphics::present(ctx)?;
         Ok(())
     }
 }
 
 fn main() {
 
-    println!("Balls");
-
-
-    let ines_data = fs::read("nestest.nes").expect("Failed to read rom");
+    let ines_data = fs::read("rom.nes").expect("Failed to read rom");
 
     if ines_data.len() < 16 {
         panic!();

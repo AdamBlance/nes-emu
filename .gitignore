@@ -2,3 +2,5 @@
 *.nes
 nestest.log
 *.py
+*.xml
+*.iml
