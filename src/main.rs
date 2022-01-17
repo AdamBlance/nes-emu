@@ -51,7 +51,7 @@ impl EventHandler<ggez::GameError> for Emulator {
 
 fn main() {
 
-    let ines_data = fs::read("rom.nes").expect("Failed to read rom");
+    let ines_data = fs::read("color_test.nes").expect("Failed to read rom");
 
     if ines_data.len() < 16 {
         panic!();

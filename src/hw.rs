@@ -38,7 +38,6 @@ pub struct Ppu {
 
     pub oam_addr: u8,
     pub ppu_scroll: u8,
-    pub ppu_addr: u8,
     pub ppu_data: u8,
     pub oam_data: u8,
     pub oam_dma: u8,
@@ -55,6 +54,11 @@ pub struct Ppu {
     pub cycles: u64,
 
     pub internal_latch: u8,
+    pub lsb_pattern_shift_register: u16,
+    pub msb_pattern_shift_register: u16,
+    pub lsb_palette_shift_register: u8,
+    pub msb_palette_shift_register: u8,
+
 }
 
 impl Default for Ppu {
@@ -82,7 +86,6 @@ impl Default for Ppu {
             sprite_overflow: false,
             oam_addr: 0,
             ppu_scroll: 0,
-            ppu_addr: 0,
             ppu_data: 0,
             oam_data: 0,
             oam_dma: 0,
@@ -99,6 +102,11 @@ impl Default for Ppu {
             cycles: 0,
 
             internal_latch: 0,            
+            lsb_pattern_shift_register: 0,
+            msb_pattern_shift_register: 0,
+            lsb_palette_shift_register: 0,
+            msb_palette_shift_register: 0,
+
         }
     }
 }

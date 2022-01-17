@@ -59,7 +59,7 @@ fn add_with_carry(val: u8, nes: &mut Nes) {
     update_p_nz(nes.cpu.a, nes);
 }
 
-fn get_instr_addr(addressing_mode: Mode, byte2: u8, byte3: u8, nes: &Nes) -> u16 {
+fn get_instr_addr(addressing_mode: Mode, byte2: u8, byte3: u8, nes: &mut Nes) -> u16 {
     match addressing_mode {
         Mode::Abs  => concat_u8(byte3, byte2),
         Mode::AbsX => concat_u8(byte3, byte2).wrapping_add(nes.cpu.x as u16),

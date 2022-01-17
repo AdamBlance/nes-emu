@@ -1,5 +1,6 @@
 use crate::util::*;
 use crate::hw::*;
+use crate::ppu;
 
 pub fn read_mem_u16(addr: u16, nes: &mut Nes) -> u16 {
     let lsb = read_mem(addr, nes);
@@ -21,7 +22,13 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
             nes.ppu.w = false;
             ppustatus_to_byte(nes)
         }
-        0x2003..=0x2007 => 0,
+        0x2003..=0x2006 => 0,
+        0x2007 => {
+            // let val = nes.ppu.vram[nes.ppu.v as usize];
+            let val = ppu::read_vram(nes.ppu.v, nes);
+            nes.ppu.v += if nes.ppu.increment_mode == false {1} else {32};
+            val
+        }
         0x2008..=0x3FFF => 0,
         0x4000..=0x401F => 0,
         0x4020..=0x5FFF => 0,
@@ -38,6 +45,11 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
         0x0000..=0x1FFF => nes.wram[(addr % 0x800) as usize] = val,
         0x2000          => byte_to_ppuctrl(val, nes),
         0x2001          => byte_to_ppumask(val, nes),
+        0x2003          => nes.ppu.oam_addr = val,
+        0x2004          => {
+            nes.ppu.oam[nes.ppu.oam_addr as usize] = val;
+            nes.ppu.oam_addr += 1; // not safe
+        }
         0x2005          => {
             if !nes.ppu.w {
                 nes.ppu.t &= 0b1_111_11_11111_00000;
@@ -60,6 +72,17 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 nes.ppu.v = nes.ppu.t;
             }
             nes.ppu.w = !nes.ppu.w;
+        }
+        0x2007 => {
+            // nes.ppu.vram[nes.ppu.v as usize] = val;
+            let val = ppu::write_vram(nes.ppu.v, val, nes);
+            nes.ppu.v += if nes.ppu.increment_mode == false {1} else {32};
+        }
+        0x4014 => {
+            let base = (val_u16 << 8);
+            for offset in 0x00..0xFF {
+                nes.ppu.oam[offset] = read_mem(base + offset as u16, nes);
+            }
         }
         _ => (),
     }
