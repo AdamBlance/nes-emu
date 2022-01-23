@@ -3,15 +3,66 @@ use std::{thread, time};
 
 pub static PALETTE: [(u8,u8,u8); 56] = [(84, 84, 84), (0, 30, 116), (8, 16, 144), (48, 0, 136), (68, 0, 100), (92, 0, 48), (84, 4, 0), (60, 24, 0), (32, 42, 0), (8, 58, 0), (0, 64, 0), (0, 60, 0), (0, 50, 60), (0, 0, 0), (152, 150, 152), (8, 76, 196), (48, 50, 236), (92, 30, 228), (136, 20, 176), (160, 20, 100), (152, 34, 32), (120, 60, 0), (84, 90, 0), (40, 114, 0), (8, 124, 0), (0, 118, 40), (0, 102, 120), (0, 0, 0), (236, 238, 236), (76, 154, 236), (120, 124, 236), (176, 98, 236), (228, 84, 236), (236, 88, 180), (236, 106, 100), (212, 136, 32), (160, 170, 0), (116, 196, 0), (76, 208, 32), (56, 204, 108), (56, 180, 204), (60, 60, 60), (236, 238, 236), (168, 204, 236), (188, 188, 236), (212, 178, 236), (236, 174, 236), (236, 174, 212), (236, 180, 176), (228, 196, 144), (204, 210, 120), (180, 222, 120), (168, 226, 144), (152, 226, 180), (160, 214, 228), (160, 162, 160)];
 
+const COARSE_X_MASK: u16  = 0b0_000_00_00000_11111;
+const COARSE_Y_MASK: u16  = 0b0_000_00_11111_00000;
+const NAMETABLE_MASK: u16 = 0b0_000_11_00000_00000;
+const FINE_Y_MASK: u16    = 0b0_111_00_00000_00000;
+
+
+fn physical_nametable_addr(addr: u16, cart: &Cartridge) -> usize {
+    let addr_u = addr as usize;
+    if cart.v_mirroring {
+        match addr {
+            0x2000..=0x27FF => addr_u,
+            0x2800..=0x2FFF => addr_u - 0x800,
+            _ => 0,
+        }
+    } else {
+        match addr {
+            0x2000..=0x23FF => addr_u,
+            0x2400..=0x27FF => addr_u - 0x400,
+            0x2800..=0x2BFF => addr_u - 0x400,
+            0x2C00..=0x2FFF => addr_u - 0x800,
+            _ => 0,
+        }
+    }
+}
+
+fn increment_v_rendering(nes: &mut Nes) {
+    let coarse_x  = nes.ppu.v & COARSE_X_MASK;
+    let coarse_y  = (nes.ppu.v & COARSE_Y_MASK) >> 5;
+    let nametable = (nes.ppu.v & NAMETABLE_MASK) >> 10;
+    let fine_y    = (nes.ppu.v & FINE_Y_MASK) >> 12;
+
+    if coarse_x < 31 {
+        nes.ppu.v += 1;
+    } else {
+        nes.ppu.v &= !COARSE_X_MASK;
+        nes.ppu.v ^= 0b0_000_01_00000_00000;
+    }
+    
+    if fine_y < 7 {
+        nes.ppu.v += 0b0_001_00_00000_00000;
+    } else {
+        nes.ppu.v &= !FINE_Y_MASK;
+        if coarse_y < 29 {
+            nes.ppu.v += 0b0_000_00_00001_00000;
+            
+        } else {
+            nes.ppu.v &= !COARSE_Y_MASK;
+            if coarse_y == 29 {
+                nes.ppu.v ^= 0b0_000_10_00000_00000;
+            }
+        }
+    }   
+}
+
 pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
     let a = addr as usize;
     match addr {
         0x0000..=0x1FFF => nes.cart.chr_rom[a],
-        0x2000..=0x23FF => nes.ppu.vram[a - 0x2000],
-        0x2400..=0x27FF => nes.ppu.vram[a - 0x2000],
-        0x2800..=0x2BFF => nes.ppu.vram[a - 0x2000],
-        0x2C00..=0x2FFF => nes.ppu.vram[a - 0x2000],
-        0x3000..=0x3EFF => nes.ppu.vram[a - 0x3000],
+        0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart)],
+        0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart) - 0x1000],
         0x3F00..=0x3F1F => nes.ppu.palette_mem[a - 0x3F00],
         0x3F20..=0x3FFF => nes.ppu.palette_mem[a - 0x3F20],
         _ => 0,
@@ -21,11 +72,8 @@ pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
 pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
     let a = addr as usize;
     match addr {
-        0x2000..=0x23FF => nes.ppu.vram[a - 0x2000] = val,
-        0x2400..=0x27FF => nes.ppu.vram[a - 0x2000] = val,
-        0x2800..=0x2BFF => nes.ppu.vram[a - 0x2000] = val,
-        0x2C00..=0x2FFF => nes.ppu.vram[a - 0x2000] = val,
-        0x3000..=0x3EFF => nes.ppu.vram[a - 0x3000] = val,
+        0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart)] = val,
+        0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart) - 0x1000] = val,
         0x3F00..=0x3F1F => nes.ppu.palette_mem[a - 0x3F00] = val,
         0x3F20..=0x3FFF => nes.ppu.palette_mem[a - 0x3F20] = val,
         _ => (),

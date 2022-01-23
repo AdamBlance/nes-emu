@@ -43,12 +43,16 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
     let val_u16 = val as u16;
     match addr {
         0x0000..=0x1FFF => nes.wram[(addr % 0x800) as usize] = val,
-        0x2000          => byte_to_ppuctrl(val, nes),
+        0x2000          => {
+            byte_to_ppuctrl(val, nes);
+            nes.ppu.t &= 0b1_111001111111111;
+            nes.ppu.t |= (val_u16 & 0b00000011) << 10;
+        }
         0x2001          => byte_to_ppumask(val, nes),
         0x2003          => nes.ppu.oam_addr = val,
         0x2004          => {
             nes.ppu.oam[nes.ppu.oam_addr as usize] = val;
-            nes.ppu.oam_addr += 1; // not safe
+            nes.ppu.oam_addr = nes.ppu.oam_addr.wrapping_add(1);
         }
         0x2005          => {
             if !nes.ppu.w {
