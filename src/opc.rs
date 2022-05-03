@@ -24,6 +24,8 @@ use crate::hw::*;
 use crate::util::*;
 use crate::mem::*;
 
+use Mode::*;
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Mode { 
     Accumulator,
@@ -40,7 +42,26 @@ pub enum Mode {
     IndirectY,
     AbsoluteI,
 }
-use Mode::*;
+
+impl Mode {
+    pub fn num_bytes(&self) -> u16 {
+        match self {
+            Accumulator => 1,
+            Implied     => 1,
+            Immediate   => 2,
+            Relative    => 2,
+            IndirectX   => 2,
+            IndirectY   => 2,
+            ZeroPage    => 2,
+            ZeroPageX   => 2,
+            ZeroPageY   => 2,
+            Absolute    => 3,
+            AbsoluteX   => 3,
+            AbsoluteY   => 3,
+            AbsoluteI   => 3,
+        }
+    }
+}
 
 
 #[derive(Copy, Clone)]
