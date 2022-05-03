@@ -78,8 +78,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
             nes.ppu.w = !nes.ppu.w;
         }
         0x2007 => {
-            // nes.ppu.vram[nes.ppu.v as usize] = val;
-            let val = ppu::write_vram(nes.ppu.v, val, nes);
+            ppu::write_vram(nes.ppu.v, val, nes);
             nes.ppu.v += if nes.ppu.increment_mode == false {1} else {32};
         }
         0x4014 => {

@@ -6,6 +6,7 @@
 
 use std::fs;
 
+use ggez::mint::Vector2;
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
 use ggez::graphics::{self, Color, DrawMode, DrawParam};
@@ -43,7 +44,8 @@ impl EventHandler<ggez::GameError> for Emulator {
 
         let image = graphics::Image::from_rgba8(ctx, 256, 240, &self.nes.frame)?;
         // let image = graphics::Image::solid(ctx, 240, Color::from_rgb(255, 0, 255))?;
-        graphics::draw(ctx, &image, DrawParam::new())?;
+        let dp = DrawParam::new();
+        graphics::draw(ctx, &image, dp)?;
         graphics::present(ctx)?;
         Ok(())
     }
@@ -82,7 +84,8 @@ fn main() {
         ppu: Default::default(),
         ppu_written_to: false,
         frame,
-        cart
+        cart,
+        skip: 1,
     };
 
     let emulator = Emulator {

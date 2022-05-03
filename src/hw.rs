@@ -4,7 +4,8 @@ pub struct Nes {
     pub ppu: Ppu,
     pub cart: Cartridge,
     pub ppu_written_to: bool,
-    pub frame: Vec<u8>
+    pub frame: Vec<u8>,
+    pub skip: u64,
 }
 
 pub struct Cartridge {

@@ -1,3 +1,5 @@
+use std::io;
+
 use crate::util::*;
 use crate::hw::*;
 use crate::opc::*;
@@ -56,7 +58,6 @@ fn add_with_carry(val: u8, nes: &mut Nes) {
     nes.cpu.p_v = was_signed_overflow(nes.cpu.a, val, result);
     nes.cpu.p_c = carry;
     nes.cpu.a = result;  
-    update_p_nz(nes.cpu.a, nes);
 }
 
 fn get_instr_addr(addressing_mode: Mode, byte2: u8, byte3: u8, nes: &mut Nes) -> u16 {
@@ -84,23 +85,7 @@ fn get_instr_addr(addressing_mode: Mode, byte2: u8, byte3: u8, nes: &mut Nes) ->
     }
 }
 
-fn instr_len(addr_mode: Mode) -> u16 {
-    match addr_mode {
-        Mode::Imm => 2,
-        Mode::Acc => 1,
-        Mode::Imp => 1,
-        Mode::Abs  => 3,
-        Mode::AbsX => 3,
-        Mode::AbsY => 3,
-        Mode::Zpg  => 2,
-        Mode::ZpgX => 2,
-        Mode::ZpgY => 2,
-        Mode::Rel  => 2,
-        Mode::IndX => 2,
-        Mode::IndY => 2,
-        Mode::AbsI => 3,
-    }
-}
+
 
 fn log(opcode: u8, byte2: u8, byte3: u8, instr_addr: u16, instr_val: u8, instr_info: Info, nes: &mut Nes) {
     let log = String::new();
@@ -144,6 +129,20 @@ fn log(opcode: u8, byte2: u8, byte3: u8, instr_addr: u16, instr_val: u8, instr_i
     }
 
     log_line.push_str(&format!("A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", nes.cpu.a, nes.cpu.x, nes.cpu.y, p_to_byte(nes), nes.cpu.s));
+    println!("{}", log_line);
+    println!("ppu: ({},{})", nes.ppu.scanline, nes.ppu.pixel);
+
+    if nes.cpu.cycles % nes.skip == 0 {
+        let mut buffer = String::new();
+        let mut stdin = io::stdin(); // We get `Stdin` here.
+        stdin.read_line(&mut buffer).expect("it broke");
+        nes.skip = match buffer.trim().parse() {
+            Ok(x) => x,
+            Err(e) => {println!("{}", e); 1}
+        };
+        println!("{:?}", nes.ppu.palette_mem);
+    }
+
 }
 
 pub fn step_cpu(nes: &mut Nes) {
@@ -172,6 +171,8 @@ pub fn step_cpu(nes: &mut Nes) {
     nes.cpu.counter += 1;
 
     let prev_pc = nes.cpu.pc;
+
+    log(opcode, byte2, byte3, instr_addr, instr_val, instr_info, nes);
 
     exec_instruction(opcode, instr_addr, instr_val, nes);
     

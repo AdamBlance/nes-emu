@@ -20,303 +20,662 @@
 
 // https://wiki.nesdev.org/w/index.php?title=Programming_with_unofficial_opcodes
 
+use crate::hw::*;
+use crate::util::*;
+use crate::mem::*;
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Mode { 
-    Acc,
-    Imp,
-    Imm,
-    Abs,
-    AbsX,
-    AbsY,
-    Zpg,
-    ZpgX,
-    ZpgY,
-    IndX,
-    IndY,
-    Rel,
-    AbsI, 
+    Accumulator,
+    Immediate,
+    Absolute,
+    AbsoluteX,
+    AbsoluteY,
+    ZeroPage,
+    ZeroPageX,
+    ZeroPageY,
+    Implied,
+    Relative,
+    IndirectX,
+    IndirectY,
+    AbsoluteI,
 }
 use Mode::*;
 
+
 #[derive(Copy, Clone)]
-pub struct Info { 
+pub struct Instruction { 
     pub name: &'static str,
     pub mode: Mode,
     pub cycles: u8,
-    pub pg_penalty: bool,
+    pub page_penalty: bool,
+    pub associated_function: fn(u8, u16, &mut Nes),
 }
 
-pub static INSTRUCTION_INFO: [Info; 256] = [
+pub static INSTRUCTIONS: [Instruction; 256] = [
     // 0
-    Info {name:  "BRK", mode: Imp,  cycles: 7, pg_penalty: false},
-    Info {name:  "ORA", mode: IndX, cycles: 6, pg_penalty: false},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*SLO", mode: IndX, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "ORA", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "ASL", mode: Zpg,  cycles: 5, pg_penalty: false},
-    Info {name: "*SLO", mode: Zpg,  cycles: 5, pg_penalty: false},
-    Info {name:  "PHP", mode: Imp,  cycles: 3, pg_penalty: false},
-    Info {name:  "ORA", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "ASL", mode: Acc,  cycles: 2, pg_penalty: false},
-    Info {name: "*ANC", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name: "*NOP", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "ORA", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "ASL", mode: Abs,  cycles: 6, pg_penalty: false},
-    Info {name: "*SLO", mode: Abs,  cycles: 6, pg_penalty: false},
+    Instruction {name:  "BRK", mode: Implied,     cycles: 7, page_penalty: false, associated_function: break_irq},
+    Instruction {name:  "ORA", mode: IndirectX,   cycles: 6, page_penalty: false, associated_function: or},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SLO", mode: IndirectX,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: nop},
+    Instruction {name:  "ORA", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: or},
+    Instruction {name:  "ASL", mode: ZeroPage,    cycles: 5, page_penalty: false, associated_function: arithmetic_shift_left_rmw},
+    Instruction {name: "*SLO", mode: ZeroPage,    cycles: 5, page_penalty: false, associated_function: nop},
+    Instruction {name:  "PHP", mode: Implied,     cycles: 3, page_penalty: false, associated_function: push_p_to_stack},
+    Instruction {name:  "ORA", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: or},
+    Instruction {name:  "ASL", mode: Accumulator, cycles: 2, page_penalty: false, associated_function: arithmetic_shift_left_acc},
+    Instruction {name: "*ANC", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "ORA", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: or},
+    Instruction {name:  "ASL", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: arithmetic_shift_left_rmw},
+    Instruction {name: "*SLO", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: nop},
     // 1
-    Info {name:  "BPL", mode: Rel,  cycles: 2, pg_penalty: false},
-    Info {name:  "ORA", mode: IndY, cycles: 5, pg_penalty: true},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*SLO", mode: IndY, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "ORA", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "ASL", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name: "*SLO", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name:  "CLC", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "ORA", mode: AbsY, cycles: 4, pg_penalty: true},
-    Info {name: "*NOP", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*SLO", mode: AbsY, cycles: 7, pg_penalty: false},
-    Info {name: "*NOP", mode: AbsX, cycles: 4, pg_penalty: false},
-    Info {name:  "ORA", mode: AbsX, cycles: 4, pg_penalty: true},
-    Info {name:  "ASL", mode: AbsX, cycles: 7, pg_penalty: false},
-    Info {name: "*SLO", mode: AbsX, cycles: 7, pg_penalty: false},
+    Instruction {name:  "BPL", mode: Relative,    cycles: 2, page_penalty: false, associated_function: branch_if_positive},
+    Instruction {name:  "ORA", mode: IndirectY,   cycles: 5, page_penalty: true,  associated_function: or},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SLO", mode: IndirectY,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "ORA", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: or},
+    Instruction {name:  "ASL", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: arithmetic_shift_left_rmw},
+    Instruction {name: "*SLO", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: nop},
+    Instruction {name:  "CLC", mode: Implied,     cycles: 2, page_penalty: false, associated_function: clear_carry_flag},
+    Instruction {name:  "ORA", mode: AbsoluteY,   cycles: 4, page_penalty: true,  associated_function: or},
+    Instruction {name: "*NOP", mode: Implied,     cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SLO", mode: AbsoluteY,   cycles: 7, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: AbsoluteX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "ORA", mode: AbsoluteX,   cycles: 4, page_penalty: true,  associated_function: or},
+    Instruction {name:  "ASL", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: arithmetic_shift_left_rmw},
+    Instruction {name: "*SLO", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: nop},
     // 2
-    Info {name:  "JSR", mode: Abs,  cycles: 6, pg_penalty: false},
-    Info {name:  "AND", mode: IndX, cycles: 6, pg_penalty: false},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*RLA", mode: IndX, cycles: 8, pg_penalty: false},
-    Info {name:  "BIT", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "AND", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "ROL", mode: Zpg,  cycles: 5, pg_penalty: false},
-    Info {name: "*RLA", mode: Zpg,  cycles: 5, pg_penalty: false},
-    Info {name:  "PLP", mode: Imp,  cycles: 4, pg_penalty: false},
-    Info {name:  "AND", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "ROL", mode: Acc,  cycles: 2, pg_penalty: false},
-    Info {name: "*ANC", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "BIT", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "AND", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "ROL", mode: Abs,  cycles: 6, pg_penalty: false},
-    Info {name: "*RLA", mode: Abs,  cycles: 6, pg_penalty: false},
+    Instruction {name:  "JSR", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: jump_to_subroutine},
+    Instruction {name:  "AND", mode: IndirectX,   cycles: 6, page_penalty: false, associated_function: and},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*RLA", mode: IndirectX,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name:  "BIT", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: bit},
+    Instruction {name:  "AND", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: and},
+    Instruction {name:  "ROL", mode: ZeroPage,    cycles: 5, page_penalty: false, associated_function: rotate_left_rmw},
+    Instruction {name: "*RLA", mode: ZeroPage,    cycles: 5, page_penalty: false, associated_function: nop},
+    Instruction {name:  "PLP", mode: Implied,     cycles: 4, page_penalty: false, associated_function: pull_p_from_stack},
+    Instruction {name:  "AND", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: and},
+    Instruction {name:  "ROL", mode: Accumulator, cycles: 2, page_penalty: false, associated_function: rotate_left_acc},
+    Instruction {name: "*ANC", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name:  "BIT", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: bit},
+    Instruction {name:  "AND", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: and},
+    Instruction {name:  "ROL", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: rotate_left_rmw},
+    Instruction {name: "*RLA", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: nop},
     // 3
-    Info {name:  "BMI", mode: Rel,  cycles: 2, pg_penalty: false},
-    Info {name:  "AND", mode: IndY, cycles: 5, pg_penalty: true},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*RLA", mode: IndY, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "AND", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "ROL", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name: "*RLA", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name:  "SEC", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "AND", mode: AbsY, cycles: 4, pg_penalty: true},
-    Info {name: "*NOP", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*RLA", mode: AbsY, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: AbsX, cycles: 4, pg_penalty: false},
-    Info {name:  "AND", mode: AbsX, cycles: 4, pg_penalty: true},
-    Info {name:  "ROL", mode: AbsX, cycles: 7, pg_penalty: false},
-    Info {name: "*RLA", mode: AbsX, cycles: 7, pg_penalty: false},
+    Instruction {name:  "BMI", mode: Relative,    cycles: 2, page_penalty: false, associated_function: branch_if_negative},
+    Instruction {name:  "AND", mode: IndirectY,   cycles: 5, page_penalty: true,  associated_function: and},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*RLA", mode: IndirectY,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "AND", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: and},
+    Instruction {name:  "ROL", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: rotate_left_rmw},
+    Instruction {name: "*RLA", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: nop},
+    Instruction {name:  "SEC", mode: Implied,     cycles: 2, page_penalty: false, associated_function: set_carry_flag},
+    Instruction {name:  "AND", mode: AbsoluteY,   cycles: 4, page_penalty: true,  associated_function: and},
+    Instruction {name: "*NOP", mode: Implied,     cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*RLA", mode: AbsoluteY,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: AbsoluteX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "AND", mode: AbsoluteX,   cycles: 4, page_penalty: true,  associated_function: and},
+    Instruction {name:  "ROL", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: rotate_left_rmw},
+    Instruction {name: "*RLA", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: nop},
     // 4
-    Info {name:  "RTI", mode: Imp,  cycles: 6, pg_penalty: false},
-    Info {name:  "EOR", mode: IndX, cycles: 6, pg_penalty: false},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*SRE", mode: IndX, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "EOR", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "LSR", mode: Zpg,  cycles: 5, pg_penalty: false},
-    Info {name: "*SRE", mode: Zpg,  cycles: 5, pg_penalty: false},
-    Info {name:  "PHA", mode: Imp,  cycles: 3, pg_penalty: false},
-    Info {name:  "EOR", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "LSR", mode: Acc,  cycles: 2, pg_penalty: false},
-    Info {name: "*ALR", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "JMP", mode: Abs,  cycles: 3, pg_penalty: false},
-    Info {name:  "EOR", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "LSR", mode: Abs,  cycles: 6, pg_penalty: false},
-    Info {name: "*SRE", mode: Abs,  cycles: 6, pg_penalty: false},
+    Instruction {name:  "RTI", mode: Implied,     cycles: 6, page_penalty: false, associated_function: return_from_interrupt},
+    Instruction {name:  "EOR", mode: IndirectX,   cycles: 6, page_penalty: false, associated_function: xor},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SRE", mode: IndirectX,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: nop},
+    Instruction {name:  "EOR", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: xor},
+    Instruction {name:  "LSR", mode: ZeroPage,    cycles: 5, page_penalty: false, associated_function: logical_shift_right_rmw},
+    Instruction {name: "*SRE", mode: ZeroPage,    cycles: 5, page_penalty: false, associated_function: nop},
+    Instruction {name:  "PHA", mode: Implied,     cycles: 3, page_penalty: false, associated_function: push_a_to_stack},
+    Instruction {name:  "EOR", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: xor},
+    Instruction {name:  "LSR", mode: Accumulator, cycles: 2, page_penalty: false, associated_function: logical_shift_right_acc},
+    Instruction {name: "*ALR", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name:  "JMP", mode: Absolute,    cycles: 3, page_penalty: false, associated_function: jump},
+    Instruction {name:  "EOR", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: xor},
+    Instruction {name:  "LSR", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: logical_shift_right_rmw},
+    Instruction {name: "*SRE", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: nop},
     // 5
-    Info {name:  "BVC", mode: Rel,  cycles: 2, pg_penalty: false},
-    Info {name:  "EOR", mode: IndY, cycles: 5, pg_penalty: true},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*SRE", mode: IndY, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "EOR", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "LSR", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name: "*SRE", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name:  "CLI", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "EOR", mode: AbsY, cycles: 4, pg_penalty: true},
-    Info {name: "*NOP", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*SRE", mode: AbsY, cycles: 7, pg_penalty: false},
-    Info {name: "*NOP", mode: AbsX, cycles: 4, pg_penalty: false},
-    Info {name:  "EOR", mode: AbsX, cycles: 4, pg_penalty: true},
-    Info {name:  "LSR", mode: AbsX, cycles: 7, pg_penalty: false},
-    Info {name: "*SRE", mode: AbsX, cycles: 7, pg_penalty: false},
+    Instruction {name:  "BVC", mode: Relative,    cycles: 2, page_penalty: false, associated_function: branch_if_overflow_clear},
+    Instruction {name:  "EOR", mode: IndirectY,   cycles: 5, page_penalty: true,  associated_function: xor},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SRE", mode: IndirectY,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "EOR", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: xor},
+    Instruction {name:  "LSR", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: logical_shift_right_rmw},
+    Instruction {name: "*SRE", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: nop},
+    Instruction {name:  "CLI", mode: Implied,     cycles: 2, page_penalty: false, associated_function: clear_interrupt_flag},
+    Instruction {name:  "EOR", mode: AbsoluteY,   cycles: 4, page_penalty: true,  associated_function: xor},
+    Instruction {name: "*NOP", mode: Implied,     cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SRE", mode: AbsoluteY,   cycles: 7, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: AbsoluteX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "EOR", mode: AbsoluteX,   cycles: 4, page_penalty: true,  associated_function: xor},
+    Instruction {name:  "LSR", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: logical_shift_right_rmw},
+    Instruction {name: "*SRE", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: nop},
     // 6
-    Info {name:  "RTS", mode: Imp,  cycles: 6, pg_penalty: false},
-    Info {name:  "ADC", mode: IndX, cycles: 6, pg_penalty: false},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*RRA", mode: IndX, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "ADC", mode: Zpg,  cycles: 4, pg_penalty: false},
-    Info {name:  "ROR", mode: Zpg,  cycles: 6, pg_penalty: false},
-    Info {name: "*RRA", mode: Zpg,  cycles: 5, pg_penalty: false},
-    Info {name:  "PLA", mode: Imp,  cycles: 4, pg_penalty: false},
-    Info {name:  "ADC", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "ROR", mode: Acc,  cycles: 2, pg_penalty: false},
-    Info {name: "*ARR", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "JMP", mode: AbsI, cycles: 5, pg_penalty: false},
-    Info {name:  "ADC", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "ROR", mode: Abs,  cycles: 6, pg_penalty: false},
-    Info {name: "*RRA", mode: Abs,  cycles: 6, pg_penalty: false},
+    Instruction {name:  "RTS", mode: Implied,     cycles: 6, page_penalty: false, associated_function: return_from_subroutine},
+    Instruction {name:  "ADC", mode: IndirectX,   cycles: 6, page_penalty: false, associated_function: add},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*RRA", mode: IndirectX,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: nop},
+    Instruction {name:  "ADC", mode: ZeroPage,    cycles: 4, page_penalty: false, associated_function: add},
+    Instruction {name:  "ROR", mode: ZeroPage,    cycles: 6, page_penalty: false, associated_function: rotate_right_rmw},
+    Instruction {name: "*RRA", mode: ZeroPage,    cycles: 5, page_penalty: false, associated_function: nop},
+    Instruction {name:  "PLA", mode: Implied,     cycles: 4, page_penalty: false, associated_function: pull_a_from_stack},
+    Instruction {name:  "ADC", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: add},
+    Instruction {name:  "ROR", mode: Accumulator, cycles: 2, page_penalty: false, associated_function: rotate_right_acc},
+    Instruction {name: "*ARR", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name:  "JMP", mode: AbsoluteI,   cycles: 5, page_penalty: false, associated_function: jump},
+    Instruction {name:  "ADC", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: add},
+    Instruction {name:  "ROR", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: rotate_right_rmw},
+    Instruction {name: "*RRA", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: nop},
     // 7
-    Info {name:  "BVS", mode: Rel,  cycles: 2, pg_penalty: false},
-    Info {name:  "ADC", mode: IndY, cycles: 5, pg_penalty: true},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*RRA", mode: IndY, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "ADC", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "ROR", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name: "*RRA", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name:  "SEI", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "ADC", mode: AbsY, cycles: 4, pg_penalty: true},
-    Info {name: "*NOP", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*RRA", mode: AbsY, cycles: 7, pg_penalty: false},
-    Info {name: "*NOP", mode: AbsX, cycles: 4, pg_penalty: false},
-    Info {name:  "ADC", mode: AbsX, cycles: 4, pg_penalty: true},
-    Info {name:  "ROR", mode: AbsX, cycles: 7, pg_penalty: false},
-    Info {name: "*RRA", mode: AbsX, cycles: 7, pg_penalty: false},
+    Instruction {name:  "BVS", mode: Relative,    cycles: 2, page_penalty: false, associated_function: branch_if_overflow_set},
+    Instruction {name:  "ADC", mode: IndirectY,   cycles: 5, page_penalty: true,  associated_function: add},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*RRA", mode: IndirectY,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "ADC", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: add},
+    Instruction {name:  "ROR", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: rotate_right_rmw},
+    Instruction {name: "*RRA", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: nop},
+    Instruction {name:  "SEI", mode: Implied,     cycles: 2, page_penalty: false, associated_function: set_interrupt_flag},
+    Instruction {name:  "ADC", mode: AbsoluteY,   cycles: 4, page_penalty: true,  associated_function: add},
+    Instruction {name: "*NOP", mode: Implied,     cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*RRA", mode: AbsoluteY,   cycles: 7, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: AbsoluteX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "ADC", mode: AbsoluteX,   cycles: 4, page_penalty: true,  associated_function: add},
+    Instruction {name:  "ROR", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: rotate_right_rmw},
+    Instruction {name: "*RRA", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: nop},
     // 8
-    Info {name: "*NOP", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "STA", mode: IndX, cycles: 6, pg_penalty: false},
-    Info {name: "*NOP", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name: "*SAX", mode: IndX, cycles: 6, pg_penalty: false},
-    Info {name:  "STY", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "STA", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "STX", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name: "*SAX", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "DEY", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*NOP", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "TXA", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*XAA", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "STY", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "STA", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "STX", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name: "*SAX", mode: Abs,  cycles: 4, pg_penalty: false},
+    Instruction {name: "*NOP", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name:  "STA", mode: IndirectX,   cycles: 6, page_penalty: false, associated_function: store_a},
+    Instruction {name: "*NOP", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SAX", mode: IndirectX,   cycles: 6, page_penalty: false, associated_function: nop},
+    Instruction {name:  "STY", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: store_y},
+    Instruction {name:  "STA", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: store_a},
+    Instruction {name:  "STX", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: store_x},
+    Instruction {name: "*SAX", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: nop},
+    Instruction {name:  "DEY", mode: Implied,     cycles: 2, page_penalty: false, associated_function: decrement_y},
+    Instruction {name: "*NOP", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name:  "TXA", mode: Implied,     cycles: 2, page_penalty: false, associated_function: transfer_x_to_a},
+    Instruction {name: "*XAA", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name:  "STY", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: store_y},
+    Instruction {name:  "STA", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: store_a},
+    Instruction {name:  "STX", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: store_x},
+    Instruction {name: "*SAX", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: nop},
     // 9
-    Info {name:  "BCC", mode: Rel,  cycles: 2, pg_penalty: false},
-    Info {name:  "STA", mode: IndY, cycles: 6, pg_penalty: false},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*SHA", mode: IndY, cycles: 6, pg_penalty: false},
-    Info {name:  "STY", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "STA", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "STX", mode: ZpgY, cycles: 4, pg_penalty: false},
-    Info {name: "*SAX", mode: ZpgY, cycles: 4, pg_penalty: false},
-    Info {name:  "TYA", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "STA", mode: AbsY, cycles: 5, pg_penalty: false},
-    Info {name:  "TXS", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*SHS", mode: AbsY, cycles: 5, pg_penalty: false},
-    Info {name: "*SHY", mode: AbsX, cycles: 5, pg_penalty: false},
-    Info {name:  "STA", mode: AbsX, cycles: 5, pg_penalty: false},
-    Info {name: "*SHX", mode: AbsY, cycles: 5, pg_penalty: false},
-    Info {name: "*SHA", mode: AbsY, cycles: 5, pg_penalty: false},
+    Instruction {name:  "BCC", mode: Relative,    cycles: 2, page_penalty: false, associated_function: branch_if_carry_clear},
+    Instruction {name:  "STA", mode: IndirectY,   cycles: 6, page_penalty: false, associated_function: store_a},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SHA", mode: IndirectY,   cycles: 6, page_penalty: false, associated_function: nop},
+    Instruction {name:  "STY", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: store_y},
+    Instruction {name:  "STA", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: store_a},
+    Instruction {name:  "STX", mode: ZeroPageY,   cycles: 4, page_penalty: false, associated_function: store_x},
+    Instruction {name: "*SAX", mode: ZeroPageY,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "TYA", mode: Implied,     cycles: 2, page_penalty: false, associated_function: transfer_y_to_a},
+    Instruction {name:  "STA", mode: AbsoluteY,   cycles: 5, page_penalty: false, associated_function: store_a},
+    Instruction {name:  "TXS", mode: Implied,     cycles: 2, page_penalty: false, associated_function: transfer_x_to_s},
+    Instruction {name: "*SHS", mode: AbsoluteY,   cycles: 5, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SHY", mode: AbsoluteX,   cycles: 5, page_penalty: false, associated_function: nop},
+    Instruction {name:  "STA", mode: AbsoluteX,   cycles: 5, page_penalty: false, associated_function: store_a},
+    Instruction {name: "*SHX", mode: AbsoluteY,   cycles: 5, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SHA", mode: AbsoluteY,   cycles: 5, page_penalty: false, associated_function: nop},
     // A
-    Info {name:  "LDY", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "LDA", mode: IndX, cycles: 6, pg_penalty: false},
-    Info {name:  "LDX", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name: "*LAX", mode: IndX, cycles: 6, pg_penalty: false},
-    Info {name:  "LDY", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "LDA", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "LDX", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name: "*LAX", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "TAY", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "LDA", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "TAX", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*LAX", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "LDY", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "LDA", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "LDX", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name: "*LAX", mode: Abs,  cycles: 4, pg_penalty: false},
+    Instruction {name:  "LDY", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: load_y},
+    Instruction {name:  "LDA", mode: IndirectX,   cycles: 6, page_penalty: false, associated_function: load_a},
+    Instruction {name:  "LDX", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: load_x},
+    Instruction {name: "*LAX", mode: IndirectX,   cycles: 6, page_penalty: false, associated_function: nop},
+    Instruction {name:  "LDY", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: load_y},
+    Instruction {name:  "LDA", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: load_a},
+    Instruction {name:  "LDX", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: load_x},
+    Instruction {name: "*LAX", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: nop},
+    Instruction {name:  "TAY", mode: Implied,     cycles: 2, page_penalty: false, associated_function: transfer_a_to_y},
+    Instruction {name:  "LDA", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: load_a},
+    Instruction {name:  "TAX", mode: Implied,     cycles: 2, page_penalty: false, associated_function: transfer_a_to_x},
+    Instruction {name: "*LAX", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name:  "LDY", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: load_y},
+    Instruction {name:  "LDA", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: load_a},
+    Instruction {name:  "LDX", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: load_x},
+    Instruction {name: "*LAX", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: nop},
     // B
-    Info {name:  "BCS", mode: Rel,  cycles: 2, pg_penalty: false},
-    Info {name:  "LDA", mode: IndY, cycles: 5, pg_penalty: true},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*LAX", mode: IndY, cycles: 4, pg_penalty: true},
-    Info {name:  "LDY", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "LDA", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "LDX", mode: ZpgY, cycles: 4, pg_penalty: false},
-    Info {name: "*LAX", mode: ZpgY, cycles: 4, pg_penalty: false},
-    Info {name:  "CLV", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "LDA", mode: AbsY, cycles: 4, pg_penalty: true},
-    Info {name:  "TSX", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*LAS", mode: AbsY, cycles: 4, pg_penalty: true},
-    Info {name:  "LDY", mode: AbsX, cycles: 4, pg_penalty: true},
-    Info {name:  "LDA", mode: AbsX, cycles: 4, pg_penalty: true},
-    Info {name:  "LDX", mode: AbsY, cycles: 4, pg_penalty: true},
-    Info {name: "*LAX", mode: AbsY, cycles: 4, pg_penalty: true},
+    Instruction {name:  "BCS", mode: Relative,    cycles: 2, page_penalty: false, associated_function: branch_if_carry_set},
+    Instruction {name:  "LDA", mode: IndirectY,   cycles: 5, page_penalty: true,  associated_function: load_a},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*LAX", mode: IndirectY,   cycles: 4, page_penalty: true,  associated_function: nop},
+    Instruction {name:  "LDY", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: load_y},
+    Instruction {name:  "LDA", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: load_a},
+    Instruction {name:  "LDX", mode: ZeroPageY,   cycles: 4, page_penalty: false, associated_function: load_x},
+    Instruction {name: "*LAX", mode: ZeroPageY,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "CLV", mode: Implied,     cycles: 2, page_penalty: false, associated_function: clear_overflow_flag},
+    Instruction {name:  "LDA", mode: AbsoluteY,   cycles: 4, page_penalty: true,  associated_function: load_a},
+    Instruction {name:  "TSX", mode: Implied,     cycles: 2, page_penalty: false, associated_function: transfer_s_to_x},
+    Instruction {name: "*LAS", mode: AbsoluteY,   cycles: 4, page_penalty: true,  associated_function: nop},
+    Instruction {name:  "LDY", mode: AbsoluteX,   cycles: 4, page_penalty: true,  associated_function: load_y},
+    Instruction {name:  "LDA", mode: AbsoluteX,   cycles: 4, page_penalty: true,  associated_function: load_a},
+    Instruction {name:  "LDX", mode: AbsoluteY,   cycles: 4, page_penalty: true,  associated_function: load_x},
+    Instruction {name: "*LAX", mode: AbsoluteY,   cycles: 4, page_penalty: true,  associated_function: nop},
     // C
-    Info {name:  "CPY", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "CMP", mode: IndX, cycles: 6, pg_penalty: false},
-    Info {name: "*NOP", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name: "*DCP", mode: IndX, cycles: 8, pg_penalty: false},
-    Info {name:  "CPY", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "CMP", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "DEC", mode: Zpg,  cycles: 6, pg_penalty: false},
-    Info {name: "*DCP", mode: Zpg,  cycles: 5, pg_penalty: false},
-    Info {name:  "INY", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "CMP", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "DEX", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*AXS", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "CPY", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "CMP", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "DEC", mode: Abs,  cycles: 6, pg_penalty: false},
-    Info {name: "*DCP", mode: Abs,  cycles: 6, pg_penalty: false},
+    Instruction {name:  "CPY", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: compare_with_y},
+    Instruction {name:  "CMP", mode: IndirectX,   cycles: 6, page_penalty: false, associated_function: compare_with_a},
+    Instruction {name: "*NOP", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*DCP", mode: IndirectX,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name:  "CPY", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: compare_with_y},
+    Instruction {name:  "CMP", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: compare_with_a},
+    Instruction {name:  "DEC", mode: ZeroPage,    cycles: 6, page_penalty: false, associated_function: decrement_rmw},
+    Instruction {name: "*DCP", mode: ZeroPage,    cycles: 5, page_penalty: false, associated_function: nop},
+    Instruction {name:  "INY", mode: Implied,     cycles: 2, page_penalty: false, associated_function: increment_y},
+    Instruction {name:  "CMP", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: compare_with_a},
+    Instruction {name:  "DEX", mode: Implied,     cycles: 2, page_penalty: false, associated_function: decrement_x},
+    Instruction {name: "*AXS", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name:  "CPY", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: compare_with_y},
+    Instruction {name:  "CMP", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: compare_with_a},
+    Instruction {name:  "DEC", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: decrement_rmw},
+    Instruction {name: "*DCP", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: nop},
     // D
-    Info {name:  "BNE", mode: Rel,  cycles: 2, pg_penalty: false},
-    Info {name:  "CMP", mode: IndY, cycles: 5, pg_penalty: true},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*DCP", mode: IndY, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "CMP", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "DEC", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name: "*DCP", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name:  "CLD", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "CMP", mode: AbsY, cycles: 4, pg_penalty: true},
-    Info {name: "*NOP", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*DCP", mode: AbsY, cycles: 7, pg_penalty: false},
-    Info {name: "*NOP", mode: AbsX, cycles: 4, pg_penalty: false},
-    Info {name:  "CMP", mode: AbsX, cycles: 4, pg_penalty: true},
-    Info {name:  "DEC", mode: AbsX, cycles: 7, pg_penalty: false},
-    Info {name: "*DCP", mode: AbsX, cycles: 7, pg_penalty: false},
+    Instruction {name:  "BNE", mode: Relative,    cycles: 2, page_penalty: false, associated_function: branch_if_not_equal},
+    Instruction {name:  "CMP", mode: IndirectY,   cycles: 5, page_penalty: true,  associated_function: compare_with_a},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*DCP", mode: IndirectY,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "CMP", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: compare_with_a},
+    Instruction {name:  "DEC", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: decrement_rmw},
+    Instruction {name: "*DCP", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: nop},
+    Instruction {name:  "CLD", mode: Implied,     cycles: 2, page_penalty: false, associated_function: clear_decimal_flag},
+    Instruction {name:  "CMP", mode: AbsoluteY,   cycles: 4, page_penalty: true,  associated_function: compare_with_a},
+    Instruction {name: "*NOP", mode: Implied,     cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*DCP", mode: AbsoluteY,   cycles: 7, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: AbsoluteX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "CMP", mode: AbsoluteX,   cycles: 4, page_penalty: true,  associated_function: compare_with_a},
+    Instruction {name:  "DEC", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: decrement_rmw},
+    Instruction {name: "*DCP", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: nop},
     // E
-    Info {name:  "CPX", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "SBC", mode: IndX, cycles: 6, pg_penalty: false},
-    Info {name: "*NOP", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name: "*ISB", mode: IndX, cycles: 8, pg_penalty: false},
-    Info {name:  "CPX", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "SBC", mode: Zpg,  cycles: 3, pg_penalty: false},
-    Info {name:  "INC", mode: Zpg,  cycles: 5, pg_penalty: false},
-    Info {name: "*ISB", mode: Zpg,  cycles: 5, pg_penalty: false},
-    Info {name:  "INX", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "SBC", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "NOP", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*SBC", mode: Imm,  cycles: 2, pg_penalty: false},
-    Info {name:  "CPX", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "SBC", mode: Abs,  cycles: 4, pg_penalty: false},
-    Info {name:  "INC", mode: Abs,  cycles: 6, pg_penalty: false},
-    Info {name: "*ISB", mode: Abs,  cycles: 6, pg_penalty: false},
+    Instruction {name:  "CPX", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: compare_with_x},
+    Instruction {name:  "SBC", mode: IndirectX,   cycles: 6, page_penalty: false, associated_function: subtract},
+    Instruction {name: "*NOP", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*ISB", mode: IndirectX,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name:  "CPX", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: compare_with_x},
+    Instruction {name:  "SBC", mode: ZeroPage,    cycles: 3, page_penalty: false, associated_function: subtract},
+    Instruction {name:  "INC", mode: ZeroPage,    cycles: 5, page_penalty: false, associated_function: increment_rmw},
+    Instruction {name: "*ISB", mode: ZeroPage,    cycles: 5, page_penalty: false, associated_function: nop},
+    Instruction {name:  "INX", mode: Implied,     cycles: 2, page_penalty: false, associated_function: increment_x},
+    Instruction {name:  "SBC", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: subtract},
+    Instruction {name:  "NOP", mode: Implied,     cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*SBC", mode: Immediate,   cycles: 2, page_penalty: false, associated_function: subtract},
+    Instruction {name:  "CPX", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: compare_with_x},
+    Instruction {name:  "SBC", mode: Absolute,    cycles: 4, page_penalty: false, associated_function: subtract},
+    Instruction {name:  "INC", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: increment_rmw},
+    Instruction {name: "*ISB", mode: Absolute,    cycles: 6, page_penalty: false, associated_function: nop},
     // F
-    Info {name:  "BEQ", mode: Rel,  cycles: 2, pg_penalty: false},
-    Info {name:  "SBC", mode: IndY, cycles: 5, pg_penalty: true},
-    Info {name: "*JAM", mode: Imp,  cycles: 0, pg_penalty: false},
-    Info {name: "*ISB", mode: IndY, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "SBC", mode: ZpgX, cycles: 4, pg_penalty: false},
-    Info {name:  "INC", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name: "*ISB", mode: ZpgX, cycles: 6, pg_penalty: false},
-    Info {name:  "SED", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name:  "SBC", mode: AbsY, cycles: 4, pg_penalty: true},
-    Info {name: "*NOP", mode: Imp,  cycles: 2, pg_penalty: false},
-    Info {name: "*ISB", mode: AbsY, cycles: 8, pg_penalty: false},
-    Info {name: "*NOP", mode: AbsX, cycles: 7, pg_penalty: false},
-    Info {name:  "SBC", mode: AbsX, cycles: 4, pg_penalty: true},
-    Info {name:  "INC", mode: AbsX, cycles: 7, pg_penalty: false},
-    Info {name: "*ISB", mode: AbsX, cycles: 7, pg_penalty: false},
+    Instruction {name:  "BEQ", mode: Relative,    cycles: 2, page_penalty: false, associated_function: branch_if_equal},
+    Instruction {name:  "SBC", mode: IndirectY,   cycles: 5, page_penalty: true,  associated_function: subtract},
+    Instruction {name: "*JAM", mode: Implied,     cycles: 0, page_penalty: false, associated_function: nop},
+    Instruction {name: "*ISB", mode: IndirectY,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: nop},
+    Instruction {name:  "SBC", mode: ZeroPageX,   cycles: 4, page_penalty: false, associated_function: subtract},
+    Instruction {name:  "INC", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: increment_rmw},
+    Instruction {name: "*ISB", mode: ZeroPageX,   cycles: 6, page_penalty: false, associated_function: nop},
+    Instruction {name:  "SED", mode: Implied,     cycles: 2, page_penalty: false, associated_function: set_decimal_flag},
+    Instruction {name:  "SBC", mode: AbsoluteY,   cycles: 4, page_penalty: true,  associated_function: subtract},
+    Instruction {name: "*NOP", mode: Implied,     cycles: 2, page_penalty: false, associated_function: nop},
+    Instruction {name: "*ISB", mode: AbsoluteY,   cycles: 8, page_penalty: false, associated_function: nop},
+    Instruction {name: "*NOP", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: nop},
+    Instruction {name:  "SBC", mode: AbsoluteX,   cycles: 4, page_penalty: true,  associated_function: subtract},
+    Instruction {name:  "INC", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: increment_rmw},
+    Instruction {name: "*ISB", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: nop},
 ];
+
+pub fn was_signed_overflow(orig: u8, operand: u8, result: u8) -> bool {
+    // If the sign bits of A and B are the same
+    // and the sign bits of A and A+B are different,
+    // sign bit was corrupted (there was signed overflow)
+    ((!(orig ^ operand) & (orig ^ result)) >> 7) == 1
+}
+
+fn byte_to_p(byte: u8, nes: &mut Nes) {
+    nes.cpu.p_n = get_bit(byte, 7);
+    nes.cpu.p_v = get_bit(byte, 6);
+    nes.cpu.p_d = get_bit(byte, 3);
+    nes.cpu.p_i = get_bit(byte, 2);
+    nes.cpu.p_z = get_bit(byte, 1);
+    nes.cpu.p_c = get_bit(byte, 0);
+}
+fn p_to_byte(nes: &Nes) -> u8 {
+    (if nes.cpu.p_n {0b1000_0000} else {0}) | 
+    (if nes.cpu.p_v {0b0100_0000} else {0}) | 
+                 0b0010_0000            |
+    (if nes.cpu.p_d {0b0000_1000} else {0}) | 
+    (if nes.cpu.p_i {0b0000_0100} else {0}) | 
+    (if nes.cpu.p_z {0b0000_0010} else {0}) | 
+    (if nes.cpu.p_c {0b0000_0001} else {0})
+}
+fn stack_push(val: u8, nes: &mut Nes) {
+    nes.wram[0x0100 + (nes.cpu.s as usize)] = val;
+    nes.cpu.s = nes.cpu.s.wrapping_sub(1);
+}
+fn stack_pop(nes: &mut Nes) -> u8 {
+    nes.cpu.s = nes.cpu.s.wrapping_add(1);
+    nes.wram[0x0100 + (nes.cpu.s as usize)]
+}
+fn stack_push_u16(val: u16, nes: &mut Nes) {
+    stack_push((val >> 8)     as u8, nes);
+    stack_push((val & 0x00FF) as u8, nes);
+}
+fn stack_pop_u16(nes: &mut Nes) -> u16 {
+    let lsb = stack_pop(nes);
+    let msb = stack_pop(nes);
+    concat_u8(msb, lsb)
+}
+fn update_p_nz(val: u8, nes: &mut Nes) {
+    nes.cpu.p_n = val > 0x7F;
+    nes.cpu.p_z = val == 0;
+}
+fn shift_left(val: u8, rotate: bool, nes: &mut Nes) -> u8 {
+    let prev_carry = nes.cpu.p_c;
+    nes.cpu.p_c = get_bit(val, 7);
+    (val << 1) | ((prev_carry && rotate) as u8)
+}
+fn shift_right(val: u8, rotate: bool, nes: &mut Nes) -> u8 {
+    let prev_carry = nes.cpu.p_c;
+    nes.cpu.p_c = get_bit(val, 0);
+    (val >> 1) | (((prev_carry && rotate) as u8) << 7)
+}
+fn add_with_carry(val: u8, nes: &mut Nes) {
+    let (result, carry) = nes.cpu.a.carrying_add(val, nes.cpu.p_c);
+    nes.cpu.p_v = was_signed_overflow(nes.cpu.a, val, result);
+    nes.cpu.p_c = carry;
+    nes.cpu.a = result;  
+}
+
+
+// val  - either an immediate or a value pulled from memory
+// addr - memory address to write the result into
+// both parameters 
+
+fn load_a(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a = val;
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn load_x(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.x = val;
+    update_p_nz(nes.cpu.x, nes);
+}
+
+fn load_y(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.y = val;
+    update_p_nz(nes.cpu.y, nes);
+}
+
+fn store_a(val: u8, addr: u16, nes: &mut Nes) {
+    write_mem(addr, nes.cpu.a, nes);
+}
+
+fn store_x(val: u8, addr: u16, nes: &mut Nes) {
+    write_mem(addr, nes.cpu.x, nes);
+}
+
+fn store_y(val: u8, addr: u16, nes: &mut Nes) {
+    write_mem(addr, nes.cpu.y, nes);
+}
+
+fn transfer_a_to_x(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.x = nes.cpu.a;
+    update_p_nz(nes.cpu.x, nes);
+}
+
+fn transfer_a_to_y(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.y = nes.cpu.a;
+    update_p_nz(nes.cpu.y, nes);
+}
+
+fn transfer_s_to_x(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.x = nes.cpu.s;
+    update_p_nz(nes.cpu.x, nes);
+}
+
+fn transfer_x_to_a(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a = nes.cpu.x;
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn transfer_x_to_s(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.s = nes.cpu.x;
+}
+
+fn transfer_y_to_a(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a = nes.cpu.y;
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn push_a_to_stack(val: u8, addr: u16, nes: &mut Nes) {
+    stack_push(nes.cpu.a, nes);
+}
+
+fn push_p_to_stack(val: u8, addr: u16, nes: &mut Nes) {
+    stack_push(p_to_byte(nes) | 0b0001_0000, nes);
+}
+
+fn pull_a_from_stack(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a = stack_pop(nes);
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn pull_p_from_stack(val: u8, addr: u16, nes: &mut Nes) {
+    let p_byte = stack_pop(nes);
+    byte_to_p(p_byte, nes);
+}
+
+fn arithmetic_shift_left_acc(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a = shift_left(nes.cpu.a, false, nes);
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn arithmetic_shift_left_rmw(val: u8, addr: u16, nes: &mut Nes) {
+    let new_val = shift_left(val, false, nes);
+    write_mem(addr, new_val, nes);
+    update_p_nz(new_val, nes);
+}
+
+fn logical_shift_right_acc(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a = shift_right(nes.cpu.a, false, nes);
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn logical_shift_right_rmw(val: u8, addr: u16, nes: &mut Nes) {
+    let new_val = shift_right(val, false, nes);
+    write_mem(addr, new_val, nes);
+    update_p_nz(new_val, nes);
+}
+
+fn rotate_left_acc(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a = shift_left(nes.cpu.a, true, nes);
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn rotate_left_rmw(val: u8, addr: u16, nes: &mut Nes) {
+    let new_val = shift_left(val, true, nes);
+    write_mem(addr, new_val, nes);
+    update_p_nz(new_val, nes);
+}
+
+fn rotate_right_acc(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a = shift_right(nes.cpu.a, true, nes);
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn rotate_right_rmw(val: u8, addr: u16, nes: &mut Nes) {
+    let new_val = shift_right(val, true, nes);
+    write_mem(addr, new_val, nes);
+    update_p_nz(new_val, nes);
+}
+
+fn and(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a &= val;
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn bit(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_n = get_bit(val, 7);
+    nes.cpu.p_v = get_bit(val, 6);
+    nes.cpu.p_z = (nes.cpu.a & val) == 0;
+}
+
+fn xor(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a ^= val;
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn or(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.a |= val;
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn add(val: u8, addr: u16, nes: &mut Nes) {
+    add_with_carry(val, nes);
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn compare_with_a(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_z = nes.cpu.a == val;
+    nes.cpu.p_n = is_neg(nes.cpu.a.wrapping_sub(val));
+    nes.cpu.p_c = val <= nes.cpu.a;
+}
+
+fn compare_with_x(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_z = nes.cpu.x == val;
+    nes.cpu.p_n = is_neg(nes.cpu.x.wrapping_sub(val));
+    nes.cpu.p_c = val <= nes.cpu.x;
+}
+
+fn compare_with_y(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_z = nes.cpu.y == val;
+    nes.cpu.p_n = is_neg(nes.cpu.y.wrapping_sub(val));
+    nes.cpu.p_c = val <= nes.cpu.y;
+}
+
+fn subtract(val: u8, addr: u16, nes: &mut Nes) {
+    add_with_carry(val ^ 0xFF, nes);
+    update_p_nz(nes.cpu.a, nes);
+}
+
+fn decrement_rmw(val: u8, addr: u16, nes: &mut Nes) {
+    let new_val = val.wrapping_sub(1);
+    write_mem(addr, new_val, nes);
+    update_p_nz(new_val, nes);
+}
+
+fn decrement_x(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.x = nes.cpu.x.wrapping_sub(1);
+    update_p_nz(nes.cpu.x, nes);
+}
+
+fn decrement_y(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.y = nes.cpu.y.wrapping_sub(1);
+    update_p_nz(nes.cpu.y, nes);
+}
+
+fn increment_rmw(val: u8, addr: u16, nes: &mut Nes) {
+    let new_val = val.wrapping_add(1);
+    write_mem(addr, new_val, nes);
+    update_p_nz(new_val, nes);
+}
+
+fn increment_x(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.x = nes.cpu.x.wrapping_add(1);
+    update_p_nz(nes.cpu.x, nes);
+}
+
+fn increment_y(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.y = nes.cpu.y.wrapping_add(1);
+    update_p_nz(nes.cpu.y, nes);
+}
+
+fn break_irq(val: u8, addr: u16, nes: &mut Nes) {
+    stack_push_u16(nes.cpu.pc, nes);
+    stack_push(p_to_byte(nes) | 0b0001_0000, nes);
+    nes.cpu.pc = read_mem_u16(0xFFFE, nes);
+}
+
+fn jump(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.pc = addr;
+}
+
+fn jump_to_subroutine(val: u8, addr: u16, nes: &mut Nes) {
+    stack_push_u16(nes.cpu.pc.wrapping_add(2), nes);
+    nes.cpu.pc = addr;
+}
+
+fn return_from_interrupt(val: u8, addr: u16, nes: &mut Nes) {
+    let p_reg = stack_pop(nes);
+    byte_to_p(p_reg, nes);
+    nes.cpu.pc = stack_pop_u16(nes);
+}
+
+fn return_from_subroutine(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.pc = stack_pop_u16(nes).wrapping_add(1);
+}
+
+fn branch_if_carry_clear(val: u8, addr: u16, nes: &mut Nes) {
+    if !nes.cpu.p_c {nes.cpu.pc = addr};
+}
+
+fn branch_if_carry_set(val: u8, addr: u16, nes: &mut Nes) {
+    if nes.cpu.p_c {nes.cpu.pc = addr};
+}
+
+fn branch_if_overflow_clear(val: u8, addr: u16, nes: &mut Nes) {
+    if !nes.cpu.p_v {nes.cpu.pc = addr};
+}
+
+fn branch_if_overflow_set(val: u8, addr: u16, nes: &mut Nes) {
+    if nes.cpu.p_v {nes.cpu.pc = addr};
+}
+
+fn branch_if_equal(val: u8, addr: u16, nes: &mut Nes) {
+    if nes.cpu.p_z {nes.cpu.pc = addr};
+}
+
+fn branch_if_not_equal(val: u8, addr: u16, nes: &mut Nes) {
+    if !nes.cpu.p_z {nes.cpu.pc = addr};
+}
+
+fn branch_if_negative(val: u8, addr: u16, nes: &mut Nes) {
+    if nes.cpu.p_n {nes.cpu.pc = addr};
+}
+
+fn branch_if_positive(val: u8, addr: u16, nes: &mut Nes) {
+    if !nes.cpu.p_n {nes.cpu.pc = addr};
+}
+
+fn clear_carry_flag(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_c = false;
+}
+
+fn clear_decimal_flag(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_d = false;
+}
+
+fn clear_interrupt_flag(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_i = false;
+}
+
+fn clear_overflow_flag(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_v = false;
+}
+
+fn set_carry_flag(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_c = true;
+}
+
+fn set_decimal_flag(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_d = true;
+}
+
+fn set_interrupt_flag(val: u8, addr: u16, nes: &mut Nes) {
+    nes.cpu.p_i = true;
+}
+
+fn nop(val: u8, addr: u16, nes: &mut Nes) {}
