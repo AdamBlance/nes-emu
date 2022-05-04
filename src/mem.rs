@@ -14,27 +14,66 @@ pub fn read_mem_u16_zp(addr: u16, nes: &mut Nes) -> u16 {
     concat_u8(msb, lsb)
 }
 
+const PPUCTRL: u16   = 0x2000;
+const PPUMASK: u16   = 0x2001;
+const PPUSTATUS: u16 = 0x2002;
+const OAMADDR: u16   = 0x2003;
+const OAMDATA: u16   = 0x2004;
+const PPUSCROLL: u16 = 0x2005;
+const PPUADDR: u16   = 0x2006;
+const PPUDATA: u16   = 0x2007;
+const OAMDMA: u16    = 0x4014;
+
+fn mapper(addr: u16, nes: &mut Nes) -> u8 {
+    match addr {
+        0xC000..=0xFFFF => nes.cart.prg_rom[addr as usize],
+        _ => 0,
+    }
+}
+
 pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
     match addr {
+        // Main memory, mirrored 4 times
         0x0000..=0x1FFF => nes.wram[(addr % 0x800) as usize],
-        0x2000..=0x2001 => 0,
-        0x2002          => {
-            nes.ppu.w = false;
-            ppustatus_to_byte(nes)
-        }
-        0x2003..=0x2006 => 0,
-        0x2007 => {
-            // let val = nes.ppu.vram[nes.ppu.v as usize];
-            let val = ppu::read_vram(nes.ppu.v, nes);
-            nes.ppu.v += if nes.ppu.increment_mode == false {1} else {32};
-            val
-        }
-        0x2008..=0x3FFF => 0,
-        0x4000..=0x401F => 0,
-        0x4020..=0x5FFF => 0,
-        0x6000..=0x7FFF => 0,
-        0x8000..=0xBFFF => nes.cart.prg_rom[(addr - 0x8000) as usize],
-        0xC000..=0xFFFF => nes.cart.prg_rom[(addr - 0x8000) as usize],
+
+        // PPU memory mapped registers are mirrored through this range
+        // Could use guards here, might perform worse but would be more readable? 
+        0x2000..=0x3FFF => 
+            match 0x2000 + (addr % 8) {
+                // These registers are write only
+                // Should technically return the value in the weird capacitive latch 
+                PPUCTRL   => 0,
+                PPUMASK   => 0,
+                OAMADDR   => 0,
+                PPUSCROLL => 0,
+                PPUADDR   => 0,
+
+
+                PPUSTATUS => {
+                    let status = ppustatus_to_byte(nes);
+                    // Write toggle used by PPUADDR and PPUSCROLL gets reset when PPUSTATUS is read
+                    nes.ppu.w = false;
+                    status
+                },
+                // Reads during rendering should "expose internal OAM accesses..."
+                // Apparently one games uses this
+                OAMDATA => nes.ppu.oam_addr,
+                PPUDATA => {
+                    let val = ppu::read_vram(nes.ppu.v, nes);
+                    // Should really use enums or something, this is hard to read
+                    let increment = if nes.ppu.increment_mode == false {1} else {32};
+                    nes.ppu.v = nes.ppu.v.wrapping_add(increment);
+                    val
+                },
+                
+                _ => panic!("Literally impossible"),
+            },
+
+        OAMDMA => 0,
+
+        0x4000..=0x4017 => 0,
+        0x4018..=0x401F => 0,
+        0x4020..=0xFFFF => mapper(addr, nes),
     }
 }
 
@@ -42,53 +81,64 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
 pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
     let val_u16 = val as u16;
     match addr {
+        // Write to normal RAM
         0x0000..=0x1FFF => nes.wram[(addr % 0x800) as usize] = val,
-        0x2000          => {
-            byte_to_ppuctrl(val, nes);
-            nes.ppu.t &= 0b1_111001111111111;
-            nes.ppu.t |= (val_u16 & 0b00000011) << 10;
-        }
-        0x2001          => byte_to_ppumask(val, nes),
-        0x2003          => nes.ppu.oam_addr = val,
-        0x2004          => {
-            nes.ppu.oam[nes.ppu.oam_addr as usize] = val;
-            nes.ppu.oam_addr = nes.ppu.oam_addr.wrapping_add(1);
-        }
-        0x2005          => {
-            if !nes.ppu.w {
-                nes.ppu.t &= 0b1_111_11_11111_00000;
-                nes.ppu.t |= (val as u16) >> 3;
-                nes.ppu.x = val & 0b0000_0111;
-            } else {
-                nes.ppu.t &= 0b1_000_11_00000_11111;
-                nes.ppu.t |= (val_u16 & 0b11111_000) << 2;
-                nes.ppu.t |= (val_u16 & 0b00000_111) << 12;
-            }
-            nes.ppu.w = !nes.ppu.w;
-        }
-        0x2006          => {
-            if !nes.ppu.w {
-                nes.ppu.t &= 0b1_0_00000_11111111;
-                nes.ppu.t |= (val_u16 & 0b00011111) << 8;
-            } else {
-                nes.ppu.t &= 0b1_1_11111_00000000;
-                nes.ppu.t |= val_u16;
-                nes.ppu.v = nes.ppu.t;
-            }
-            nes.ppu.w = !nes.ppu.w;
-        }
-        0x2007 => {
-            ppu::write_vram(nes.ppu.v, val, nes);
-            nes.ppu.v += if nes.ppu.increment_mode == false {1} else {32};
-        }
-        0x4014 => {
+
+        // PPU memory mapped registers
+        0x2000..=0x3FFF =>
+            match 0x2000 + (addr % 8) {
+                PPUCTRL   => {
+                    byte_to_ppuctrl(val, nes);
+                    nes.ppu.t &= 0b1_111001111111111;
+                    nes.ppu.t |= (val_u16 & 0b11) << 10;
+                },
+                PPUMASK   => byte_to_ppumask(val, nes),
+                OAMADDR   => nes.ppu.oam_addr = val,
+                OAMDATA   => {
+                    nes.ppu.oam[nes.ppu.oam_addr as usize] = val;
+                    nes.ppu.oam_addr = nes.ppu.oam_addr.wrapping_add(1);
+                },
+                PPUSCROLL => {
+                    if !nes.ppu.w {
+                        nes.ppu.t &= 0b1_111_11_11111_00000;
+                        nes.ppu.t |= (val as u16) >> 3;
+                        nes.ppu.x = val & 0b0000_0111;
+                    } else {
+                        nes.ppu.t &= 0b1_000_11_00000_11111;
+                        nes.ppu.t |= (val_u16 & 0b11111_000) << 2;
+                        nes.ppu.t |= (val_u16 & 0b00000_111) << 12;
+                    }
+                    nes.ppu.w = !nes.ppu.w;
+                },
+                PPUADDR   => {
+                    if !nes.ppu.w {
+                        nes.ppu.t &= 0b1_0_00000_11111111;
+                        nes.ppu.t |= (val_u16 & 0b00011111) << 8;
+                    } else {
+                        nes.ppu.t &= 0b1_1_11111_00000000;
+                        nes.ppu.t |= val_u16;
+                        nes.ppu.v = nes.ppu.t;
+                    }
+                    nes.ppu.w = !nes.ppu.w;
+                },
+                PPUSTATUS => {},
+                PPUDATA   => {
+                    ppu::write_vram(nes.ppu.v, val, nes);
+                    // Should really use enums or something, this is hard to read
+                    let increment = if nes.ppu.increment_mode == false {1} else {32};
+                    nes.ppu.v = nes.ppu.v.wrapping_add(increment);
+                },
+                _ => panic!("Literally impossible"),
+            },
+
+        OAMDMA    => {
             let base = (val_u16 << 8);
             for offset in 0x00..0xFF {
                 nes.ppu.oam[offset] = read_mem(base + offset as u16, nes);
             }
-        }
+        },
         _ => (),
-    }
+    };
 }
 
 fn byte_to_ppuctrl(byte: u8, nes: &mut Nes) {

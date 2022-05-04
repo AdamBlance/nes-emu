@@ -6,6 +6,8 @@
 
 use std::fs;
 
+// GGEZ HAS CHANGED SINCE I WROTE THIS, CHECK NEW DOCUMENTATION
+
 use ggez::mint::Vector2;
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
@@ -22,6 +24,9 @@ mod ppu;
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;
+const SCALING: u32 = 4;
+
+use std::mem as penis;
 
 struct Emulator {
     frames: u64,
@@ -41,8 +46,7 @@ impl EventHandler<ggez::GameError> for Emulator {
         // if (self.frames % 60) == 0 {
         //     println!("FPS: {}", ggez::timer::fps(ctx));
         // }
-
-        let image = graphics::Image::from_rgba8(ctx, 256, 240, &self.nes.frame)?;
+        let image = graphics::Image::from_rgba8(ctx, WIDTH as u16, HEIGHT as u16, &self.nes.frame)?;
         // let image = graphics::Image::solid(ctx, 240, Color::from_rgb(255, 0, 255))?;
         let dp = DrawParam::new();
         graphics::draw(ctx, &image, dp)?;
@@ -53,21 +57,36 @@ impl EventHandler<ggez::GameError> for Emulator {
 
 fn main() {
 
-    let ines_data = fs::read("color_test.nes").expect("Failed to read rom");
+    println!("instruction: {}", penis::size_of::<opc::Instruction>());
+    println!("functionpointer: {}", penis::size_of::<fn(one: u8, two: u16, nes: &mut hw::Nes)>());
+    println!("name: {}", penis::size_of::<&'static str>());
+    println!("mode: {}", penis::size_of::<opc::Mode>());
+    println!("bool: {}", penis::size_of::<bool>());
+    println!("u8: {}", penis::size_of::<u8>());
 
+
+    // Only 8kB! Nice
+    // 32B for each struct 
+
+    let ines_data = fs::read("dk.nes").expect("Failed to read rom");
+
+    // If the file isn't long enough to contain ines header, quit
     if ines_data.len() < 16 {
         panic!();
     }
+    // If file doesn't contain ines magic number, quit
     if &ines_data[0..4] != b"NES\x1A" {
         panic!();
     }
     
+    // Program ROM begins immediately after header
+    // Fifth header byte defines size of program ROM in 16KB chunks
     let prg_start: usize = 16;
-    let prg_end = prg_start + (ines_data[4] as usize) * 16384;
-    println!("prg_end size {}", prg_end-prg_start);
-    let chr_end = prg_end + (ines_data[5] as usize) * 8192;
+    let prg_end = prg_start + (ines_data[4] as usize) * 0x4000;
 
-
+    // Character ROM (sprites, graphics) begins immediately after program rom
+    // Sixth header byte defines size of character ROM in 8KB chunks
+    let chr_end = prg_end + (ines_data[5] as usize) * 0x2000;
 
     let cart = hw::Cartridge {
         prg_rom: ines_data[prg_start..prg_end].to_vec(),
@@ -76,14 +95,11 @@ fn main() {
         v_mirroring: (ines_data[6] & 0b0000_0001) != 0,
     };
 
-    let mut frame = vec![0u8; 256*240*4];
-
     let nes = hw::Nes {
-        cpu: Default::default(),
-        wram: [0; 2048],
-        ppu: Default::default(),
-        ppu_written_to: false,
-        frame,
+        cpu:   Default::default(),
+        wram:  [0; 2048],
+        ppu:   Default::default(),
+        frame: vec![0u8; (WIDTH*HEIGHT) as usize],
         cart,
         skip: 1,
     };

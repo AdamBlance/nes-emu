@@ -1,5 +1,4 @@
 use std::io;
-
 use crate::util::*;
 use crate::hw::*;
 use crate::opc::*;
@@ -41,12 +40,12 @@ fn get_instr_addr(addressing_mode: Mode, byte1: u8, byte2: u8, nes: &mut Nes) ->
 
 pub fn step_cpu(nes: &mut Nes) {
 
-    // if nes.cpu.nmi_interrupt {
-    //     stack_push_u16(nes.cpu.pc, nes);
-    //     stack_push(p_to_byte(nes), nes);
-    //     nes.cpu.pc = read_mem_u16(0xFFFA, nes);
-    //     nes.cpu.nmi_interrupt = false;
-    // }
+    if nes.cpu.nmi_interrupt {
+        stack_push_u16(nes.cpu.pc, nes);
+        stack_push(p_to_byte(nes), nes);
+        nes.cpu.pc = read_mem_u16(0xFFFA, nes);
+        nes.cpu.nmi_interrupt = false;
+    }
 
     // Use opcode to index into lookup table
     let opcode = read_mem(nes.cpu.pc, nes);
@@ -72,15 +71,28 @@ pub fn step_cpu(nes: &mut Nes) {
     };
 
     let prev_pc = nes.cpu.pc;
+    // println!("name:{} / {:#04X} pc:{:#06X} addr:{:#06X} val:{:#04X} a:{:#04X} x:{:#04X} y:{:#04X}", instruction.name, opcode, nes.cpu.pc, relevant_address, instr_val, nes.cpu.a, nes.cpu.x, nes.cpu.y);
+
+    // let mut input_string = String::new();
+    // io::stdin().read_line(&mut input_string).unwrap();
+
+
 
     // Execute instruction
     (instruction.associated_function)(instr_val, relevant_address, nes);
     
+
+
+
+    
+
     nes.cpu.cycles += instruction.cycles as u64;
+
+    
 
     // If no jump ocurred, advance the pc according to the length of the instruction 
     // This depends on its addressing mode
-    if nes.cpu.pc != prev_pc {
+    if nes.cpu.pc == prev_pc {
         let offset = instruction.mode.num_bytes();
         nes.cpu.pc = nes.cpu.pc.wrapping_add(offset);
     }

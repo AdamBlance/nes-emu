@@ -3,7 +3,6 @@ pub struct Nes {
     pub wram: [u8; 2048],
     pub ppu: Ppu,
     pub cart: Cartridge,
-    pub ppu_written_to: bool,
     pub frame: Vec<u8>,
     pub skip: u64,
 }
@@ -65,7 +64,7 @@ pub struct Ppu {
 impl Default for Ppu {
     fn default() -> Ppu {
         Ppu {
-            nmi_enable: false,
+            nmi_enable: true,
             master_slave: false,
             sprite_height: false,
             background_tile_select: false,
@@ -82,7 +81,7 @@ impl Default for Ppu {
             background_left_column_enable: false,
             greyscale: false,
         
-            vblank: false,
+            vblank: true,
             sprite_zero_hit: false,
             sprite_overflow: false,
             oam_addr: 0,
@@ -127,5 +126,4 @@ pub struct Cpu {
     pub pc: u16,
     pub nmi_interrupt: bool,
     pub cycles: u64,
-    pub counter: u64,
 }
