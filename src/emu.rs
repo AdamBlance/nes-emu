@@ -38,7 +38,3 @@ pub fn run_to_vblank(nes: &mut Nes) {
     }
 
 }
-
-
-
-

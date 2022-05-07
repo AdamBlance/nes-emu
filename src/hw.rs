@@ -16,57 +16,70 @@ pub struct Cartridge {
 
 // feel like I need some good comments here
 pub struct Ppu {
+    // PPUCTRL
     pub nmi_enable: bool,
     pub master_slave: bool,
     pub tall_sprites: bool,
     pub bg_ptable_select: bool,
     pub sprite_ptable_select: bool,
     pub increment_select: bool,
-    pub ntable_select: u8, // this needs fixed
+    pub ntable_select: u8, 
 
+    // PPUMASK
     pub blue_emphasis: bool,
     pub green_emphasis: bool,
     pub red_emphasis: bool,
-    pub sprite_enable: bool,
-    pub background_enable: bool,
-    pub sprite_left_column_enable: bool,
-    pub background_left_column_enable: bool,
+    pub show_sprites: bool,
+    pub show_bg: bool,
+    pub show_leftmost_sprites: bool,
+    pub show_leftmost_bg: bool,
     pub greyscale: bool,
 
-    pub vblank: bool,
+    // PPUSTATUS
+    pub in_vblank: bool,
     pub sprite_zero_hit: bool,
     pub sprite_overflow: bool,
 
+    // OAMADDR
     pub oam_addr: u8,
-    pub ppu_scroll: u8,
-    pub ppu_data: u8,
-    pub oam_data: u8,
-    pub oam_dma: u8,
+
+    // Memories
+    pub vram:        [u8; 2048],
+    pub oam:         [u8; 256],
     pub palette_mem: [u8; 32],
-    pub oam: [u8; 256],
-    pub vram: [u8; 2048],
-    pub scanline: u32,
-    pub pixel: u32,
+
+    // v/t PPU addresses
     pub t: u16,
     pub v: u16,
+    
+    // Fine X
     pub x: u8,
+
+    // Write toggle
     pub w: bool,
+
+    // Rendering counters
+    pub scanline: u32,
+    pub scanline_cycle: u32,
     pub odd_frame: bool,
+
+    // Internal latches for just-read values
+    pub ntable_tmp: u8,
+    pub attr_tmp: u8,
+    pub ptable_lsb_tmp: u8,
+    pub ptable_msb_tmp: u8,
+    
+    // Shift registers
+    pub ptable_lsb_sr: u16,
+    pub ptable_msb_sr: u16,
+    pub attr_lsb_sr: u8,
+    pub attr_msb_sr: u8,
+    
+    // 1-bit attribute latches
+    pub attr_lsb_latch: bool,
+    pub attr_msb_latch: bool,
+    
     pub cycles: u64,
-
-    pub scanline_cycle: u16,
-
-    pub nametable_latch: u8,
-    pub attribute_latch: u8,
-    pub lsb_pattern_table_latch: u8,
-    pub msb_pattern_table_latch: u8,
-
-    pub internal_latch: u8,
-    pub lsb_pattern_shift_register: u16,
-    pub msb_pattern_shift_register: u16,
-    pub lsb_palette_shift_register: u8,
-    pub msb_palette_shift_register: u8,
-
 }
 
 impl Default for Ppu {
@@ -83,45 +96,45 @@ impl Default for Ppu {
             blue_emphasis: false,
             green_emphasis: false,
             red_emphasis: false,
-            sprite_enable: false,
-            background_enable: false,
-            sprite_left_column_enable: false,
-            background_left_column_enable: false,
+            show_sprites: false,
+            show_bg: false,
+            show_leftmost_sprites: false,
+            show_leftmost_bg: false,
             greyscale: false,
         
-            vblank: true,
+            in_vblank: true,
             sprite_zero_hit: false,
             sprite_overflow: false,
+
             oam_addr: 0,
-            ppu_scroll: 0,
-            ppu_data: 0,
-            oam_data: 0,
-            oam_dma: 0,
-            palette_mem: [0; 32],
-            oam: [0; 256],
+
             vram: [0; 2048],
-            scanline: 0,
-            pixel: 0,
+            oam: [0; 256],
+            palette_mem: [0; 32],
+
             t: 0,
             v: 0,
             x: 0,
             w: false,
-            odd_frame: false,
-            cycles: 0,
 
+            scanline: 0,
             scanline_cycle: 0,
+            odd_frame: false,
 
-            nametable_latch: 0,
-            attribute_latch: 0,
-            lsb_pattern_table_latch: 0,
-            msb_pattern_table_latch: 0,
-
-            internal_latch: 0,            
-            lsb_pattern_shift_register: 0,
-            msb_pattern_shift_register: 0,
-            lsb_palette_shift_register: 0,
-            msb_palette_shift_register: 0,
-
+            ntable_tmp: 0,
+            attr_tmp: 0,
+            ptable_lsb_tmp: 0,
+            ptable_msb_tmp: 0,
+            
+            ptable_lsb_sr: 0,
+            ptable_msb_sr: 0,
+            attr_lsb_sr: 0,
+            attr_msb_sr: 0,
+    
+            attr_lsb_latch: false,
+            attr_msb_latch: false,
+    
+            cycles: 0,
         }
     }
 }

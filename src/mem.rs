@@ -63,7 +63,7 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
                 PPUDATA => {
                     let val = ppu::read_vram(nes.ppu.v, nes);
                     // Should really use enums or something, this is hard to read
-                    let increment = if nes.ppu.ppuctrl_vram_address_increment_select == false {1} else {32};
+                    let increment = if nes.ppu.increment_select == false {1} else {32};
                     nes.ppu.v = nes.ppu.v.wrapping_add(increment);
                     val
                 },
@@ -135,7 +135,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 PPUDATA   => {
                     ppu::write_vram(nes.ppu.v, val, nes);
                     // Should really use enums or something, this is hard to read
-                    let increment = if nes.ppu.ppuctrl_vram_address_increment_select == false {1} else {32};
+                    let increment = if nes.ppu.increment_select == false {1} else {32};
                     nes.ppu.v = nes.ppu.v.wrapping_add(increment);
                 },
                 _ => panic!("Literally impossible"),
@@ -152,13 +152,13 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
 }
 
 fn byte_to_ppuctrl(byte: u8, nes: &mut Nes) {
-    nes.ppu.ppuctrl_nmi_enable = get_bit(byte, 7);
-    nes.ppu.ppuctrl_master_slave = get_bit(byte, 6);
-    nes.ppu.ppuctrl_tall_sprites = get_bit(byte, 5);
-    nes.ppu.ppuctrl_background_pattern_table_select = get_bit(byte, 4);
-    nes.ppu.ppuctrl_sprite_pattern_table_select = get_bit(byte, 3);
-    nes.ppu.ppuctrl_vram_address_increment_select = get_bit(byte, 2);
-    nes.ppu.ppuctrl_nametable_select = byte & 0b0000_0011;
+    nes.ppu.nmi_enable = get_bit(byte, 7);
+    nes.ppu.master_slave = get_bit(byte, 6);
+    nes.ppu.tall_sprites = get_bit(byte, 5);
+    nes.ppu.bg_ptable_select = get_bit(byte, 4);
+    nes.ppu.sprite_ptable_select = get_bit(byte, 3);
+    nes.ppu.increment_select = get_bit(byte, 2);
+    nes.ppu.ntable_select = byte & 0b0000_0011;
 }
 
 
@@ -167,19 +167,19 @@ fn byte_to_ppumask(byte: u8, nes: &mut Nes) {
     nes.ppu.blue_emphasis = get_bit(byte, 7);
     nes.ppu.green_emphasis = get_bit(byte, 6);
     nes.ppu.red_emphasis = get_bit(byte, 5);
-    nes.ppu.sprite_enable = get_bit(byte, 4);
-    nes.ppu.background_enable = get_bit(byte, 3);
-    nes.ppu.sprite_left_column_enable = get_bit(byte, 2);
-    nes.ppu.background_left_column_enable = get_bit(byte, 1);
+    nes.ppu.show_sprites = get_bit(byte, 4);
+    nes.ppu.show_bg = get_bit(byte, 3);
+    nes.ppu.show_leftmost_sprites = get_bit(byte, 2);
+    nes.ppu.show_leftmost_bg = get_bit(byte, 1);
     nes.ppu.greyscale = get_bit(byte, 0);
 }
 fn ppustatus_to_byte(nes: &Nes) -> u8 {
-    (if nes.ppu.vblank          {0b1000_0000} else {0}) | 
+    (if nes.ppu.in_vblank       {0b1000_0000} else {0}) | 
     (if nes.ppu.sprite_zero_hit {0b0100_0000} else {0}) | 
     (if nes.ppu.sprite_overflow {0b0000_1000} else {0})
 }
 fn byte_to_ppustatus(byte: u8, nes: &mut Nes) {
-    nes.ppu.vblank = get_bit(byte, 7);
+    nes.ppu.in_vblank = get_bit(byte, 7);
     nes.ppu.sprite_zero_hit = get_bit(byte, 6);
     nes.ppu.sprite_overflow = get_bit(byte, 5);
 }

@@ -43,9 +43,7 @@ impl EventHandler<ggez::GameError> for Emulator {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         self.frames += 1;
-        // if (self.frames % 60) == 0 {
-        //     println!("FPS: {}", ggez::timer::fps(ctx));
-        // }
+
         let image = graphics::Image::from_rgba8(ctx, WIDTH as u16, HEIGHT as u16, &self.nes.frame)?;
         // let image = graphics::Image::solid(ctx, 240, Color::from_rgb(255, 0, 255))?;
         let dp = DrawParam::new();
@@ -56,17 +54,6 @@ impl EventHandler<ggez::GameError> for Emulator {
 }
 
 fn main() {
-
-    println!("instruction: {}", penis::size_of::<opc::Instruction>());
-    println!("functionpointer: {}", penis::size_of::<fn(one: u8, two: u16, nes: &mut hw::Nes)>());
-    println!("name: {}", penis::size_of::<&'static str>());
-    println!("mode: {}", penis::size_of::<opc::Mode>());
-    println!("bool: {}", penis::size_of::<bool>());
-    println!("u8: {}", penis::size_of::<u8>());
-
-
-    // Only 8kB! Nice
-    // 32B for each struct 
 
     let ines_data = fs::read("dk.nes").expect("Failed to read rom");
 
@@ -99,7 +86,7 @@ fn main() {
         cpu:   Default::default(),
         wram:  [0; 2048],
         ppu:   Default::default(),
-        frame: vec![0u8; (WIDTH*HEIGHT) as usize],
+        frame: vec![0u8; (WIDTH * HEIGHT * 4) as usize], // *4 because of RGBA
         cart,
         skip: 1,
     };
@@ -112,8 +99,5 @@ fn main() {
     // Make a Context.
     let (mut ctx, event_loop) = ContextBuilder::new("my_game", "Cool Game Author").build().expect("Something went wrong");
     event::run(ctx, event_loop, emulator);
-
-
-
 
 }

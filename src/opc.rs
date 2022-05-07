@@ -712,4 +712,3 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  "INC", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: increment_rmw},
     Instruction {name: "*ISB", mode: AbsoluteX,   cycles: 7, page_penalty: false, associated_function: nop},
 ];
-

@@ -1,200 +1,121 @@
-use crate::hw::*;
-use crate::util::*;
-use std::{thread, time};
 
-pub static PALETTE: [(u8,u8,u8); 56] = [(84, 84, 84), (0, 30, 116), (8, 16, 144), (48, 0, 136), (68, 0, 100), (92, 0, 48), (84, 4, 0), (60, 24, 0), (32, 42, 0), (8, 58, 0), (0, 64, 0), (0, 60, 0), (0, 50, 60), (0, 0, 0), (152, 150, 152), (8, 76, 196), (48, 50, 236), (92, 30, 228), (136, 20, 176), (160, 20, 100), (152, 34, 32), (120, 60, 0), (84, 90, 0), (40, 114, 0), (8, 124, 0), (0, 118, 40), (0, 102, 120), (0, 0, 0), (236, 238, 236), (76, 154, 236), (120, 124, 236), (176, 98, 236), (228, 84, 236), (236, 88, 180), (236, 106, 100), (212, 136, 32), (160, 170, 0), (116, 196, 0), (76, 208, 32), (56, 204, 108), (56, 180, 204), (60, 60, 60), (236, 238, 236), (168, 204, 236), (188, 188, 236), (212, 178, 236), (236, 174, 236), (236, 174, 212), (236, 180, 176), (228, 196, 144), (204, 210, 120), (180, 222, 120), (168, 226, 144), (152, 226, 180), (160, 214, 228), (160, 162, 160)];
+/*
+ https://archive.nes.science/nesdev-forums/f3/t13966.xhtml
+ https://forums.nesdev.org/viewtopic.php?t=8216
+ https://www.nesdev.org/2C02%20technical%20reference.TXT
 
-// https://archive.nes.science/nesdev-forums/f3/t13966.xhtml
-// https://forums.nesdev.org/viewtopic.php?t=8216
-// https://www.nesdev.org/2C02%20technical%20reference.TXT
+ Okay, so here's a reminder on how the PPU works, more complicated than CPU
+ PPU is non-programmable, follows the same procedure every time with the exception of a few 
+ options that change the functionality slightly
 
-// This will need a complete overhaul, use the resources above 
-// please don't get distracted on this when you've got less than a week until your first exam!
+ PPU has 16kB (0x4000) of addressable memory
 
-// Yeah this is a bit of a mess, try to get some good functions first, identify common functionality
-// Otherwise this is just a mess of nonsense
+ Holds the following:
+     - Pattern tables, which contain graphics data from the cartridge
+     - Nametables, which are matrices of indices into the pattern table and define which tiles should
+       make up the background
+     - Attribute tables, which define what palette is used to draw each segment of the screen
+     - Palettes, which define the colours used to draw the image
 
+ PPU also has Object Attribute Memory (OAM) but this is not directly addressable and can only be 
+ modified using the PPUs memory mapped registers OAMADDR OAMDATA OAMDMA
 
+ The memory is laid out in the following way:
+     First 4kB (0x0000-0x0FFF) is pattern table 0 which is directly mapped in from CHR_ROM
+     Second 4kB (0x1000-1FFF) is pattern table 1, also mapped directly from CHR_ROM
+     These can be modified using mappers and stuff, but I'm not thinking about that yet
 
+     Next 2kB is the nametables, 1kB for each. This is the actual VRAM in the console
+     There are actually 4 logical nametables, starting at 0x2000,0x2400,0x2800,0x2C00
+     These are arranged in a grid, left to right, top to bottom
+     This means two logical nametables must point to the same place because there is only enough 
+     memory for two in VRAM
+     Nametables are either mirrored horizontally or vertically
 
+     So basically first 4kB pattern tables (chr_rom), next 4kB nametables
 
-fn physical_nametable_addr(addr: u16, cart: &Cartridge) -> usize {
-    let addr_u = (addr as usize) - 0x2000;
-    if cart.v_mirroring {
-        match addr {
-            0x2000..=0x27FF => addr_u,
-            0x2800..=0x2FFF => addr_u - 0x800,
-            _ => 0,
-        }
-    } else {
-        match addr {
-            0x2000..=0x23FF => addr_u,
-            0x2400..=0x27FF => addr_u - 0x400,
-            0x2800..=0x2BFF => addr_u - 0x400,
-            0x2C00..=0x2FFF => addr_u - 0x800,
-            _ => 0,
-        }
-    }
-}
+     Then the next 3840B (4kB - 256B) mirrors the first 3840B of the nametables
 
+     The next 32B are palette ram (from 0x3F00-0x3F1F)
 
+     Then the next 0x3F20-0x3FFF (224B) mirror the palette tables
 
-// the mirroring depends on the cartridge!!!
-// will need to store that as an attribute and check it
+ 
 
-pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
-    let a = addr as usize;
-    match addr {
-        0x0000..=0x1FFF => nes.cart.chr_rom[a],
-        0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart)],
-        0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cart)],
-        0x3F00..=0x3FFF => nes.ppu.palette_mem[(a - 0x3F00) % 32],
-        _ => 0,
-    }
-}
-
-pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
-    let a = addr as usize;
-    match addr {
-        0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart)] = val,
-        0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cart)] = val,
-        0x3F00..=0x3FFF => nes.ppu.palette_mem[(a - 0x3F00) % 32] = val,
-        _ => (),
-    }
-}
-
-// Okay, so here's a reminder on how the PPU works, more complicated than CPU
-// PPU is non-programmable, follows the same procedure every time with the exception of a few 
-// options that change the functionality slightly
-
-// PPU has 16kB (0x4000) of addressable memory
-
-// Holds the following
-
-    // Pattern tables, which contain graphics data from the cartridge
-
-    // Nametables, which are matrices of indices into the pattern table and define which tiles should
-    // make up the background
-
-    // Attribute tables, which define what palette is used to draw each segment of the screen
-
-    // Palettes, which define the colours used to draw the image
-
-// PPU also has Object Attribute Memory (OAM) but this is not directly addressable and can only be 
-// modified using the PPUs memory mapped registers OAMADDR OAMDATA OAMDMA
-
-
-// The memory is laid out in the following way:
-    // First 4kB (0x0000-0x0FFF) is pattern table 0 which is directly mapped in from CHR_ROM
-    // Second 4kB (0x1000-1FFF) is pattern table 1, also mapped directly from CHR_ROM
-    // These can be modified using mappers and stuff, but I'm not thinking about that yet
-
-    // Next 2kB is the nametables, 1kB for each. This is the actual VRAM in the console
-    // There are actually 4 logical nametables, starting at 0x2000,0x2400,0x2800,0x2C00
-    // These are arranged in a grid, left to right, top to bottom
-    // This means two logical nametables must point to the same place because there is only enough 
-    // memory for two in VRAM
-    // Nametables are either mirrored horizontally or vertically
-
-    // So basically first 4kB pattern tables (chr_rom), next 4kB nametables
-
-    // Then the next 3840B (4kB - 256B) mirrors the first 3840B of the nametables
-
-    // The next 32B are palette ram (from 0x3F00-0x3F1F)
-
-    // Then the next 0x3F20-0x3FFF (224B) mirror the palette tables
-
-// I think instead of code, I need to do a flowchart or something to make sure I understand absolutely 
-// everything that's going on, cause otherwise I'm just writing nonsensical if statements 
-
-// Like, can I get away with just reading directly from the pagetables? Or do I have to simulate the 
-// shift registers to get accurate simulation? Probably not, although maybe if some random reads and
-// writes happen mid frame which some games do. 
-
-
-pub fn step_ppu(nes: &mut Nes) {
-
-    // Okay, when I have time and not studying, need to work through wiki and just perfectly replicate
-    // what happens every cycle (within reason) 
-    // A good place to start would be to see what the power up state is and match it
-    // Honestly I think it would be good to rename all of the PPU registers as well to include
-    // the name of the memory mapped register? Otherwise it's just going to get confusing
-
-
-    // Each tile in the pattern table is 8x8 pixels with a 2-bit colour depth
+    Each tile in the pattern table is 8x8 pixels with a 2-bit colour depth
     
-    // Each tile is represented in the following way:
+     Each tile is represented in the following way:
 
-    // https://emudev.de/nes-emulator/cartridge-loading-pattern-tables-and-ppu-registers/
+     https://emudev.de/nes-emulator/cartridge-loading-pattern-tables-and-ppu-registers/
 
-    // 16 bytes, two 8 byte planes one after the other
-    // first 8 bytes control bit 0 of the colour
-    // second 8 bytes control bit 1 of the colour
+     16 bytes, two 8 byte planes one after the other
+     first 8 bytes control bit 0 of the colour
+     second 8 bytes control bit 1 of the colour
 
-    // so to construct one horizontal line of the image, you need to grab the appropriate pattern
-    // table entry, and then the one 8 bytes over
+     so to construct one horizontal line of the image, you need to grab the appropriate pattern
+     table entry, and then the one 8 bytes over
 
-    // The resolution of the screen is 256x240, so 32x30 tiles, so 32*30=960B of nametable
-    // The last 1024-960=64B make up the attribute table
+     The resolution of the screen is 256x240, so 32x30 tiles, so 32*30=960B of nametable
+     The last 1024-960=64B make up the attribute table
 
-    // Each byte controls the pallete of 4x4 tile area (32x32 pixels)
-    // The 4x4 tile area is split into 4 2x2 tile areas (16x16 pixels each)
-    // This is the size of a mario question block
+     Each byte controls the pallete of 4x4 tile area (32x32 pixels)
+     The 4x4 tile area is split into 4 2x2 tile areas (16x16 pixels each)
+     This is the size of a mario question block
     
-    // The order is top left, top right, bottom left, bottom right 
-    // bits 1,0 top left
-    // bits 3,2 top right
-    // bits 5,4 bottom left
-    // bits 7,6 bottom right
+     The order is top left, top right, bottom left, bottom right 
+     bits 1,0 top left
+     bits 3,2 top right
+     bits 5,4 bottom left
+     bits 7,6 bottom right
 
-    // https://www.nesdev.org/wiki/PPU_attribute_tables
+     https://www.nesdev.org/wiki/PPU_attribute_tables
     
-    // 7654 3210
-    // |||| ||++- Color bits 3-2 for top left quadrant of this byte
-    // |||| ++--- Color bits 3-2 for top right quadrant of this byte
-    // ||++------ Color bits 3-2 for bottom left quadrant of this byte
-    // ++-------- Color bits 3-2 for bottom right quadrant of this byte
+     7654 3210
+     |||| ||++- Color bits 3-2 for top left quadrant of this byte
+     |||| ++--- Color bits 3-2 for top right quadrant of this byte
+     ||++------ Color bits 3-2 for bottom left quadrant of this byte
+     ++-------- Color bits 3-2 for bottom right quadrant of this byte
 
-    // Pattern table, attribute table, nametable plane 0, nametable plane 1, fetched in that order
-    // Each read takes two cycles, so 8 cycles in total, which keeps pace with the 8 pixels it has
-    // to render in that time
+     Pattern table, attribute table, nametable plane 0, nametable plane 1, fetched in that order
+     Each read takes two cycles, so 8 cycles in total, which keeps pace with the 8 pixels it has
+     to render in that time
     
-    // 2 16-bit shift registers store the pattern table data
-    // first one stores plane 0, second plane 1
-    // They are 16-bits so they can store 2 tiles in there, (so that there's a buffer baiscally)
+     2 16-bit shift registers store the pattern table data
+     first one stores plane 0, second plane 1
+     They are 16-bits so they can store 2 tiles in there, (so that there's a buffer baiscally)
 
-    // These values are stored in internal latches once read, and all blitted to the shift registers
-    // at the same time every 8 cycles
+     These values are stored in internal latches once read, and all blitted to the shift registers
+     at the same time every 8 cycles
 
-    // figure out attribute shift registers next, there are 2 8-bit ones? 
+     figure out attribute shift registers next, there are 2 8-bit ones? 
 
-    // yes, so there are two 8-bit ones
-    // one is for the lower bit, one for the upper bit of the attribute for that pixel
+     yes, so there are two 8-bit ones
+     one is for the lower bit, one for the upper bit of the attribute for that pixel
 
-    // these shift registers are shifted in tandem with the pattern table ones so that a pixel 
-    // defined in bit 5 of the pattern table shift register corresponds to attribute in bit 5 
-    // of the attribute one
+     these shift registers are shifted in tandem with the pattern table ones so that a pixel 
+     defined in bit 5 of the pattern table shift register corresponds to attribute in bit 5 
+     of the attribute one
 
-    // vram accesses take two cycles because of some pin sharing stuff to minimise pins I guess
-    // it's safe to just read the value from vram on the second half of the cycle I think
-    // https://documentation.help/FCEUX/%7B9C73EB3E-118D-451A-AAE8-BBF99A5FDEEB%7D.htm
+     vram accesses take two cycles because of some pin sharing stuff to minimise pins I guess
+     it's safe to just read the value from vram on the second half of the cycle I think
+     https://documentation.help/FCEUX/%7B9C73EB3E-118D-451A-AAE8-BBF99A5FDEEB%7D.htm
 
 
-    // So the v register (vram address) is used to read the nametables
-    // the attribute table and pattern table addresses are derived from v, just using some bitwise stuff
-    // https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
+     So the v register (vram address) is used to read the nametables
+     the attribute table and pattern table addresses are derived from v, just using some bitwise stuff
+     https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
     
 
 
 
-    // To get anywhere with this, need to fully understand how V works
+     To get anywhere with this, need to fully understand how V works
     
-    // v and t are 15 bits long
+     v and t are 15 bits long
 
 
-    // v is like this:
+     v is like this:
 
-    /*
+    
 
     yyy NN YYYYY XXXXX
     ||| || ||||| +++++-- coarse X scroll
@@ -202,23 +123,23 @@ pub fn step_ppu(nes: &mut Nes) {
     ||| ++-------------- nametable select
     +++----------------- fine Y scroll
     
-    */
+    
 
-    // The 5 bits for X and Y can make 0-31, enough to specify any block in the 32x30 nametable
+     The 5 bits for X and Y can make 0-31, enough to specify any block in the 32x30 nametable
 
-    // t is kind of like a temporary variable for setting v
-    // when you write stuff to PPUCTRL or PPUSCROLL, it will go to different parts of t instead of v
+     t is kind of like a temporary variable for setting v
+     when you write stuff to PPUCTRL or PPUSCROLL, it will go to different parts of t instead of v
 
-    // When you write to PPUCTRL, it will copy the nametable base address into t
+     When you write to PPUCTRL, it will copy the nametable base address into t
 
-    /*
+    
     t: ...GH.. ........ <- d: ......GH
        <used elsewhere> <- d: ABCDEF..
-    */
+    
 
     
 
-    /*
+    
     
     
     Alright, so the scroll coordinates of the screen is set with PPUSCROLL
@@ -308,67 +229,246 @@ pub fn step_ppu(nes: &mut Nes) {
     
     
 
+    
+    
+
+     cycle 0 is idle!
+     right so the reads happen over 1-2, 3-4, 5-6 etc. 
+     I'm just going to do it on the last cycle of each, so 2, 4, 6 becuase it looks nicer
+
+     there are 4 reads, two cycles each, this covers one tile
+
+     nametable is 2, 10, 18, ... 242, 250
+     attribute is 4, 12, 20, ... 244, 252
+     patternL  is 6, 14, 22, ... 246, 254
+     patternH  is 8, 16, 24, ... 248, 256
+    
+     at the end of cycles 8, 16, ..., v is incremented horizontally
+     at the beginning of cycles 8+1, 16+1, the latches are opened filling the upper bits of shift registers
+
+     at cycle 256, v is finally incremented vertically
+
+     at cycle 257, horizontal bits of t are copied into v, I guess if you change the scrolling
+     mid frame for split scroll
+
+
+
+
+
+     then, loads of sprite shit happens in the background between cycles 257-320
+
+     322, 330
+     324, 332
+     326, 334
+     328, 336 
+
+     the first two tiles are fetched and placed in the shift registers before the start of the next scanline
+
+     then, finally, there are two NT byte fetches spanning 337-340
+     who knows why. I'm going to just leave these for the now, apparently one mapper uses them for timing
+
+
+     this all works itself down until scanline 239, which is the last normal one
+     then at 240, there is a completely idle scanline
+
+     then at 241, cycle 1, PPU vblank flag in PPUSTATUS is set, and NMI occurs, i guess only if 
+     the nmi bit is set!
+
+
+
+
+
+
+    attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
+
+     right, there are 8 attribute "squares" running horizontally
+     therefore, the highest 3 coarse X bits should control which one gets selected horizontally
+
+     first attribute table starts at 0x23C0
+     then extract nametable select with mask, this literally just selects the nametable
+    
+
+     NN----YYYXXX
+    
+
+     nametable entry is 0-255 which 
+     pattern table has 256 tiles, so...
+
+     0x0000-0x0FFF
+
+     right so one tile is 16 bytes, so need to skip 16 at a time
+     so lower 4 bits need to be 0000
+     then nametable number just goes above that, i think
+
+     then, just stick the fine y on the end! that will select the row
+
+
+     right, so last thing to do is just put in the horizontal and vertical increments at certain cycle numbers
+     also the pre render scanline!
+
+     also need to let you disable rendering, still don't really know what exactly that does 
+
+
+
+
+     listen, just come back later today after tea and can get this working
+     it's still a fair bit off working, like several hours of work because I need to check
+     nmi, the rendering enabled disabled, v and h increments in the cycle, the last cycle
+     updating the shift registers, the code that determines the pixel value from 
+     the attribute, fine x, two pattern table lsb and msbs, etc. 
+
+     still maybe 3/4 hours of work, so don't get distracted when you only have a couple 
+     days until exam! You can do it!
+
+*/
+
+
+
+    // loool, wait I think I've done this wrong, I'm stupid , maybe not actually idk
+    // nah it's fine, so there's 2 1-bit latches for lsbs and msbs of attr
+    // these don't lose their value or anything until they are next set
+    // so every 8 cycles, the internal latch containing the previously read attribute byte sets the 
+    // 1 bit latch based on which corner its in
+
+    /*
+    
+    https://www.nesdev.org/wiki/PPU_attribute_tables
+    
+     7654 3210
+     |||| ||++- Color bits 3-2 for top left quadrant of this byte
+     |||| ++--- Color bits 3-2 for top right quadrant of this byte
+     ||++------ Color bits 3-2 for bottom left quadrant of this byte
+     ++-------- Color bits 3-2 for bottom right quadrant of this byte
+
+    
+
+     Right, so, bits of coarse X and Y will need to be used here
+
+     one attribute byte assigns a colour to 4 16x16 areas
+
+     so, second byte of coarse X will flip every 2 tiles (16 pixels)
+     so if it's 0, we're on the left side of the attribute area
+     if it's a 1, we're on the right side of the attribute area
+
+     second byte of coarse Y will also flip every 2 tiles, 
+     if it's 0, we're on top side of attribute area
+     if it's 1, we're at bottom
+    
+    ~y, ~x = top left
+    ~y,  x = top right
+     y, ~x = bottom left
+     y,  x = bottom right
+
+    so, if neither bits are on, get bits 1, 0
+    if x is on, get bits 3, 2
+    if y is on, get bits 5, 4
+    if both, bits 7, 6
+
+    so x contributes 2 bits distance
+    y contributes 4 bits distance
+    
+    cycle 1 through 256 are rendered
+
+    alright, final steps for getting things working in some way.
+    how exactly will the cycles update? 
+
     */
+
+
+
+use crate::{hw::*, util::{get_bit, get_bit_u16}};
+
+pub static PALETTE: [(u8,u8,u8); 64] = [(84, 84, 84), (0, 30, 116), (8, 16, 144), (48, 0, 136), (68, 0, 100), (92, 0, 48), (84, 4, 0), (60, 24, 0), (32, 42, 0), (8, 58, 0), (0, 64, 0), (0, 60, 0), (0, 50, 60), (0, 0, 0), (0, 0, 0), (0, 0, 0), 
+                                        (152, 150, 152), (8, 76, 196), (48, 50, 236), (92, 30, 228), (136, 20, 176), (160, 20, 100), (152, 34, 32), (120, 60, 0), (84, 90, 0), (40, 114, 0), (8, 124, 0), (0, 118, 40), (0, 102, 120), (0, 0, 0), (0, 0, 0), (0, 0, 0), 
+                                        (236, 238, 236), (76, 154, 236), (120, 124, 236), (176, 98, 236), (228, 84, 236), (236, 88, 180), (236, 106, 100), (212, 136, 32), (160, 170, 0), (116, 196, 0), (76, 208, 32), (56, 204, 108), (56, 180, 204), (60, 60, 60), (0, 0, 0), (0, 0, 0), 
+                                        (236, 238, 236), (168, 204, 236), (188, 188, 236), (212, 178, 236), (236, 174, 236), (236, 174, 212), (236, 180, 176), (228, 196, 144), (204, 210, 120), (180, 222, 120), (168, 226, 144), (152, 226, 180), (160, 214, 228), (160, 162, 160), (0, 0, 0), (0, 0, 0)];
+
     
+const NO_FINE_Y: u16           = 0b000_11_11111_11111;
+const ONLY_FINE_Y: u16         = 0b111_00_00000_00000;
+const ONLY_NAMETABLE: u16      = 0b000_11_00000_00000;
+const ONLY_LOW_NAMETABLE: u16  = 0b000_01_00000_00000;
+const ONLY_HIGH_NAMETABLE: u16 = 0b000_01_00000_00000;
+const ONLY_COARSE_X: u16       = 0b000_00_00000_11111;
+const ONLY_COARSE_Y: u16       = 0b000_00_11111_00000;
 
-    // cycle 0 is idle!
-    // right so the reads happen over 1-2, 3-4, 5-6 etc. 
-    // I'm just going to do it on the last cycle of each, so 2, 4, 6 becuase it looks nicer
+fn inc_v_horizontal(nes: &mut Nes) {
+    if (nes.ppu.v & ONLY_COARSE_X) == 31 {
+        nes.ppu.v &= !ONLY_COARSE_X;      // sets coarse x to 0
+        nes.ppu.v ^= ONLY_LOW_NAMETABLE;  // toggles lower nametable bit
+    } else {
+        nes.ppu.v += 1;
+    }
+}
 
-    // there are 4 reads, two cycles each, this covers one tile
-
-    // nametable is 2, 10, 18, ... 242, 250
-    // attribute is 4, 12, 20, ... 244, 252
-    // patternL  is 6, 14, 22, ... 246, 254
-    // patternH  is 8, 16, 24, ... 248, 256
-    
-    // at the end of cycles 8, 16, ..., v is incremented horizontally
-    // at the beginning of cycles 8+1, 16+1, the latches are opened filling the upper bits of shift registers
-
-    // at cycle 256, v is finally incremented vertically
-
-    // at cycle 257, horizontal bits of t are copied into v, I guess if you change the scrolling
-    // mid frame for split scroll
-
-
-
-
-
-    // then, loads of sprite shit happens in the background between cycles 257-320
-
-    // 322, 330
-    // 324, 332
-    // 326, 334
-    // 328, 336 
-
-    // the first two tiles are fetched and placed in the shift registers before the start of the next scanline
-
-    // then, finally, there are two NT byte fetches spanning 337-340
-    // who knows why. I'm going to just leave these for the now, apparently one mapper uses them for timing
+fn inc_v_vertical(nes: &mut Nes) {
+    if ((nes.ppu.v & ONLY_FINE_Y) >> 12) == 7 {
+        nes.ppu.v &= !ONLY_FINE_Y;
+        if ((nes.ppu.v & ONLY_COARSE_Y) >> 5) == 31 {
+            nes.ppu.v &= !ONLY_COARSE_Y;
+            nes.ppu.v ^= ONLY_HIGH_NAMETABLE;
+        } else {
+            nes.ppu.v += 0b000_00_00001_00000;
+        }
+    } else {
+        nes.ppu.v += 0b001_00_00000_00000;
+    }
+}
 
 
-    // this all works itself down until scanline 239, which is the last normal one
-    // then at 240, there is a completely idle scanline
+fn physical_nametable_addr(addr: u16, cart: &Cartridge) -> usize {
+    let addr_u = (addr as usize) - 0x2000;
+    if cart.v_mirroring {
+        match addr {
+            0x2000..=0x27FF => addr_u,
+            0x2800..=0x2FFF => addr_u - 0x800,
+            _ => 0,
+        }
+    } else {
+        match addr {
+            0x2000..=0x23FF => addr_u,
+            0x2400..=0x27FF => addr_u - 0x400,
+            0x2800..=0x2BFF => addr_u - 0x400,
+            0x2C00..=0x2FFF => addr_u - 0x800,
+            _ => 0,
+        }
+    }
+}
 
-    // then at 241, cycle 1, PPU vblank flag in PPUSTATUS is set, and NMI occurs, i guess only if 
-    // the nmi bit is set!
 
 
 
+pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
+    let a = addr as usize;
+    match addr {
+        0x0000..=0x1FFF => nes.cart.chr_rom[a],
+        0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart)],
+        0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cart)],
+        0x3F00..=0x3FFF => nes.ppu.palette_mem[(a - 0x3F00) % 32],
+        _ => 0,
+    }
+}
+
+pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
+    let a = addr as usize;
+    match addr {
+        0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart)] = val,
+        0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cart)] = val,
+        0x3F00..=0x3FFF => nes.ppu.palette_mem[(a - 0x3F00) % 32] = val,
+        _ => (),
+    }
+}
 
 
-    // WOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
-    // DONE !
-    // other than sprite stuff of course
+fn fill_attribute_latch(nes: &mut Nes) {
+    let mut bit_index: u8 = 0;
+    if (nes.ppu.v & 0b000_00_00000_00010) != 0 {bit_index += 2;}
+    if (nes.ppu.v & 0b000_00_00010_00000) != 0 {bit_index += 4;}
+    nes.ppu.attr_lsb_latch = get_bit(nes.ppu.attr_tmp, bit_index);
+    nes.ppu.attr_msb_latch = get_bit(nes.ppu.attr_tmp, bit_index+1);   
+}
 
-
-    // NN YYYYY XXXXX
-    // 
-    
-    const NO_FINE_Y: u16      = 0b000_11_11111_11111;
-    const ONLY_FINE_Y: u16    = 0b111_00_00000_00000;
-    const ONLY_NAMETABLE: u16 = 0b000_11_00000_00000;
-
+pub fn step_ppu(nes: &mut Nes) {
 
     // idle at scanline 0
     if nes.ppu.scanline_cycle == 0 {return};
@@ -376,65 +476,72 @@ pub fn step_ppu(nes: &mut Nes) {
     // if in visible area or fetching data for next scanline
     if nes.ppu.scanline < 240 && ( nes.ppu.scanline_cycle <= 256  || nes.ppu.scanline_cycle >= 322 ) {
 
+        // time to render!
+        if nes.ppu.scanline_cycle <= 256 {     
+            /*
+            43210
+            |||||
+            |||++- Pixel value from tile data
+            |++--- Palette number from attribute table or OAM
+            +----- Background/Sprite select
+            */
+            
+            let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, nes.ppu.x) as u8;
+            let msb_attr = get_bit(nes.ppu.attr_msb_sr, nes.ppu.x) as u8;
+
+            let lsb_ptable = get_bit_u16(nes.ppu.ptable_lsb_sr, nes.ppu.x + 8) as u8;
+            let msb_ptable = get_bit_u16(nes.ppu.ptable_msb_sr, nes.ppu.x + 8) as u8;
+
+            let palette_index = (msb_ptable << 3) 
+                              | (lsb_ptable << 2) 
+                              | (msb_attr   << 1) 
+                              |  lsb_attr;
+            
+            let pixel_hue_value = read_vram(palette_index as u16, nes);
+            let pixel_rgb = PALETTE[pixel_hue_value as usize];
+
+            let frame_index = ((nes.ppu.scanline * 256 + nes.ppu.scanline_cycle) * 4) as usize;
+            
+            nes.frame[frame_index    ] = pixel_rgb.0;  // R
+            nes.frame[frame_index + 1] = pixel_rgb.1;  // G
+            nes.frame[frame_index + 2] = pixel_rgb.2;  // B
+            nes.frame[frame_index + 3] =           0;  // A
+        }
+
         match nes.ppu.scanline_cycle % 8 {
-
-            //attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
-
-            // right, there are 8 attribute "squares" running horizontally
-            // therefore, the highest 3 coarse X bits should control which one gets selected horizontally
-
-            // first attribute table starts at 0x23C0
-            // then extract nametable select with mask, this literally just selects the nametable
-            
-
-            // NN----YYYXXX
-            
-
-            // nametable entry is 0-255 which 
-            // pattern table has 256 tiles, so...
-
-            // 0x0000-0x0FFF
-
-            // right so one tile is 16 bytes, so need to skip 16 at a time
-            // so lower 4 bits need to be 0000
-            // then nametable number just goes above that, i think
-
-            // then, just stick the fine y on the end! that will select the row
-
-            2 => nes.ppu.nametable_latch = read_vram(0x2000 | (nes.ppu.v & NO_FINE_Y), nes),
+            2 => nes.ppu.ntable_tmp = read_vram(0x2000 | (nes.ppu.v & NO_FINE_Y), nes),
             4 => {
                 let attribute_addr = 0x23C0 | (nes.ppu.v & ONLY_NAMETABLE) 
                                             | ((nes.ppu.v & 0b11100_00000) >> 4)
                                             | ((nes.ppu.v & 0b00000_11100) >> 2);
-                nes.ppu.attribute_latch = read_vram(attribute_addr, nes);
+                nes.ppu.attr_tmp = read_vram(attribute_addr, nes);
             }
             6 => {
                 // yep, so we need to skip 16 bytes at a time 
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
-                                    | ((nes.ppu.nametable_latch as u16) << 4) 
-                                    | ((nes.ppu.v & ONLY_FINE_Y) >> 12);
-                nes.ppu.lsb_pattern_table_latch = read_vram(tile_addr, nes);
+                              | ((nes.ppu.ntable_tmp as u16) << 4) 
+                              | ((nes.ppu.v & ONLY_FINE_Y) >> 12);
+                nes.ppu.ptable_lsb_tmp = read_vram(tile_addr, nes);
             }
             0 => {
                 // yep, so we need to skip 16 bytes at a time 
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
-                                | ((nes.ppu.nametable_latch as u16) << 4) 
+                                | ((nes.ppu.ntable_tmp as u16) << 4) 
                                 | ((nes.ppu.v & ONLY_FINE_Y) >> 12)
                                 + 8; // equivalently | 0b1000, lower 3 are fine y 
-                nes.ppu.msb_pattern_table_latch = read_vram(tile_addr, nes);
+                nes.ppu.ptable_msb_tmp = read_vram(tile_addr, nes);
+
+                
             }
 
-            // right, so last thing to do is just put in the horizontal and vertical increments at certain cycle numbers
-            // also the pre render scanline!
-
-            // also need to let you disable rendering, still don't really know what exactly that does 
-
-            
         }
 
     }
 
-
-
+    // so all I haven't done is what? 
+    // vblank and nmi
+    // shifting shift registers
+    // updating v during and at end of visible scanlines
+    // sprites, but can leave that for later
 
 }
