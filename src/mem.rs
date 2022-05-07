@@ -24,9 +24,11 @@ const PPUADDR: u16   = 0x2006;
 const PPUDATA: u16   = 0x2007;
 const OAMDMA: u16    = 0x4014;
 
+const PPU_WARMUP: u64 = 29658;
+
 fn mapper(addr: u16, nes: &mut Nes) -> u8 {
     match addr {
-        0xC000..=0xFFFF => nes.cart.prg_rom[addr as usize],
+        0xC000..=0xFFFF => nes.cart.prg_rom[(addr - 0xC000) as usize],
         _ => 0,
     }
 }
@@ -61,7 +63,7 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
                 PPUDATA => {
                     let val = ppu::read_vram(nes.ppu.v, nes);
                     // Should really use enums or something, this is hard to read
-                    let increment = if nes.ppu.increment_mode == false {1} else {32};
+                    let increment = if nes.ppu.ppuctrl_vram_address_increment_select == false {1} else {32};
                     nes.ppu.v = nes.ppu.v.wrapping_add(increment);
                     val
                 },
@@ -88,17 +90,23 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
         0x2000..=0x3FFF =>
             match 0x2000 + (addr % 8) {
                 PPUCTRL   => {
+                    if nes.cpu.cycles < PPU_WARMUP {return};
                     byte_to_ppuctrl(val, nes);
                     nes.ppu.t &= 0b1_111001111111111;
                     nes.ppu.t |= (val_u16 & 0b11) << 10;
                 },
-                PPUMASK   => byte_to_ppumask(val, nes),
+                PPUMASK   => {
+                    if nes.cpu.cycles < PPU_WARMUP {return};
+                    byte_to_ppumask(val, nes);
+                }
                 OAMADDR   => nes.ppu.oam_addr = val,
                 OAMDATA   => {
                     nes.ppu.oam[nes.ppu.oam_addr as usize] = val;
                     nes.ppu.oam_addr = nes.ppu.oam_addr.wrapping_add(1);
                 },
                 PPUSCROLL => {
+                    if nes.cpu.cycles < PPU_WARMUP {return};
+
                     if !nes.ppu.w {
                         nes.ppu.t &= 0b1_111_11_11111_00000;
                         nes.ppu.t |= (val as u16) >> 3;
@@ -111,6 +119,8 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                     nes.ppu.w = !nes.ppu.w;
                 },
                 PPUADDR   => {
+                    if nes.cpu.cycles < PPU_WARMUP {return};
+
                     if !nes.ppu.w {
                         nes.ppu.t &= 0b1_0_00000_11111111;
                         nes.ppu.t |= (val_u16 & 0b00011111) << 8;
@@ -125,7 +135,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 PPUDATA   => {
                     ppu::write_vram(nes.ppu.v, val, nes);
                     // Should really use enums or something, this is hard to read
-                    let increment = if nes.ppu.increment_mode == false {1} else {32};
+                    let increment = if nes.ppu.ppuctrl_vram_address_increment_select == false {1} else {32};
                     nes.ppu.v = nes.ppu.v.wrapping_add(increment);
                 },
                 _ => panic!("Literally impossible"),
@@ -142,14 +152,17 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
 }
 
 fn byte_to_ppuctrl(byte: u8, nes: &mut Nes) {
-    nes.ppu.nmi_enable = get_bit(byte, 7);
-    nes.ppu.master_slave = get_bit(byte, 6);
-    nes.ppu.sprite_height = get_bit(byte, 5);
-    nes.ppu.background_tile_select = get_bit(byte, 4);
-    nes.ppu.sprite_tile_select = get_bit(byte, 3);
-    nes.ppu.increment_mode = get_bit(byte, 2);
-    nes.ppu.nametable_select = byte & 0b0000_0011;
+    nes.ppu.ppuctrl_nmi_enable = get_bit(byte, 7);
+    nes.ppu.ppuctrl_master_slave = get_bit(byte, 6);
+    nes.ppu.ppuctrl_tall_sprites = get_bit(byte, 5);
+    nes.ppu.ppuctrl_background_pattern_table_select = get_bit(byte, 4);
+    nes.ppu.ppuctrl_sprite_pattern_table_select = get_bit(byte, 3);
+    nes.ppu.ppuctrl_vram_address_increment_select = get_bit(byte, 2);
+    nes.ppu.ppuctrl_nametable_select = byte & 0b0000_0011;
 }
+
+
+
 fn byte_to_ppumask(byte: u8, nes: &mut Nes) {
     nes.ppu.blue_emphasis = get_bit(byte, 7);
     nes.ppu.green_emphasis = get_bit(byte, 6);

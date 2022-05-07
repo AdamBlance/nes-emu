@@ -14,14 +14,15 @@ pub struct Cartridge {
     pub v_mirroring: bool,
 }
 
+// feel like I need some good comments here
 pub struct Ppu {
     pub nmi_enable: bool,
     pub master_slave: bool,
-    pub sprite_height: bool,
-    pub background_tile_select: bool,
-    pub sprite_tile_select: bool,
-    pub increment_mode: bool,
-    pub nametable_select: u8,
+    pub tall_sprites: bool,
+    pub bg_ptable_select: bool,
+    pub sprite_ptable_select: bool,
+    pub increment_select: bool,
+    pub ntable_select: u8, // this needs fixed
 
     pub blue_emphasis: bool,
     pub green_emphasis: bool,
@@ -53,6 +54,13 @@ pub struct Ppu {
     pub odd_frame: bool,
     pub cycles: u64,
 
+    pub scanline_cycle: u16,
+
+    pub nametable_latch: u8,
+    pub attribute_latch: u8,
+    pub lsb_pattern_table_latch: u8,
+    pub msb_pattern_table_latch: u8,
+
     pub internal_latch: u8,
     pub lsb_pattern_shift_register: u16,
     pub msb_pattern_shift_register: u16,
@@ -64,13 +72,13 @@ pub struct Ppu {
 impl Default for Ppu {
     fn default() -> Ppu {
         Ppu {
-            nmi_enable: true,
+            nmi_enable: false,
             master_slave: false,
-            sprite_height: false,
-            background_tile_select: false,
-            sprite_tile_select: false,
-            increment_mode: false,
-            nametable_select: 0,
+            tall_sprites: false,
+            bg_ptable_select: false,
+            sprite_ptable_select: false,
+            increment_select: false,
+            ntable_select: 0,
         
             blue_emphasis: false,
             green_emphasis: false,
@@ -100,6 +108,13 @@ impl Default for Ppu {
             w: false,
             odd_frame: false,
             cycles: 0,
+
+            scanline_cycle: 0,
+
+            nametable_latch: 0,
+            attribute_latch: 0,
+            lsb_pattern_table_latch: 0,
+            msb_pattern_table_latch: 0,
 
             internal_latch: 0,            
             lsb_pattern_shift_register: 0,
