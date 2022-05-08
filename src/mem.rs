@@ -28,7 +28,7 @@ const PPU_WARMUP: u64 = 29658;
 
 fn mapper(addr: u16, nes: &mut Nes) -> u8 {
     match addr {
-        0xC000..=0xFFFF => nes.cart.prg_rom[(addr - 0xC000) as usize],
+        0x8000..=0xFFFF => nes.cart.prg_rom[(addr - 0xC000) as usize],
         _ => 0,
     }
 }
@@ -54,6 +54,7 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
                 PPUSTATUS => {
                     let status = ppustatus_to_byte(nes);
                     // Write toggle used by PPUADDR and PPUSCROLL gets reset when PPUSTATUS is read
+                    nes.ppu.in_vblank = false;
                     nes.ppu.w = false;
                     status
                 },

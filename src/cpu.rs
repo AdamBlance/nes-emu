@@ -4,6 +4,8 @@ use crate::hw::*;
 use crate::opc::*;
 use crate::mem::*;
 
+use crate::outfile::*;
+
 // Need a summary on opcodes, addressing modes
 fn get_instr_addr(addressing_mode: Mode, byte1: u8, byte2: u8, nes: &mut Nes) -> u16 {
     match addressing_mode {
@@ -38,13 +40,60 @@ fn get_instr_addr(addressing_mode: Mode, byte1: u8, byte2: u8, nes: &mut Nes) ->
     }
 }
 
+fn log(opcode: u8, byte2: u8, byte3: u8, instr_addr: u16, instr_val: u8, nes: &mut Nes) -> String{
+    let instruction = INSTRUCTIONS[opcode as usize];
+
+    // pc, opcode
+    let mut log_line = format!("{pc:04X}  {opc:02X} ", pc=nes.cpu.pc, opc=opcode);
+
+    // byte2, byte3
+    match instruction.mode.num_bytes() {
+        1 => log_line.push_str("      "),
+        2 => log_line.push_str(&format!("{byte2:02X}    ")),
+        3 => log_line.push_str(&format!("{byte2:02X} {byte3:02X} ")),
+        _ => {},
+    }
+
+    // opc name
+    log_line.push_str(&format!("{name:>4} ", name=instruction.name));
+
+    // mode formatting
+    match instruction.mode {
+        Mode::Implied => log_line.push_str("                            "),
+        Mode::Accumulator => log_line.push_str("A                           "),
+        Mode::Immediate => log_line.push_str(&format!("#${byte2:02X}                        ")),
+        Mode::Absolute => {
+            if opcode != 0x4C && opcode != 0x20 {
+                log_line.push_str(&format!("${instr_addr:04X} = {instr_val:02X}                  "));
+            } else {
+                log_line.push_str(&format!("${instr_addr:04X}                       "));
+            }
+        },
+
+        Mode::Relative => log_line.push_str(&format!("${instr_addr:04X}                       ")),
+        Mode::AbsoluteX => log_line.push_str(&format!("${byte3:02X}{byte2:02X},X @ {instr_addr:04X} = {instr_val:02X}         ")),
+        Mode::AbsoluteY => log_line.push_str(&format!("${byte3:02X}{byte2:02X},Y @ {instr_addr:04X} = {instr_val:02X}         ")),
+        Mode::ZeroPage => log_line.push_str(&format!("${byte2:02X} = {instr_val:02X}                    ")),
+        Mode::ZeroPageX => log_line.push_str(&format!("${byte2:02X},X @ {offset:02X} = {instr_val:02X}             ", offset=byte2.wrapping_add(nes.cpu.x))),
+        Mode::ZeroPageY => log_line.push_str(&format!("${byte2:02X},Y @ {offset:02X} = {instr_val:02X}             ", offset=byte2.wrapping_add(nes.cpu.y))),
+        Mode::IndirectX => log_line.push_str(&format!("(${byte2:02X},X) @ {ind_addr:02X} = {instr_addr:04X} = {instr_val:02X}    ", ind_addr=byte2.wrapping_add(nes.cpu.x))),
+        Mode::IndirectY => log_line.push_str(&format!("(${byte2:02X}),Y = {ind_addr:04X} @ {instr_addr:04X} = {instr_val:02X}  ",ind_addr=read_mem_u16_zp(byte2 as u16, nes))),
+        Mode::AbsoluteI => log_line.push_str(&format!("(${byte3:02X}{byte2:02X}) = {instr_addr:04X}              ")),
+    }
+
+    log_line.push_str(&format!("A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", nes.cpu.a, nes.cpu.x, nes.cpu.y, p_to_byte(nes), nes.cpu.s));
+
+    log_line
+}
+
+
 pub fn step_cpu(nes: &mut Nes) {
 
-    if nes.cpu.nmi_interrupt {
+    if nes.cpu.nmi_interrupt && !nes.cpu.nmi_internal_flag {
+        nes.cpu.nmi_internal_flag = true;
         stack_push_u16(nes.cpu.pc, nes);
         stack_push(p_to_byte(nes), nes);
         nes.cpu.pc = read_mem_u16(0xFFFA, nes);
-        nes.cpu.nmi_interrupt = false;
     }
 
     // Use opcode to index into lookup table
@@ -70,11 +119,18 @@ pub fn step_cpu(nes: &mut Nes) {
         _ => read_mem(relevant_address, nes),
     };
 
-    let prev_pc = nes.cpu.pc;
-    // println!("name:{} / {:#04X} pc:{:#06X} addr:{:#06X} val:{:#04X} a:{:#04X} x:{:#04X} y:{:#04X}", instruction.name, opcode, nes.cpu.pc, relevant_address, instr_val, nes.cpu.a, nes.cpu.x, nes.cpu.y);
+    let instruction_log = log(opcode, byte1, byte2, relevant_address, instr_val, nes);
 
-    // let mut input_string = String::new();
-    // io::stdin().read_line(&mut input_string).unwrap();
+    if instruction_log == LOGS[nes.cpu.instruction_count as usize] {
+        println!("Matches {}", instruction_log);
+    } else {
+        panic!("Doesn't match! {}", instruction_log);
+    }
+    
+
+    let prev_pc = nes.cpu.pc;
+    
+
 
 
 
@@ -87,7 +143,7 @@ pub fn step_cpu(nes: &mut Nes) {
     
 
     nes.cpu.cycles += instruction.cycles as u64;
-
+    nes.cpu.instruction_count += 1;
     
 
     // If no jump ocurred, advance the pc according to the length of the instruction 

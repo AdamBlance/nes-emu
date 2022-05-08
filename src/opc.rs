@@ -246,6 +246,9 @@ fn return_from_interrupt(val: u8, addr: u16, nes: &mut Nes) {
     let p_reg = stack_pop(nes);
     byte_to_p(p_reg, nes);
     nes.cpu.pc = stack_pop_u16(nes);
+    if nes.cpu.nmi_internal_flag {
+        nes.cpu.nmi_internal_flag = false;
+    }
 }
 
 fn return_from_subroutine(val: u8, addr: u16, nes: &mut Nes) {

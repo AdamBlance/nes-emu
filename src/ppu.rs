@@ -372,8 +372,12 @@
     alright, final steps for getting things working in some way.
     how exactly will the cycles update? 
 
+    43210
+    |||||
+    |||++- Pixel value from tile data
+    |++--- Palette number from attribute table or OAM
+    +----- Background/Sprite select
     */
-
 
 
 use crate::{hw::*, util::{get_bit, get_bit_u16}};
@@ -468,80 +472,150 @@ fn fill_attribute_latch(nes: &mut Nes) {
     nes.ppu.attr_msb_latch = get_bit(nes.ppu.attr_tmp, bit_index+1);   
 }
 
+
+
+
+fn draw_pixel(nes: &mut Nes) {
+    // Render pixel!
+    let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, nes.ppu.x) as u8;
+    let msb_attr = get_bit(nes.ppu.attr_msb_sr, nes.ppu.x) as u8;
+    let lsb_ptable = get_bit_u16(nes.ppu.ptable_lsb_sr, nes.ppu.x + 8) as u8;
+    let msb_ptable = get_bit_u16(nes.ppu.ptable_msb_sr, nes.ppu.x + 8) as u8;
+
+    let palette_index = (msb_ptable << 3) 
+                        | (lsb_ptable << 2) 
+                        | (msb_attr   << 1) 
+                        |  lsb_attr;
+    
+    let frame_index = ((nes.ppu.scanline * 256 + nes.ppu.scanline_cycle - 1) * 4) as usize;
+    
+    let pixel_hue_value = read_vram(palette_index as u16, nes);
+    let pixel_rgb = PALETTE[pixel_hue_value as usize];
+    
+    nes.frame[frame_index    ] = pixel_rgb.0;  // R
+    nes.frame[frame_index + 1] = pixel_rgb.1;  // G
+    nes.frame[frame_index + 2] = pixel_rgb.2;  // B
+    nes.frame[frame_index + 3] =           255;  // A
+}
+
+const IDLE_CYCLE: u32 = 0;
+
+const NAMETABLE_READ:   u32 = 1;
+const ATTRIBUTE_READ:   u32 = 3;
+const PATTERN_LSB_READ: u32 = 5;
+const PATTERN_MSB_READ: u32 = 7;
+const HORIZONTAL_INCREMENT: u32 = 0;
+
+const LAST_VISIBLE_SCANLINE: u32 = 239;
+const LAST_VISIBLE_CYCLE:    u32 = 256;
+const PRE_RENDER_SCANLINE:   u32 = 261;
+const PREFETCH_START:        u32 = 321;
+
+const COPY_T_HORIZONTAL_TO_V: u32 = 257;
+
+
 pub fn step_ppu(nes: &mut Nes) {
+    
 
-    // idle at scanline 0
-    if nes.ppu.scanline_cycle == 0 {return};
 
-    // if in visible area or fetching data for next scanline
-    if nes.ppu.scanline < 240 && ( nes.ppu.scanline_cycle <= 256  || nes.ppu.scanline_cycle >= 322 ) {
 
-        // time to render!
-        if nes.ppu.scanline_cycle <= 256 {     
-            /*
-            43210
-            |||||
-            |||++- Pixel value from tile data
-            |++--- Palette number from attribute table or OAM
-            +----- Background/Sprite select
-            */
-            
-            let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, nes.ppu.x) as u8;
-            let msb_attr = get_bit(nes.ppu.attr_msb_sr, nes.ppu.x) as u8;
 
-            let lsb_ptable = get_bit_u16(nes.ppu.ptable_lsb_sr, nes.ppu.x + 8) as u8;
-            let msb_ptable = get_bit_u16(nes.ppu.ptable_msb_sr, nes.ppu.x + 8) as u8;
+    let cycle = nes.ppu.scanline_cycle;
+    let scanline = nes.ppu.scanline;
 
-            let palette_index = (msb_ptable << 3) 
-                              | (lsb_ptable << 2) 
-                              | (msb_attr   << 1) 
-                              |  lsb_attr;
-            
-            let pixel_hue_value = read_vram(palette_index as u16, nes);
-            let pixel_rgb = PALETTE[pixel_hue_value as usize];
 
-            let frame_index = ((nes.ppu.scanline * 256 + nes.ppu.scanline_cycle) * 4) as usize;
-            
-            nes.frame[frame_index    ] = pixel_rgb.0;  // R
-            nes.frame[frame_index + 1] = pixel_rgb.1;  // G
-            nes.frame[frame_index + 2] = pixel_rgb.2;  // B
-            nes.frame[frame_index + 3] =           0;  // A
+    // https://emudev.de/nes-emulator/interrupts-vblank-and-nametables/
+
+    let at_vblank_start = scanline == 241 && cycle == 1;
+
+    if at_vblank_start {
+        nes.ppu.in_vblank = true;
+        if nes.ppu.nmi_enable {
+            nes.cpu.nmi_interrupt = true;
         }
+    } else if scanline == PRE_RENDER_SCANLINE && cycle == 1 {
+        nes.ppu.in_vblank = false;
+        nes.cpu.nmi_interrupt = false;
+    }
 
-        match nes.ppu.scanline_cycle % 8 {
-            2 => nes.ppu.ntable_tmp = read_vram(0x2000 | (nes.ppu.v & NO_FINE_Y), nes),
-            4 => {
+    let in_visible_area = (scanline <= LAST_VISIBLE_SCANLINE) && (cycle <= LAST_VISIBLE_CYCLE) && (cycle != 0);
+
+    let in_fetch_cycle = (scanline <= LAST_VISIBLE_SCANLINE || scanline == PRE_RENDER_SCANLINE)
+                      && (cycle <= LAST_VISIBLE_CYCLE || cycle >= PREFETCH_START)
+                      && (cycle != 0);    
+
+    if in_visible_area {
+        draw_pixel(nes);
+    }
+
+    if in_fetch_cycle {
+        match cycle % 8 {
+            NAMETABLE_READ => {
+                nes.ppu.ntable_tmp = read_vram(0x2000 | (nes.ppu.v & NO_FINE_Y), nes);
+            }
+            ATTRIBUTE_READ => {
+                if cycle > 1 {
+                    // Shift registers are also filled during first ATTRIBUTE_READ cycle
+                    nes.ppu.ptable_lsb_sr |= nes.ppu.ptable_lsb_tmp as u16;
+                    nes.ppu.ptable_msb_sr |= nes.ppu.ptable_msb_tmp as u16;
+                    fill_attribute_latch(nes);
+                }
                 let attribute_addr = 0x23C0 | (nes.ppu.v & ONLY_NAMETABLE) 
                                             | ((nes.ppu.v & 0b11100_00000) >> 4)
                                             | ((nes.ppu.v & 0b00000_11100) >> 2);
                 nes.ppu.attr_tmp = read_vram(attribute_addr, nes);
             }
-            6 => {
-                // yep, so we need to skip 16 bytes at a time 
+            PATTERN_LSB_READ => {
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
                               | ((nes.ppu.ntable_tmp as u16) << 4) 
                               | ((nes.ppu.v & ONLY_FINE_Y) >> 12);
                 nes.ppu.ptable_lsb_tmp = read_vram(tile_addr, nes);
             }
-            0 => {
-                // yep, so we need to skip 16 bytes at a time 
+            PATTERN_MSB_READ => {
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
                                 | ((nes.ppu.ntable_tmp as u16) << 4) 
                                 | ((nes.ppu.v & ONLY_FINE_Y) >> 12)
                                 + 8; // equivalently | 0b1000, lower 3 are fine y 
                 nes.ppu.ptable_msb_tmp = read_vram(tile_addr, nes);
-
-                
             }
-
+            HORIZONTAL_INCREMENT => {
+                inc_v_horizontal(nes);
+                if cycle == LAST_VISIBLE_CYCLE {
+                    inc_v_vertical(nes);
+                }
+            }
+            _ => ()
         }
-
     }
 
-    // so all I haven't done is what? 
-    // vblank and nmi
-    // shifting shift registers
-    // updating v during and at end of visible scanlines
-    // sprites, but can leave that for later
+    // could just say "not in vblank" or something
+    if cycle == COPY_T_HORIZONTAL_TO_V && (scanline <= LAST_VISIBLE_SCANLINE || scanline == PRE_RENDER_SCANLINE) {
+        nes.ppu.v |= (nes.ppu.t & 0b000_01_00000_11111);
+    }
+
+    if scanline == PRE_RENDER_SCANLINE && cycle >= 280 && cycle <= 304 {
+        nes.ppu.v |= (nes.ppu.t & 0b111_10_11111_00000);
+    }
+
+
+    nes.ppu.ptable_lsb_sr <<= 1;
+    nes.ppu.ptable_msb_sr <<= 1;
+
+    nes.ppu.attr_lsb_sr <<= 1;
+    nes.ppu.attr_msb_sr <<= 1;
+    nes.ppu.attr_lsb_sr |= nes.ppu.attr_lsb_latch as u8;
+    nes.ppu.attr_msb_sr |= nes.ppu.attr_msb_latch as u8;
+    
+    // Wrap cycles
+    if nes.ppu.scanline_cycle < 340 {
+        nes.ppu.scanline_cycle += 1;
+    } else {
+        nes.ppu.scanline_cycle = 0;
+        if nes.ppu.scanline < 261 {
+            nes.ppu.scanline += 1;
+        } else {
+            nes.ppu.scanline = 0;
+        }
+    }
 
 }

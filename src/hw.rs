@@ -102,7 +102,7 @@ impl Default for Ppu {
             show_leftmost_bg: false,
             greyscale: false,
         
-            in_vblank: true,
+            in_vblank: false,
             sprite_zero_hit: false,
             sprite_overflow: false,
 
@@ -153,5 +153,7 @@ pub struct Cpu {
     pub p_c: bool,
     pub pc: u16,
     pub nmi_interrupt: bool,
+    pub nmi_internal_flag: bool,
     pub cycles: u64,
+    pub instruction_count: u64,
 }
