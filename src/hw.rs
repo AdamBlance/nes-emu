@@ -156,4 +156,8 @@ pub struct Cpu {
     pub nmi_internal_flag: bool,
     pub cycles: u64,
     pub instruction_count: u64,
+    pub instruction_cycles_remaining: u8,
+    pub current_opcode: u8,
+    pub current_byte1: u8,
+    pub current_byte2: u8,
 }

@@ -89,6 +89,28 @@ fn log(opcode: u8, byte2: u8, byte3: u8, instr_addr: u16, instr_val: u8, nes: &m
 
 pub fn step_cpu(nes: &mut Nes) {
 
+    // Get instruction 
+    if nes.cpu.instruction_cycles_remaining == 0 {
+        nes.cpu.current_opcode = read_mem()
+    }
+    
+
+    // this takes 7 cycles to complete
+
+    // I think the /reset interrupt is fired when the console starts up? 
+    // so I guess that's it's own little routine that takes time to execute
+
+    // not sure about how to handle NMI in this cycle thing
+    // will need to think about that another time, at least I got the PPU done! 
+    // now the main job I think is getting the thing to be cycle accurate
+    // so run the CPU for 1 cycle, run the PPU for 3 cycles
+
+    // then I should be able to match the nestest rom perfectly!
+    // PLEASE, put this down at least until these few exams are out the way!
+
+    // there will be infinite time to work on this after exams are done!
+    // if I don't do great in exams because I spent too long on this, I will be annoyed because that's stupid
+
     if nes.cpu.nmi_interrupt && !nes.cpu.nmi_internal_flag {
         nes.cpu.nmi_internal_flag = true;
         stack_push_u16(nes.cpu.pc, nes);
@@ -126,6 +148,7 @@ pub fn step_cpu(nes: &mut Nes) {
     } else {
         panic!("Doesn't match! {}", instruction_log);
     }
+    
     
 
     let prev_pc = nes.cpu.pc;
