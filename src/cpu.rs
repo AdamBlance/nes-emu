@@ -87,12 +87,79 @@ fn log(opcode: u8, byte2: u8, byte3: u8, instr_addr: u16, instr_val: u8, nes: &m
 }
 
 
+// going to 
+
 pub fn step_cpu(nes: &mut Nes) {
 
-    // Get instruction 
-    if nes.cpu.instruction_cycles_remaining == 0 {
-        nes.cpu.current_opcode = read_mem()
+    nes.cpu.instr_cycle += 1;
+
+    // yeah this isn't going to work, might just need to do a massive match with everything in it
+    // Yeah lets not think about optimisation so early on
+    // just try to get something that works first, then can start moving duplicate code and stuff out
+
+    // read opcode
+    if nes.cpu.instr_cycle == 1 {
+        let opc = read_mem(nes.cpu.pc, nes);
+        nes.cpu.curr_instr = INSTRUCTIONS[opc as usize];
+        nes.cpu.inc_pc();
+        return;   
     }
+    // read byte1
+    else if nes.cpu.instr_cycle == 2 {
+        nes.cpu.curr_byte1 = read_mem(nes.cpu.pc, nes);
+        nes.cpu.inc_pc();
+        return;
+    }
+
+    // the two cycles above are common to all instructions
+
+    // quit here if it's a two byte instruction 
+    if nes.cpu.curr_instr.cycles == nes.cpu.instr_cycle {return;}
+
+    // everything past here is 3 bytes
+
+    match 
+    
+
+
+
+
+    /*
+    
+    alright so I've realised this is going to be an absolute mess
+
+    so the most naive way of doing it would be to have a match statement inside every single 
+    instruction function which executes a single cycle of the instruction
+
+    then every cycle, increment the counter by 1 and the next match arm will be executed 
+
+    do this until the cycle count matches the instruction cycle length
+
+
+    of course, this is ridiculous because every single instruction needs a shit ton of duplicate code
+    the first two cycles are common to all instructions, but loads of them are like 7 cycles long
+    and you'd have to write the same match arm across all 7 cycle long instruction functions
+
+    the other way to do it would be to execute the first two cycles, then have some mega 
+    state machine / nested match block that executes the correct cycle depending on the instructions
+    addressing mode + whether it's a read, write, read-write-modify, or other instruction (that's 
+    giving me flashbacks of trying to work out the addressing mode based on the bytes of the opcode)
+
+    A big nest of conditionals would probably work if I could figure out the nicest layout, but it's 
+    going to look like shit and nobody but me will understand what the hell it's doing
+
+    what I really want is a way to jump in and out of an instruction every cycle, or suspend/resume 
+    execution every other line? I think await/yield can do this but I don't think that's really the 
+    point of it, it's for networking and parallel stuff.
+
+
+
+    */
+    
+
+    // this is 100% correct for all instructions 
+    // I think I need a flowchart or something, there will need to be some complex logic probably
+
     
 
     // this takes 7 cycles to complete

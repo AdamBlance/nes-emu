@@ -1,3 +1,5 @@
+use crate::opc::Instruction;
+
 pub struct Nes {
     pub cpu: Cpu,
     pub wram: [u8; 2048],
@@ -154,10 +156,21 @@ pub struct Cpu {
     pub pc: u16,
     pub nmi_interrupt: bool,
     pub nmi_internal_flag: bool,
+    
     pub cycles: u64,
     pub instruction_count: u64,
-    pub instruction_cycles_remaining: u8,
-    pub current_opcode: u8,
-    pub current_byte1: u8,
-    pub current_byte2: u8,
+
+    pub curr_instr: Instruction,
+    pub curr_byte1: u8,
+    pub curr_byte2: u8,
+    pub curr_effective_addr: u16,
+
+    pub instr_cycle: u8,
+}
+
+// Was trying to avoid methods? This is so convenient though...
+impl Cpu {
+    pub fn inc_pc(&mut self) {
+        self.pc = self.pc.wrapping_add(1);
+    }
 }
