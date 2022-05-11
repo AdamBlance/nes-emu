@@ -118,7 +118,6 @@ pub fn step_cpu(nes: &mut Nes) {
 
     // everything past here is 3 bytes
 
-    match 
     
 
 
@@ -154,6 +153,41 @@ pub fn step_cpu(nes: &mut Nes) {
 
 
 
+    so generators can do this using "yield" syntax. Then I could have cycle 1, yield, cycle 2, yield
+
+    that seems fine. I think it gets compiled down into a mega finite state machine. 
+
+    Honestly though, if I'm going down that route vs trying to write a big state machine myself, 
+    I might as well just use a match in all the functions. 
+
+    A state machine might perform better and I think I could put one together with some solid work,
+    but it's going to be unreadable, lets be honest. If I try to make it more readable, I'm just 
+    going to have a bunch of duplicate code in the cpu.rs file, and I'm essentially just extracting code 
+    from opc.rs and putting it in the cpu file making a mess!
+
+    Just going to use matches. I can always do generators in the future as a branch if I want to see
+    how the performance differs. Also generators are unstable right now. I'm already using unstable 
+    stuff to do the wrapping adds and I feel like writing a large part of the emulator with unstable 
+    code is just not a good idea
+
+
+    okay if I use matches I'm going to need to write a function for every combination of instruction
+    and addressing mode, which I'm 100% not going to do 
+
+    I think maybe what I need is, like:
+
+        if you're 2 cycles long, just get the opcode and first byte
+
+        if you're 3 cycles long, get opcode, first and second byte
+
+        Then after that, for all the unique addressing modes, just do some match stuff
+
+        This sounds uncomfortably like an FSM... 
+
+        i can at least cut down on the number of arms in the matches by doing the instruction fetch
+        stuff automatically without considering addressing mode or instruction
+
+
     */
     
 
@@ -177,6 +211,8 @@ pub fn step_cpu(nes: &mut Nes) {
 
     // there will be infinite time to work on this after exams are done!
     // if I don't do great in exams because I spent too long on this, I will be annoyed because that's stupid
+
+    // maybe in the future make a 
 
     if nes.cpu.nmi_interrupt && !nes.cpu.nmi_internal_flag {
         nes.cpu.nmi_internal_flag = true;

@@ -166,11 +166,36 @@ pub struct Cpu {
     pub curr_effective_addr: u16,
 
     pub instr_cycle: u8,
+
+
+
+    pub opcode: u8,
+    pub byte1: u8,
+    pub byte2: u8,
+
+    pub addr_lsb_carry: bool,
+
 }
 
 // Was trying to avoid methods? This is so convenient though...
 impl Cpu {
     pub fn inc_pc(&mut self) {
         self.pc = self.pc.wrapping_add(1);
+    }
+    
+    pub fn inc_s(&mut self) {
+        self.s = self.s.wrapping_add(1);
+    }
+    pub fn dec_s(&mut self) {
+        self.s = self.s.wrapping_sub(1);
+    }
+
+    pub fn set_upper_pc(&mut self, byte: u8) {
+        self.pc &= 0b00000000_11111111;
+        self.pc |= (byte as u16) << 8;
+    }
+    pub fn set_lower_pc(&mut self, byte: u8) {
+        self.pc &= 0b11111111_00000000;
+        self.pc |= byte as u16;
     }
 }

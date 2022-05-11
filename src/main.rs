@@ -16,6 +16,7 @@ use ggez::graphics::{self, Color, DrawMode, DrawParam, Transform};
 mod emu;
 mod hw;
 mod opc;
+mod microops;
 mod util;
 mod mem;
 mod log;
