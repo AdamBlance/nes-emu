@@ -8,3 +8,4 @@ edition = "2021"
 # I should figure out how to use the bitflags crate
 [dependencies]
 ggez = "0.7"
+once_cell = "1.10.0"

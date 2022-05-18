@@ -1,4 +1,5 @@
 use crate::opc::Instruction;
+use crate::util::*;
 
 pub struct Nes {
     pub cpu: Cpu,
@@ -143,52 +144,37 @@ impl Default for Ppu {
 
 #[derive(Default)]
 pub struct Cpu {
-    pub a: u8,
-    pub x: u8,
-    pub y: u8,
-    pub s: u8,
+    // Common registers
+    pub a:   u8,
+    pub x:   u8,
+    pub y:   u8,
+    pub s:   u8,
     pub p_n: bool,
     pub p_v: bool,
     pub p_d: bool,
     pub p_i: bool,
     pub p_z: bool,
     pub p_c: bool,
-    pub pc: u16,
-    pub nmi_interrupt: bool,
+    // Internal
+    pub pc:             u16,
+    pub instruction:    Instruction,
+    pub data:           u8,
+    pub lower_address:       u8,
+    pub upper_address:      u8,
+    pub addr_low_carry: bool,
+    pub lower_pointer:   u8,
+    pub upper_pointer:   u8,
+
+    // Interrupts
+    pub nmi_interrupt:     bool,
     pub nmi_internal_flag: bool,
-    
-    pub cycles: u64,
+    // Helpful counters
+    pub cycles:            u64,
     pub instruction_count: u64,
-
-    pub curr_instr: Instruction,
-    pub curr_byte1: u8,
-    pub curr_byte2: u8,
-    pub curr_effective_addr: u16,
-
-    pub instr_cycle: u8,
-
-
-
-    pub opcode: u8,
-    pub byte1: u8,
-    pub byte2: u8,
-
-    pub addr_lsb_carry: bool,
-
 }
 
 // Was trying to avoid methods? This is so convenient though...
 impl Cpu {
-    pub fn inc_pc(&mut self) {
-        self.pc = self.pc.wrapping_add(1);
-    }
-    
-    pub fn inc_s(&mut self) {
-        self.s = self.s.wrapping_add(1);
-    }
-    pub fn dec_s(&mut self) {
-        self.s = self.s.wrapping_sub(1);
-    }
 
     pub fn set_upper_pc(&mut self, byte: u8) {
         self.pc &= 0b00000000_11111111;
@@ -197,5 +183,31 @@ impl Cpu {
     pub fn set_lower_pc(&mut self, byte: u8) {
         self.pc &= 0b11111111_00000000;
         self.pc |= byte as u16;
+    }
+
+    pub fn get_p(&self) -> u8 {
+        (self.p_n as u8) << 7 | 
+        (self.p_v as u8) << 6 | 
+                       1 << 5 | 
+        /*  set during BRK   */
+        (self.p_d as u8) << 3 |
+        (self.p_i as u8) << 2 |
+        (self.p_z as u8) << 1 |
+        (self.p_c as u8)
+    }
+    pub fn set_p(&mut self, byte: u8) {
+        self.p_n = get_bit(byte, 7);
+        self.p_v = get_bit(byte, 6);
+        self.p_d = get_bit(byte, 3);
+        self.p_i = get_bit(byte, 2);
+        self.p_z = get_bit(byte, 1);
+        self.p_c = get_bit(byte, 0);
+    }
+
+    pub fn get_address(&self) -> u16 {
+        concat_u8(self.upper_address, self.lower_address)
+    }
+    pub fn get_pointer(&self) -> u16 {
+        concat_u8(self.upper_pointer, self.lower_pointer)
     }
 }

@@ -1,4 +1,4 @@
-// Could do generic thing here!
+
 pub fn get_bit(byte: u8, idx: u8) -> bool {
     (byte & (0x01 << idx)) != 0
 }
