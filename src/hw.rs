@@ -161,10 +161,11 @@ pub struct Cpu {
     pub data:           u8,
     pub lower_address:       u8,
     pub upper_address:      u8,
-    pub addr_low_carry: bool,
+    pub lower_address_carry_out: bool,
     pub lower_pointer:   u8,
     pub upper_pointer:   u8,
-
+    pub branch_offset: u8,
+    pub instruction_cycle: u8,
     // Interrupts
     pub nmi_interrupt:     bool,
     pub nmi_internal_flag: bool,

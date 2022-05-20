@@ -20,21 +20,23 @@
 
 
 use crate::hw::*;
-use crate::util::*;
 use crate::mem::*;
 use Mode::*;
 use Method::*;
 use Name::*;
+use crate::instr_func;
 use once_cell::sync::Lazy;
 
+type OpList = Vec<Vec<fn(&mut Nes)>>;
 
 #[derive(Clone)]
 pub struct Instruction { 
     pub name: Name,
     pub mode: Mode,
     pub method: Method,
-    pub ops: Vec<Vec<fn(&mut Nes)>>,
+    pub ops: OpList,
 }
+// this isn't neccesary 
 impl Default for Instruction {
     fn default() -> Instruction {
         Instruction {name: NOP, mode: Implied, method: X,   ops: Vec::with_capacity(8)}
@@ -85,21 +87,21 @@ pub enum Mode {
     AbsoluteI,
 }
 impl Mode {
-    pub fn num_bytes(&self) -> u16 {
+    pub fn address_resolution_cycles(&self) -> u8 {
         match self {
+            Implied     => 1,   // this isn't quite right? Wait it is? 
             Accumulator => 1,
-            Implied     => 1,
-            Immediate   => 2,
-            Relative    => 2,
-            IndirectX   => 2,
-            IndirectY   => 2,
-            ZeroPage    => 2,
+            Immediate   => 1,
+            ZeroPage    => 1,
             ZeroPageX   => 2,
             ZeroPageY   => 2,
-            Absolute    => 3,
-            AbsoluteX   => 3,
-            AbsoluteY   => 3,
-            AbsoluteI   => 3,
+            Absolute    => 2,
+            AbsoluteX   => 2,
+            AbsoluteY   => 2,
+            IndirectX   => 4,
+            IndirectY   => 3,
+            AbsoluteI   => 0,
+            Relative    => 0,
         }
     }
 }
@@ -114,21 +116,267 @@ pub enum Method {
 }
 
 
-// #[derive(Copy, Clone)]
-// pub struct MicroOp {
-//     pub op:      fn(&mut Nes),
-//     pub r:      fn(&mut Nes),
-//     pub inc_pc: bool,
-// }
+
+fn initialise_instruction(instr: &mut Instruction) {
+
+    // Match the CPU instruction to its associated function
+
+    let instruction = match instr.name {
+        LDA => instr_func::load_a,
+        LDX => instr_func::load_x,
+        LDY => instr_func::load_y,
+
+        STA => instr_func::store_a,
+        STX => instr_func::store_x,
+        STY => instr_func::store_y,
+
+        TAX => instr_func::transfer_a_to_x,
+        TAY => instr_func::transfer_a_to_y,
+        TSX => instr_func::transfer_s_to_x,
+        TXA => instr_func::transfer_x_to_a,
+        TXS => instr_func::transfer_x_to_s,
+        TYA => instr_func::transfer_y_to_a,
+
+        ASL => instr_func::arithmetic_shift_left,
+        LSR => instr_func::logical_shift_right,
+        ROL => instr_func::rotate_left,
+        ROR => instr_func::rotate_right,
+
+        AND => instr_func::and,
+        BIT => instr_func::bit,
+        EOR => instr_func::xor,
+        ORA => instr_func::or,
+
+        ADC => instr_func::add_with_carry,
+        SBC => instr_func::subtract_with_carry,
+
+        DEC => instr_func::decrement_memory,
+        DEX => instr_func::decrement_x,
+        DEY => instr_func::decrement_y,
+
+        INC => instr_func::increment_memory,
+        INX => instr_func::increment_x,
+        INY => instr_func::increment_y,
+
+        CLC => instr_func::clear_carry_flag,
+        CLD => instr_func::clear_decimal_flag,
+        CLI => instr_func::clear_interrupt_flag,
+        CLV => instr_func::clear_overflow_flag,
+
+        SEC => instr_func::set_carry_flag,
+        SED => instr_func::set_decimal_flag,
+        SEI => instr_func::set_interrupt_flag,
+
+        NOP => instr_func::nop,
+        _ => none
+    };
+
+    // Each addressing mode has a different set of cycles
+    // These cycles get the value from memory into the CPU so that it can be operated on
+    
+    let addressing_mode_cycles = match instr.mode {
+        Accumulator | Implied => {
+            let ops: OpList = vec![
+                vec![DUMMY_READ_FROM_PC],
+            ];
+            ops
+        }
+        Immediate => {
+            let ops: OpList = vec![
+                vec![fetch_immediate_from_pc, increment_pc],
+            ];
+            ops
+        }
+        ZeroPage => {
+            let ops: OpList = vec![
+                vec![fetch_lower_address_from_pc, increment_pc],
+            ];
+            ops
+        }
+        // need to remember to zero out the address register between instructions
+        ZeroPageX => {
+            let ops: OpList = vec![
+                vec![fetch_lower_address_from_pc, increment_pc],
+                vec![DUMMY_READ_FROM_ADDRESS, add_x_to_lower_address],
+            ];
+            ops
+        }
+        ZeroPageY => {
+            let ops: OpList = vec![
+                vec![fetch_lower_address_from_pc, increment_pc],
+                vec![DUMMY_READ_FROM_ADDRESS, add_y_to_lower_address],
+            ];
+            ops
+        }
+        Absolute => {
+            let ops: OpList = vec![
+                vec![fetch_lower_address_from_pc, increment_pc],
+                vec![fetch_upper_address_from_pc, increment_pc],
+            ];
+            ops
+        }
+        AbsoluteX => {
+            let ops: OpList = vec![
+                vec![fetch_lower_address_from_pc, increment_pc],
+                vec![fetch_upper_address_from_pc, add_x_to_lower_address, increment_pc],
+                vec![read_from_address, fix_upper_address],
+            ];
+            ops  // not sure about the dummy read here, could put it here or in the next bit
+        }
+        AbsoluteY => {
+            let ops: OpList = vec![
+                vec![fetch_lower_address_from_pc, increment_pc],
+                vec![fetch_upper_address_from_pc, add_x_to_lower_address, increment_pc],
+                vec![read_from_address, fix_upper_address],
+            ];
+            ops
+        }
+        IndirectX => {
+            let ops: OpList = vec![
+                vec![fetch_lower_pointer_address_from_pc, increment_pc],
+                vec![DUMMY_READ_FROM_POINTER, add_x_to_lower_pointer],
+                vec![fetch_lower_address_from_pointer],
+                vec![fetch_upper_address_from_pointer],
+            ];
+            ops
+        }
+        IndirectY => {
+            let ops: OpList = vec![
+                vec![fetch_lower_pointer_address_from_pc, increment_pc],
+                vec![fetch_lower_address_from_pointer],
+                vec![fetch_upper_address_from_pointer, add_y_to_lower_address],
+                vec![read_from_address, fix_upper_address],
+            ];
+            ops
+        }
+        _ => panic!(),
+    };
+
+    
+    let last_cycles = match instr.mode {
+        Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => {
+            match instr.method {
+                R => {  
+                    let ops: OpList = vec![
+                        vec![read_from_address, increment_pc],
+                    ];
+                    ops
+                }
+            }
+        }
+
+        AbsoluteX | AbsoluteY | IndirectY => {
+
+        }
+    }
 
 
-// #[derive(Copy, Clone)]
-// pub struct MicroOp {
-//     pub op:     fn(&mut Nes),
-// }
 
-const EMPTY: Vec<Vec<fn(&mut Nes)>> = Vec::new();
-const DUMMY_READ_FROM_PC: fn(&mut Nes) = read_from_pc;
+
+
+
+
+    // match (instr.name, instr.mode) {
+    //     (BRK, _) => {
+    //         instr.ops = vec![
+    //             vec![DUMMY_READ_FROM_PC, increment_pc],
+    //             vec![push_upper_pc_to_stack, decrement_s],
+    //             vec![push_lower_pc_to_stack, decrement_s],
+    //             vec![push_p_to_stack_with_brk_flag, decrement_s],
+    //             vec![fetch_lower_pc_from_interrupt_vector],
+    //             vec![fetch_upper_pc_from_interrupt_vector],
+    //         ];
+    //         return;;
+    //     }
+    //     (RTI, _) => {
+    //         instr.ops = vec![
+    //             vec![DUMMY_READ_FROM_PC],
+    //             vec![increment_s],
+    //             vec![pull_p_from_stack, increment_s],
+    //             vec![pull_lower_pc_from_stack, increment_s],
+    //             vec![pull_upper_pc_from_stack],
+    //         ];
+    //         return;;
+    //     }
+    //     (RTS, _) => {
+    //         instr.ops = vec![
+    //             vec![DUMMY_READ_FROM_PC],
+    //             vec![increment_s],
+    //             vec![pull_lower_pc_from_stack, increment_s],
+    //             vec![pull_upper_pc_from_stack],
+    //             vec![increment_pc],
+    //         ];
+    //         return;;
+    //     }
+    //     (JSR, _) => {
+    //         instr.ops = vec![
+    //             vec![fetch_lower_address_from_pc, increment_pc],
+    //             vec![none],
+    //             vec![push_upper_pc_to_stack, decrement_s],
+    //             vec![push_lower_pc_to_stack, decrement_s],
+    //             vec![fetch_upper_address_from_pc, copy_address_to_pc], 
+    //         ];
+    //         return;;
+    //     }
+    //     (PHA, _) => {
+    //         instr.ops = vec![
+    //             vec![DUMMY_READ_FROM_PC],
+    //             vec![push_a_to_stack, decrement_s],
+    //         ];
+    //         return;;
+    //     }
+    //     (PHP, _) => {
+    //         instr.ops = vec![
+    //             vec![DUMMY_READ_FROM_PC],
+    //             vec![push_p_to_stack, decrement_s],
+    //         ];
+    //         return;;
+    //     }
+    //     (PLA, _) => {
+    //         instr.ops = vec![
+    //             vec![DUMMY_READ_FROM_PC],
+    //             vec![increment_s],
+    //             vec![pull_a_from_stack],
+    //         ];
+    //         return;;
+    //     }
+    //     (PLP, _) => {
+    //         instr.ops = vec![
+    //             vec![DUMMY_READ_FROM_PC],
+    //             vec![increment_s],
+    //             vec![pull_p_from_stack],
+    //         ];
+    //         return;;
+    //     }
+    //     (JMP, Absolute) => {
+    //         instr.ops = vec![
+    //             vec![fetch_lower_address_from_pc, increment_pc],
+    //             vec![fetch_upper_address_from_pc, copy_address_to_pc],
+    //         ];
+    //         return;
+    //     }
+    //     (JMP, AbsoluteI) => {
+    //         instr.ops = vec![
+    //             vec![fetch_lower_pointer_address_from_pc, increment_pc],
+    //             vec![fetch_upper_pointer_address_from_pc, increment_pc],
+    //             vec![fetch_lower_address_from_pointer],
+    //             vec![fetch_upper_address_from_pointer, copy_address_to_pc]
+    //         ];
+    //         return;
+    //     }
+    //     _ => panic!(),
+        
+    // };
+
+}
+
+
+
+
+const EMPTY: OpList         = Vec::new();
+const DUMMY_READ_FROM_PC: fn(&mut Nes)      = read_from_pc;
+const DUMMY_READ_FROM_ADDRESS: fn(&mut Nes) = read_from_address;
+const DUMMY_READ_FROM_POINTER: fn(&mut Nes) = read_from_pointer;
 
 
 pub static INSTRUCTIONS: Lazy<[Instruction; 256]> = Lazy::new(|| {
@@ -392,302 +640,23 @@ pub static INSTRUCTIONS: Lazy<[Instruction; 256]> = Lazy::new(|| {
         Instruction {name: UISB, mode: AbsoluteX,   method: R,   ops: EMPTY}
     ];
 
-    // https://stackoverflow.com/questions/70549985/what-enables-a-closure-type-to-be-used-where-a-function-pointer-type-is-expected
-    // https://rust-lang.github.io/rfcs/1558-closure-to-fn-coercion.html
-
-
-    for i in 0..256 {
-
-
-        /*
-        right, needs to be said that lower_address and upper_address do not represent the address bus!
-        the address bus does all sorts of crazy things
-        like, to read any value from memory, the address bus needs to have the right location
-        
-        in absolute addressing, the lower address is read from pc+1, then the upper address is read from pc+2
-
-        to read the upper address, the address bus registers have to contain the PC, so the previously read
-        address lsb would just get erased
-
-        basically, the lsb gets stored in some other place while the high byte is read
-
-        who knows where. It seems to be the ADD register? The one after the accumulator? 
-        Idk honestly
-
-        I'm just going to do the reads at the right times and try to make things intuitive without 
-        following every single step that the cpu does because it literally doesn't matter to the 
-        emulator at all
-
-
-        */
-
-
-
-        // These instructions don't follow the standard pattern because they do stuff
-        // with the stack or pc or whatever, deal with them first
-
-
-        // Compiler / macro gets confused with functions / function pointers
-        // Have to give it a hint to coerce the functions into pointers instead of function types
-
-        
-        match instrs[i].name {
-            BRK => {
-                instrs[i].ops = vec![
-                    vec![DUMMY_READ_FROM_PC, increment_pc],
-                    vec![push_upper_pc_to_stack, decrement_s],
-                    vec![push_lower_pc_to_stack, decrement_s],
-                    vec![push_p_to_stack_with_brk_flag, decrement_s],
-                    vec![fetch_lower_pc_from_interrupt_vector],
-                    vec![fetch_upper_pc_from_interrupt_vector],
-                ];
-                continue;
-            }
-            RTI => {
-                instrs[i].ops = vec![
-                    vec![DUMMY_READ_FROM_PC],
-                    vec![increment_s],
-                    vec![pull_p_from_stack, increment_s],
-                    vec![pull_lower_pc_from_stack, increment_s],
-                    vec![pull_upper_pc_from_stack],
-                ];
-                continue;
-            }
-            RTS => {
-                instrs[i].ops = vec![
-                    vec![DUMMY_READ_FROM_PC],
-                    vec![increment_s],
-                    vec![pull_lower_pc_from_stack, increment_s],
-                    vec![pull_upper_pc_from_stack],
-                    vec![increment_pc],
-                ];
-                continue;
-            }
-            JSR => {
-                instrs[i].ops = vec![
-                    vec![fetch_lower_address_from_pc, increment_pc],
-                    vec![none],
-                    vec![push_upper_pc_to_stack, decrement_s],
-                    vec![push_lower_pc_to_stack, decrement_s],
-                    vec![fetch_upper_address_from_pc, copy_address_to_pc], 
-                ];
-                continue;
-            }
-            PHA => {
-                instrs[i].ops = vec![
-                    vec![DUMMY_READ_FROM_PC],
-                    vec![push_a_to_stack, decrement_s],
-                ];
-                continue;
-            }
-            PHP => {
-                instrs[i].ops = vec![
-                    vec![DUMMY_READ_FROM_PC],
-                    vec![push_p_to_stack, decrement_s],
-                ];
-                continue;
-            }
-            PLA => {
-                instrs[i].ops = vec![
-                    vec![DUMMY_READ_FROM_PC],
-                    vec![increment_s],
-                    vec![pull_a_from_stack],
-                ];
-                continue;
-            }
-            PLP => {
-                instrs[i].ops = vec![
-                    vec![DUMMY_READ_FROM_PC],
-                    vec![increment_s],
-                    vec![pull_p_from_stack],
-                ];
-                continue;
-            }
-            JMP => {
-                match instrs[i].mode {
-                    Absolute => {
-                        instrs[i].ops = vec![
-                            vec![fetch_lower_address_from_pc, increment_pc],
-                            vec![fetch_upper_address_from_pc, copy_address_to_pc],
-                        ];
-                        continue;
-                    }
-                    AbsoluteI => {
-                        instrs[i].ops = vec![
-                            vec![fetch_lower_pointer_address_from_pc, increment_pc],
-                            vec![fetch_upper_pointer_address_from_pc, increment_pc],
-                            vec![fetch_lower_address_from_pointer],
-                            vec![fetch_upper_address_from_pointer, copy_address_to_pc]
-                        ];
-                        continue;
-                    }
-                    _ => panic!(),
-                }
-            }
-            _ => (),
-        };
-        
-
-
-        // Didn't match with any of the previous instructions
-
-
-
-        let addressing_mode_cycles = match instrs[i].mode {
-            Accumulator | Implied => {
-                let ops: Vec<Vec<fn(&mut Nes)>> = vec![
-                    vec![DUMMY_READ_FROM_PC],
-                ];
-                ops
-            }
-            Immediate => {
-                let ops: Vec<Vec<fn(&mut Nes)>> = vec![
-                    vec![fetch_immediate_from_pc, increment_pc],
-                ];
-                ops
-            }
-            ZeroPage => {
-                let ops: Vec<Vec<fn(&mut Nes)>> = vec![
-                    vec![fetch_lower_address_from_pc, increment_pc],
-                ];
-                ops
-            }
-            // need to remember to zero out the address register between instructions
-            ZeroPageX => {
-                let ops: Vec<Vec<fn(&mut Nes)>> = vec![
-                    vec![fetch_lower_address, increment_pc],
-                    vec![dummy_fetch, add_x_to_lower_address],
-                ];
-            }
-            ZeroPageY => {
-                let ops: Vec<Vec<fn(&mut Nes)>> = vec![
-                    vec![fetch_lower_address, increment_pc],
-                    vec![dummy_fetch, add_y_to_lower_address],
-                ];
-            }
-            Absolute => {
-                let ops: Vec<Vec<fn(&mut Nes)>> = vec![
-                    vec![fetch_lower_address, increment_pc],
-                    vec![fetch_upper_address, increment_pc],
-                ];
-            }
-            AbsoluteX => {
-                let ops: Vec<Vec<fn(&mut Nes)>> = vec![
-                    vec![fetch_lower_address, increment_pc],
-                    vec![fetch_upper_address, add_x_to_lower_address, increment_pc],
-                    vec![read_from_address, fix_upper_address],
-                ];
-            }
-            AbsoluteY => {
-                let ops: Vec<Vec<fn(&mut Nes)>> = vec![
-                    vec![fetch_lower_address, increment_pc],
-                    vec![fetch_upper_address, add_y_to_lower_address, increment_pc],
-                    vec![read_from_address, fix_upper_address],
-                ];
-            }
-            IndirectX => {
-                let ops: Vec<Vec<fn(&mut Nes)>> = vec![
-                    vec![fetch_lower_address, increment_pc],
-                    vec![read_from_address, add_x_to_lower_address], // dummy read!
-                    vec![fetch_lower_pointer_address],
-                    vec![fetch_upper_pointer_address],
-                ];
-            }
-            IndirectY => {
-                let ops: Vec<Vec<fn(&mut Nes)>> = vec![
-                    vec![fetch_lower_address, increment_pc],
-                    vec![fetch_lower_pointer_address],
-                    vec![fetch_upper_pointer_address, add_y_to_lower_address],
-                    vec![read_from_address, fix_upper_address],
-                ];
-            }
-            _ => {}
-        }
-
-
-
-
-
-        // These are unique and don't conform to the read/write/rmw things
-        // Do these first, then continue if the instruction isn't one of these
-
-        // once this is working, turn slightly different functions into closures
-        // if it's readable
-        // if it's not readable, duplicate code is fine
-
-
-
-
-
-
-        // accumulator addressing is just the two fetch cycles and then the third cycle 
-        // which does the operation
-        // third cycle happens at the same time as the next cycle fetch
-
-        // Immediate is exactly the same 
-
-        let instruction = match instrs[i].name {
-            LDA => load_a,
-            LDX => load_x,
-            LDY => load_y,
-            STA => store_a,
-            STX => store_x,
-            STY => store_y,
-            TAX => transfer_a_to_x,
-            TAY => transfer_a_to_y,
-            TSX => transfer_s_to_x,
-            TXA => transfer_x_to_a,
-            TXS => transfer_x_to_s,
-            TYA => transfer_y_to_a,
-            ASL => shift_left,
-            EOR => xor,
-            AND => and,
-            ORA => or,
-            ADC => add_data_to_a,
-            SBC => sub_data_from_a,
-            DEX => decrement_x,
-            DEY => decrement_y,
-            DEC => decrement_data,
-            INX => increment_x, 
-            INY => increment_y,
-            INC => increment_data,
-
-            _ => none
-
-        };
-
+    for instr in instrs.iter_mut() {
+        initialise_instruction(instr);
     }
+
     instrs
 
 });
 
 
 
-// write a comment next to a function once it's been used in a micro op, then delete the ones
-// that haven't been used 
-    
 
-
-
-
-
-// weird memory operations
-
-// please decide on naming conventions 
-
-// upper/lower, low/high, lsb/msb
-// read/fetch/set/get
-
-// byte1/2, pc fetch, pointer fetch
-
-
-fn read_from_pc(nes: &mut Nes) {
+pub fn read_from_pc(nes: &mut Nes) {
     nes.cpu.data = read_mem(nes.cpu.pc, nes);
 }
 
 
-
-fn copy_address_to_pc(nes: &mut Nes) {
+pub fn copy_address_to_pc(nes: &mut Nes) {
     nes.cpu.pc = nes.cpu.get_address();
 }
 
@@ -696,106 +665,78 @@ fn copy_address_to_pc(nes: &mut Nes) {
 
 
 
-fn fetch_lower_pointer_address_from_pc(nes: &mut Nes) {
+pub fn fetch_lower_pointer_address_from_pc(nes: &mut Nes) {
     nes.cpu.lower_pointer = read_mem(nes.cpu.pc, nes);
 }
-fn fetch_upper_pointer_address_from_pc(nes: &mut Nes) {
+pub fn fetch_upper_pointer_address_from_pc(nes: &mut Nes) {
     nes.cpu.upper_pointer = read_mem(nes.cpu.pc, nes);
 }
 
-fn fetch_lower_address_from_pointer(nes: &mut Nes) {
+pub fn fetch_lower_address_from_pointer(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.get_pointer(), nes);
-    nes.cpu.lower_address = nes.cpu.lower_address.wrapping_add(1); // hello
 }
-fn fetch_upper_address_from_pointer(nes: &mut Nes) {
+pub fn increment_lower_pointer(nes: &mut Nes) {
+    nes.cpu.lower_address = nes.cpu.lower_address.wrapping_add(1);
+}
+pub fn fetch_upper_address_from_pointer(nes: &mut Nes) {
     nes.cpu.upper_address = read_mem(nes.cpu.get_pointer(), nes);
 }
 
-fn write_to_address(value: u8, nes: &mut Nes) {
-    write_mem(nes.cpu.get_address(), value, nes);
-}
 
-fn fetch_lower_address_from_pc(nes: &mut Nes) {
+
+
+pub fn fetch_lower_address_from_pc(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.pc, nes);
 }
 
-fn fetch_upper_address_from_pc(nes: &mut Nes) {
+pub fn fetch_upper_address_from_pc(nes: &mut Nes) {
     nes.cpu.upper_address = read_mem(nes.cpu.pc, nes);
 }
-fn fetch_immediate_from_pc(nes: &mut Nes) {
+pub fn fetch_immediate_from_pc(nes: &mut Nes) {
     nes.cpu.data = read_mem(nes.cpu.pc, nes);
 }
 
 
 
-fn read_from_address(nes: &mut Nes) {
+pub fn read_from_address(nes: &mut Nes) {
     let addr = nes.cpu.get_address();
     nes.cpu.data = read_mem(addr, nes);
 }
+pub fn read_from_pointer(nes: &mut Nes) {
+    let addr = nes.cpu.get_pointer();
+    nes.cpu.data = read_mem(addr, nes);
+}
 
+pub fn write_to_address(nes: &mut Nes) {
+    let addr = nes.cpu.get_address();
+    write_mem(addr, nes.cpu.data, nes);
+}
 
-fn fetch_lower_pc_from_interrupt_vector(nes: &mut Nes) {
-    let lower = read_mem(IRQ_VECTOR, nes);
+pub fn fetch_lower_pc_from_interrupt_vector(nes: &mut Nes) {
+    let lower = read_mem(0xFFFE, nes);
     nes.cpu.set_lower_pc(lower);
 }
-fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
-    let upper = read_mem(IRQ_VECTOR+1, nes);
+pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
+    let upper = read_mem(0xFFFF, nes);
     nes.cpu.set_upper_pc(upper);
 }
 
 
-
-
-fn fetch_byte2_to_upper_pc(nes: &mut Nes) {
-    let upper = read_mem(nes.cpu.pc, nes);
-    nes.cpu.set_upper_pc(upper);
+pub fn fetch_branch_offset_from_pc(nes: &mut Nes) {
+    nes.cpu.branch_offset = read_mem(nes.cpu.pc, nes);
 }
 
 
 
     
     
-const IRQ_VECTOR: u16 = 0xFFFE;
-const BREAK_FLAG: u8  = 0b0001_0000;
 
 
 
-// Convenience functions 
 
 
 
-pub fn was_signed_overflow(a: u8, b: u8, a_plus_b: u8) -> bool {
-    // If the sign bits of A and B are the same
-    // and the sign bits of A and A+B are different,
-    // sign bit was corrupted (there was signed overflow)
-    ((!(a ^ b) & (a ^ a_plus_b)) >> 7) == 1
-}
-
-
-
-fn update_p_nz(val: u8, nes: &mut Nes) {
-    nes.cpu.p_n = val > 0x7F;
-    nes.cpu.p_z = val == 0;
-}
-
-fn shift_left(val: u8, rotate: bool, nes: &mut Nes) -> u8 {
-    let prev_carry = nes.cpu.p_c;
-    nes.cpu.p_c = get_bit(val, 7);
-    (val << 1) | ((prev_carry && rotate) as u8)
-}
-fn shift_right(val: u8, rotate: bool, nes: &mut Nes) -> u8 {
-    let prev_carry = nes.cpu.p_c;
-    nes.cpu.p_c = get_bit(val, 0);
-    (val >> 1) | (((prev_carry && rotate) as u8) << 7)
-}
-
-fn add_with_carry(val: u8, nes: &mut Nes) {
-    let (result, carry) = nes.cpu.a.carrying_add(val, nes.cpu.p_c);
-    nes.cpu.p_v = was_signed_overflow(nes.cpu.a, val, result);
-    nes.cpu.p_c = carry;
-    nes.cpu.a = result;  
-}
-fn add_index_to_lower_address_and_set_carry(index: u8, nes: &mut Nes) {
+pub fn add_index_to_lower_address_and_set_carry(index: u8, nes: &mut Nes) {
     let (new_val, was_overflow) = nes.cpu.lower_address.overflowing_add(index);
     nes.cpu.lower_address = new_val; 
     nes.cpu.addr_low_carry = was_overflow;
@@ -812,11 +753,8 @@ pub fn pull_from_stack(nes: &mut Nes) -> u8 {
     value
 }
 
-fn fix_upper_address(nes: &mut Nes) {
-    if nes.cpu.addr_low_carry {
-        nes.cpu.upper_address = nes.cpu.upper_address.wrapping_add(1);
-    }
-    nes.cpu.addr_low_carry = false;
+pub fn add_lower_address_carry_bit_to_upper_address(nes: &mut Nes) {
+    nes.cpu.upper_address = nes.cpu.upper_address.wrapping_add(nes.cpu.lower_address_carry_out as u8);
 }
 
 
@@ -834,37 +772,37 @@ fn fix_upper_address(nes: &mut Nes) {
 
 
 
-fn push_lower_pc_to_stack(nes: &mut Nes) {
+pub fn push_lower_pc_to_stack(nes: &mut Nes) {
     push_to_stack(nes.cpu.pc as u8, nes);
 }
-fn push_upper_pc_to_stack(nes: &mut Nes) {
+pub fn push_upper_pc_to_stack(nes: &mut Nes) {
     push_to_stack((nes.cpu.pc >> 8) as u8, nes);    
 }
-fn push_p_to_stack_with_brk_flag(nes: &mut Nes) {
-    push_to_stack(nes.cpu.get_p() | BREAK_FLAG, nes);
+pub fn push_p_to_stack_with_brk_flag(nes: &mut Nes) {
+    push_to_stack(nes.cpu.get_p() | 0b0001_0000, nes);
 }
-fn push_p_to_stack(nes: &mut Nes) {
+pub fn push_p_to_stack(nes: &mut Nes) {
     push_to_stack(nes.cpu.get_p(), nes);
 }
-fn push_a_to_stack(nes: &mut Nes) {
+pub fn push_a_to_stack(nes: &mut Nes) {
     push_to_stack(nes.cpu.a, nes);
 }
 
 
 
-fn pull_lower_pc_from_stack(nes: &mut Nes) {
+pub fn pull_lower_pc_from_stack(nes: &mut Nes) {
     let lower_pc = pull_from_stack(nes);
     nes.cpu.set_lower_pc(lower_pc);
 }
-fn pull_upper_pc_from_stack(nes: &mut Nes) {
+pub fn pull_upper_pc_from_stack(nes: &mut Nes) {
     let upper_pc = pull_from_stack(nes);
     nes.cpu.set_upper_pc(upper_pc);
 }
-fn pull_p_from_stack(nes: &mut Nes) {
+pub fn pull_p_from_stack(nes: &mut Nes) {
     let status_reg = pull_from_stack(nes);
     nes.cpu.set_p(status_reg);
 }
-fn pull_a_from_stack(nes: &mut Nes) {
+pub fn pull_a_from_stack(nes: &mut Nes) {
     let a_reg = pull_from_stack(nes);
     nes.cpu.a = a_reg;
 }
@@ -876,175 +814,55 @@ fn pull_a_from_stack(nes: &mut Nes) {
 
 // Register operations
 
-fn increment_pc(nes: &mut Nes) {
+pub fn increment_pc(nes: &mut Nes) {
     nes.cpu.pc = nes.cpu.pc.wrapping_add(1);
 }
 
-fn increment_s(nes: &mut Nes) {
+pub fn increment_s(nes: &mut Nes) {
     nes.cpu.s = nes.cpu.s.wrapping_add(1);
 }
-fn increment_x(nes: &mut Nes) {
+pub fn increment_x(nes: &mut Nes) {
     nes.cpu.x = nes.cpu.x.wrapping_add(1);
 }
-fn increment_y(nes: &mut Nes) {
+pub fn increment_y(nes: &mut Nes) {
     nes.cpu.y = nes.cpu.y.wrapping_add(1);
 }
-fn increment_data(nes: &mut Nes) {
+pub fn increment_data(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.data.wrapping_add(1);
 }
 
 
-fn decrement_s(nes: &mut Nes) {
+pub fn decrement_s(nes: &mut Nes) {
     nes.cpu.s = nes.cpu.s.wrapping_sub(1);
 }
-fn decrement_x(nes: &mut Nes) {
+pub fn decrement_x(nes: &mut Nes) {
     nes.cpu.x = nes.cpu.x.wrapping_sub(1);
 }
-fn decrement_y(nes: &mut Nes) {
+pub fn decrement_y(nes: &mut Nes) {
     nes.cpu.y = nes.cpu.y.wrapping_sub(1);
 }
-fn decrement_data(nes: &mut Nes) {
+pub fn decrement_data(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.data.wrapping_sub(1);
 }
 
-fn add_x_to_lower_address(nes: &mut Nes) {
+pub fn add_x_to_lower_address(nes: &mut Nes) {
     add_index_to_lower_address_and_set_carry(nes.cpu.x, nes);
 }
 
-fn add_y_to_lower_address(nes: &mut Nes) {
+pub fn add_y_to_lower_address(nes: &mut Nes) {
     add_index_to_lower_address_and_set_carry(nes.cpu.y, nes);
 }
 
-fn copy_data_to_a(nes: &mut Nes) {
-    nes.cpu.a = nes.cpu.data;
+pub fn add_x_to_lower_pointer(nes: &mut Nes) {
+    nes.cpu.lower_pointer = nes.cpu.lower_pointer.wrapping_add(nes.cpu.x);
 }
-fn copy_data_to_x(nes: &mut Nes) {
-    nes.cpu.x = nes.cpu.data;
-}
-fn copy_data_to_y(nes: &mut Nes) {
-    nes.cpu.y = nes.cpu.data;
-}
-
-fn xor_data_with_a(nes: &mut Nes) {
-    nes.cpu.a ^= nes.cpu.data;
-}
-
-fn and_data_with_a(nes: &mut Nes) {
-    nes.cpu.a &= nes.cpu.data;
-}
-
-fn or_data_with_a(nes: &mut Nes) {
-    nes.cpu.a |= nes.cpu.data;
-}
-
-fn add_data_to_a(nes: &mut Nes) {
-    add_with_carry(nes.cpu.data, nes);
-}
-
-fn sub_data_from_a(nes: &mut Nes) {
-    add_with_carry(!nes.cpu.data, nes);
-}
-
-fn none(nes: &mut Nes) {
-    // I could have used Option and None, but would have just made things too wordy
+pub fn add_y_to_lower_pointer(nes: &mut Nes) {
+    nes.cpu.lower_pointer = nes.cpu.lower_pointer.wrapping_add(nes.cpu.y);
 }
 
 
 
 
+pub fn none(nes: &mut Nes) {}
 
 
-
-
-
-// INSTRUCTION IMPLEMENTATIONS
-
-
-fn load_a(nes: &mut Nes) {
-    nes.cpu.a = nes.cpu.data;
-    update_p_nz(nes.cpu.a, nes);
-}
-fn load_x(nes: &mut Nes) {
-    nes.cpu.x = nes.cpu.data;
-    update_p_nz(nes.cpu.x, nes);
-}
-fn load_y(nes: &mut Nes) {
-    nes.cpu.y = nes.cpu.data;
-    update_p_nz(nes.cpu.y, nes);
-}
-
-
-fn store_a(nes: &mut Nes) {
-    write_to_address(nes.cpu.a, nes);
-}
-fn store_x(nes: &mut Nes) {
-    write_to_address(nes.cpu.x, nes);
-}
-fn store_y(nes: &mut Nes) {
-    write_to_address(nes.cpu.y, nes);
-}
-
-
-fn xor(nes: &mut Nes) {
-    nes.cpu.a ^= nes.cpu.data;
-}
-fn or(nes: &mut Nes) {
-    nes.cpu.a |= nes.cpu.data;
-}
-fn and(nes: &mut Nes) {
-    nes.cpu.a &= nes.cpu.data;
-}
-
-
-fn transfer_a_to_x(nes: &mut Nes) {
-    nes.cpu.x = nes.cpu.a;
-    update_p_nz(nes.cpu.x, nes);
-}
-fn transfer_a_to_y(nes: &mut Nes) {
-    nes.cpu.y = nes.cpu.a;
-    update_p_nz(nes.cpu.y, nes);
-}
-fn transfer_s_to_x(nes: &mut Nes) {
-    nes.cpu.x = nes.cpu.s;
-    update_p_nz(nes.cpu.x, nes);
-}
-fn transfer_x_to_a(nes: &mut Nes) {
-    nes.cpu.a = nes.cpu.x;
-    update_p_nz(nes.cpu.a, nes);
-}
-fn transfer_y_to_a(nes: &mut Nes) {
-    nes.cpu.a = nes.cpu.y;
-    update_p_nz(nes.cpu.a, nes);
-}
-fn transfer_x_to_s(nes: &mut Nes) {
-    nes.cpu.s = nes.cpu.x;
-}
-    
-    
-
-/*
-Visual6502 can tell you everything! But not necessarily in digestible form.
-
-I think it's only barely true to speak of the 6502 as pipelined. The only overlap which saves cycles is when the final cycle of an instruction is an internal operation, which will then overlap with the next instruction's fetch. But there is no buffer for previously fetched information, so there's never a gain from the processor already having read the next opcode byte, which it sometimes will have done. And if the final cycle of an instruction is a write, it can't overlap with the subsequent fetch anyway.
-
-For example,
-INX
-INY
-will take four cycles, not six. There's a gain of two cycles, over an even simpler fetch-decode-execute machine(*), from the fact that the internal operation of writing back the modified register value overlaps with the fetch of the following instruction, which happens for both the INX and the INY.
-
-But there is no gain from the fact that the INY byte was already read during the second cycle of the INX - the INY is read again and then decoded. Every instruction reads a subsequent byte during the decode cycle, which is used as an operand if it is needed, and which therefore constitutes a gain, but the byte is never fed into the instruction decoder even if it turns out that the present instruction was a single byte.
-
-(*) I think the Z80, which is clocked faster at any given technology, does use a clock cycle for each step of an instruction and, if that's right, is even less pipelined than the 6502. But because it's clocked faster, that's not a noticeable net loss. In the Z80, a memory access takes several clock cycles. (We don't have a visual Z80 to investigate, although Ken Shirriff has done some detailed analyses: see http://www.righto.com/search/label/Z-80)
-I think later reimplementations of the Z80 gained more performance than the slightly improved later implementations of the 6502 which saved a cycle here and there - there was more slack to be taken up.
-As we know, later descendants of the 8080 put in successively more elaborate mechanisms to become much much more productive per clock cycle. Having multiple instruction decoders working in parallel on the available pre-fetched instruction bytes is just the start of it. A quick search indicates 3 instructions per cycle is an achievable peak value, with half of that being a more likely best case.
-
-Cheers
-Ed
-
-*/
-
-// https://retrocomputing.stackexchange.com/questions/145/why-does-6502-indexed-lda-take-an-extra-cycle-at-page-boundaries
-// 6502 only has 8-bit adder
-
-// I totally need to try this, sounds really cool
-// https://doc.rust-lang.org/rustc/profile-guided-optimization.html

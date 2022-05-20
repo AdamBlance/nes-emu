@@ -16,19 +16,17 @@ use ggez::graphics::{self, Color, DrawMode, DrawParam, Transform};
 mod emu;
 mod hw;
 mod opc;
-mod microops;
 mod util;
 mod mem;
 mod log;
 mod cpu; 
 mod ppu;
 mod outfile;
+mod instr_func;
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;
 const SCALING: u32 = 4;
-
-use std::mem as penis;
 
 struct Emulator {
     frames: u64,
