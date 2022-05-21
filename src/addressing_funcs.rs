@@ -31,19 +31,24 @@ pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
     nes.cpu.set_upper_pc(upper);
 }
 
+
+
 // Immediate
 
 pub fn fetch_immediate_from_pc(nes: &mut Nes) {
     nes.cpu.data = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_imm = nes.cpu.data;
 }
 
 // Address
 
 pub fn fetch_lower_address_from_pc(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_byte2 = nes.cpu.lower_address;
 }
 pub fn fetch_upper_address_from_pc(nes: &mut Nes) {
     nes.cpu.upper_address = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_byte3 = nes.cpu.upper_address;
 }
 pub fn fetch_lower_address_from_pointer(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.get_pointer(), nes);
@@ -54,7 +59,7 @@ pub fn fetch_upper_address_from_pointer(nes: &mut Nes) {
 fn add_index_to_lower_address_and_set_carry(index: u8, nes: &mut Nes) {
     let (new_val, was_overflow) = nes.cpu.lower_address.overflowing_add(index);
     nes.cpu.lower_address = new_val; 
-    nes.cpu.lower_address_carry_out = was_overflow;
+    nes.cpu.internal_carry_out = was_overflow;
 }
 pub fn add_x_to_lower_address(nes: &mut Nes) {
     add_index_to_lower_address_and_set_carry(nes.cpu.x, nes);
@@ -63,7 +68,7 @@ pub fn add_y_to_lower_address(nes: &mut Nes) {
     add_index_to_lower_address_and_set_carry(nes.cpu.y, nes);
 }
 pub fn add_lower_address_carry_bit_to_upper_address(nes: &mut Nes) {
-    let carry_in = nes.cpu.lower_address_carry_out as u8;
+    let carry_in = nes.cpu.internal_carry_out as u8;
     nes.cpu.upper_address = nes.cpu.upper_address.wrapping_add(carry_in);
 }
 
@@ -93,6 +98,7 @@ pub fn read_from_pc(nes: &mut Nes) {
 pub fn read_from_address(nes: &mut Nes) {
     let addr = nes.cpu.get_address();
     nes.cpu.data = read_mem(addr, nes);
+    nes.cpu.trace_stored_val = nes.cpu.data;
 }
 pub fn read_from_pointer(nes: &mut Nes) {
     let addr = nes.cpu.get_pointer();

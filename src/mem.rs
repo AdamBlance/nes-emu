@@ -2,18 +2,6 @@ use crate::util::*;
 use crate::hw::*;
 use crate::ppu;
 
-pub fn read_mem_u16(addr: u16, nes: &mut Nes) -> u16 {
-    let lsb = read_mem(addr, nes);
-    let msb = read_mem(addr.wrapping_add(1), nes);
-    concat_u8(msb, lsb)
-}
-
-pub fn read_mem_u16_zp(addr: u16, nes: &mut Nes) -> u16 {
-    let lsb = read_mem(addr, nes);
-    let msb = read_mem((addr.wrapping_add(1) % 256), nes);
-    concat_u8(msb, lsb)
-}
-
 const PPUCTRL: u16   = 0x2000;
 const PPUMASK: u16   = 0x2001;
 const PPUSTATUS: u16 = 0x2002;

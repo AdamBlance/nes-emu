@@ -24,7 +24,7 @@ pub fn run_to_vblank(nes: &mut Nes) {
 
     loop {
         cpu::step_cpu(nes);
-
+        nes.cpu.cycles += 1;
         ppu::step_ppu(nes);
         ppu::step_ppu(nes);
         ppu::step_ppu(nes);

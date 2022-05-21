@@ -26,7 +26,7 @@ use Name::*;
 use crate::instr_funcs;
 
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Instruction { 
     pub name: Name,
     pub mode: Mode,
@@ -116,6 +116,47 @@ impl Name {
             _   => instr_funcs::nop,
         }
     }
+    pub fn as_string(self) -> &'static str {
+        match self {
+            LDA => "LDA",
+            LDX => "LDX",
+            LDY => "LDY",
+            STA => "STA",
+            STX => "STX",
+            STY => "STY",
+            TAX => "TAX",
+            TAY => "TAY",
+            TSX => "TSX",
+            TXA => "TXA",
+            TXS => "TXS",
+            TYA => "TYA",
+            ASL => "ASL",
+            LSR => "LSR",
+            ROL => "ROL",
+            ROR => "ROR",
+            AND => "AND",
+            BIT => "BIT",
+            EOR => "EOR",
+            ORA => "ORA",
+            ADC => "ADC",
+            SBC => "SBC",
+            DEC => "DEC",
+            DEX => "DEX",
+            DEY => "DEY",
+            INC => "INC",
+            INX => "INX",
+            INY => "INY",
+            CLC => "CLC",
+            CLD => "CLD",
+            CLI => "CLI",
+            CLV => "CLV",
+            SEC => "SEC",
+            SED => "SED",
+            SEI => "SEI",
+            NOP => "NOP",
+            _   => "?",
+        }
+    }
 }
 
 
@@ -162,6 +203,7 @@ pub enum Category {
     W,
     RMW,
     C,
+    B,
     X,
 }
 
@@ -183,7 +225,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  ORA, mode: Absolute,    category: R},
     Instruction {name:  ASL, mode: Absolute,    category: RMW},
     Instruction {name: USLO, mode: Absolute,    category: R},
-    Instruction {name:  BPL, mode: Relative,    category: X},
+    Instruction {name:  BPL, mode: Relative,    category: B},
     Instruction {name:  ORA, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
     Instruction {name: USLO, mode: IndirectY,   category: R},
@@ -215,7 +257,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  AND, mode: Absolute,    category: R},
     Instruction {name:  ROL, mode: Absolute,    category: RMW},
     Instruction {name: URLA, mode: Absolute,    category: R},
-    Instruction {name:  BMI, mode: Relative,    category: R},
+    Instruction {name:  BMI, mode: Relative,    category: B},
     Instruction {name:  AND, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
     Instruction {name: URLA, mode: IndirectY,   category: R},
@@ -247,7 +289,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  EOR, mode: Absolute,    category: R},
     Instruction {name:  LSR, mode: Absolute,    category: RMW},
     Instruction {name: USRE, mode: Absolute,    category: R},
-    Instruction {name:  BVC, mode: Relative,    category: R},
+    Instruction {name:  BVC, mode: Relative,    category: B},
     Instruction {name:  EOR, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
     Instruction {name: USRE, mode: IndirectY,   category: R},
@@ -279,7 +321,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  ADC, mode: Absolute,    category: R},
     Instruction {name:  ROR, mode: Absolute,    category: RMW},
     Instruction {name: URRA, mode: Absolute,    category: R},
-    Instruction {name:  BVS, mode: Relative,    category: R},
+    Instruction {name:  BVS, mode: Relative,    category: B},
     Instruction {name:  ADC, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
     Instruction {name: URRA, mode: IndirectY,   category: R},
@@ -311,7 +353,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  STA, mode: Absolute,    category: W},
     Instruction {name:  STX, mode: Absolute,    category: W},
     Instruction {name: USAX, mode: Absolute,    category: R},
-    Instruction {name:  BCC, mode: Relative,    category: R},
+    Instruction {name:  BCC, mode: Relative,    category: B},
     Instruction {name:  STA, mode: IndirectY,   category: W},
     Instruction {name: UJAM, mode: Implied,     category: R},
     Instruction {name: USHA, mode: IndirectY,   category: R},
@@ -343,7 +385,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  LDA, mode: Absolute,    category: R},
     Instruction {name:  LDX, mode: Absolute,    category: R},
     Instruction {name: ULAX, mode: Absolute,    category: R},
-    Instruction {name:  BCS, mode: Relative,    category: R},
+    Instruction {name:  BCS, mode: Relative,    category: B},
     Instruction {name:  LDA, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
     Instruction {name: ULAX, mode: IndirectY,   category: R},
@@ -375,7 +417,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  CMP, mode: Absolute,    category: R},
     Instruction {name:  DEC, mode: Absolute,    category: RMW},
     Instruction {name: UDCP, mode: Absolute,    category: R},
-    Instruction {name:  BNE, mode: Relative,    category: R},
+    Instruction {name:  BNE, mode: Relative,    category: B},
     Instruction {name:  CMP, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
     Instruction {name: UDCP, mode: IndirectY,   category: R},
@@ -407,7 +449,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  SBC, mode: Absolute,    category: R},
     Instruction {name:  INC, mode: Absolute,    category: RMW},
     Instruction {name: UISB, mode: Absolute,    category: R},
-    Instruction {name:  BEQ, mode: Relative,    category: R},
+    Instruction {name:  BEQ, mode: Relative,    category: B},
     Instruction {name:  SBC, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
     Instruction {name: UISB, mode: IndirectY,   category: R},

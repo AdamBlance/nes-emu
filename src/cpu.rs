@@ -1,8 +1,10 @@
 use std::io;
 use crate::hw::*;
 use crate::mem::*;
-use crate::instr_defs::{INSTRUCTIONS, Mode::*, Category::*};
+use crate::instr_defs::{INSTRUCTIONS, Mode::*, Category::*, Name::*};
 use crate::addressing_funcs::*;
+use crate::util::concat_u8;
+use crate::util::is_neg;
 
 
 const DUMMY_READ_FROM_PC:      fn(&mut Nes) = read_from_pc;
@@ -14,8 +16,31 @@ pub fn step_cpu(nes: &mut Nes) {
     if nes.cpu.instruction_cycle == 0 {
         let opcode = read_mem(nes.cpu.get_address(), nes);
         nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
+        nes.old_cpu_state = nes.cpu;
         return;
     }
+
+
+
+    /*
+    
+        Need some way to signal the end of an instruction when it exits early 
+        For example, branch, which has extra cycles when it branches and if page boundary is crossed
+        
+        Also, all instructions need to exit at some point? 
+
+        There's no point in storing an explicit cycle count for each instruction since 
+        that will be inaccurate depending on optional cycles
+
+        Just need to set the cycles to 0? 
+        Also reset the temp values to 0
+        Increment instruction counter
+    
+    
+    */
+
+
+
 
     /*
         Firstly, deal with control instructions that need special handling
@@ -24,6 +49,7 @@ pub fn step_cpu(nes: &mut Nes) {
 
     let i = nes.cpu.instruction;
     let c = nes.cpu.instruction_cycle;
+    let cat = nes.cpu.instruction.category; 
 
     if nes.cpu.instruction.category == C {
         match (i.name, i.mode) {
@@ -33,61 +59,120 @@ pub fn step_cpu(nes: &mut Nes) {
                 3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
                 4 => {push_p_to_stack_with_brk_flag(nes); decrement_s(nes);}
                 5 => {fetch_lower_pc_from_interrupt_vector(nes);}
-                6 => {fetch_upper_pc_from_interrupt_vector(nes);}
+                6 => {fetch_upper_pc_from_interrupt_vector(nes); end_instr(nes);}
+                _ => unreachable!(),
             }}
             (RTI, _) => { match c {
                 1 => {DUMMY_READ_FROM_PC(nes);}
                 2 => {increment_s(nes);}
                 3 => {pull_p_from_stack(nes); increment_s(nes);}
                 4 => {pull_lower_pc_from_stack(nes); increment_s(nes);}
-                5 => {pull_upper_pc_from_stack(nes);}                
+                5 => {pull_upper_pc_from_stack(nes); end_instr(nes);}
+                _ => unreachable!(),
             }}
             (RTS, _) => { match c {
                 1 => {DUMMY_READ_FROM_PC(nes);}
                 2 => {increment_s(nes);}
                 3 => {pull_lower_pc_from_stack(nes); increment_s(nes);}
                 4 => {pull_upper_pc_from_stack(nes);}
-                5 => {increment_pc(nes);}
+                5 => {increment_pc(nes); end_instr(nes);}
+                _ => unreachable!(),
             }}
             (JSR, _) => { match c {
                 1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
                 2 => {none(nes);}
                 3 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
                 4 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
-                5 => {fetch_upper_address_from_pc(nes); copy_address_to_pc(nes);} 
+                5 => {fetch_upper_address_from_pc(nes); copy_address_to_pc(nes); end_instr(nes);} 
+                _ => unreachable!(),
             }}
             (PHA, _) => { match c {
                 1 => {DUMMY_READ_FROM_PC(nes);}
-                2 => {push_a_to_stack(nes); decrement_s(nes);}
+                2 => {push_a_to_stack(nes); decrement_s(nes); end_instr(nes);}
+                _ => unreachable!(),
             }}
             (PHP, _) => { match c {
                 1 => {DUMMY_READ_FROM_PC(nes);}
-                2 => {push_p_to_stack(nes); decrement_s(nes);}
+                2 => {push_p_to_stack(nes); decrement_s(nes); end_instr(nes);}
+                _ => unreachable!(),
             }}
             (PLA, _) => { match c {
                 1 => {DUMMY_READ_FROM_PC(nes);}
                 2 => {increment_s(nes);}
-                3 => {pull_a_from_stack(nes);}
+                3 => {pull_a_from_stack(nes); end_instr(nes);}
+                _ => unreachable!(),
             }}
             (PLP, _) => { match c {
                 1 => {DUMMY_READ_FROM_PC(nes);}
                 2 => {increment_s(nes);}
-                3 => {pull_p_from_stack(nes);}
+                3 => {pull_p_from_stack(nes); end_instr(nes);}
+                _ => unreachable!(),
             }}
             (JMP, Absolute) => { match c {
                 1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
-                2 => {fetch_upper_address_from_pc(nes); copy_address_to_pc(nes);}
+                2 => {fetch_upper_address_from_pc(nes); copy_address_to_pc(nes); end_instr(nes);}
+                _ => unreachable!(),
             }}
             (JMP, AbsoluteI) => { match c {
                 1 => {fetch_lower_pointer_address_from_pc(nes); increment_pc(nes);}
                 2 => {fetch_upper_pointer_address_from_pc(nes); increment_pc(nes);}
                 3 => {fetch_lower_address_from_pointer(nes);}
-                4 => {fetch_upper_address_from_pointer(nes); copy_address_to_pc(nes);}
+                4 => {fetch_upper_address_from_pointer(nes); copy_address_to_pc(nes); end_instr(nes);}
+                _ => unreachable!(),
             }}
-            _ => panic!("Control instruction not implemented"),
+            _ => unreachable!(),
         };
     }
 
+    // Next, deal with branches, which behave differently from other instructions
+
+    else if nes.cpu.instruction.category == B {
+        match c {
+            1 => {
+                fetch_branch_offset_from_pc(nes); 
+                increment_pc(nes); 
+                nes.cpu.branching = match nes.cpu.instruction.name {
+                    BCC => !nes.cpu.p_c,
+                    BCS =>  nes.cpu.p_c,
+                    BVC => !nes.cpu.p_v,
+                    BVS =>  nes.cpu.p_v,
+                    BNE => !nes.cpu.p_z,
+                    BEQ =>  nes.cpu.p_z,
+                    BPL => !nes.cpu.p_n,
+                    BMI =>  nes.cpu.p_n,
+                    _   => unreachable!(),
+                };
+
+                if !nes.cpu.branching {end_instr(nes);}
+            }
+            2 => {
+                // DUMMY READ!
+                // Idk where it's reading from 
+                // come back to this later, should work fine for the now
+                let prev_pcl = nes.cpu.pc as u8;
+                let (new_pcl, overflow) = prev_pcl.overflowing_add(nes.cpu.branch_offset);
+                
+                nes.cpu.set_lower_pc(new_pcl);
+
+                nes.cpu.internal_carry_out = overflow;
+
+                if !nes.cpu.internal_carry_out {end_instr(nes);}
+            }
+            3 => {
+                // need more dummy reads here
+                if is_neg(nes.cpu.branch_offset) {
+                    nes.cpu.pc = nes.cpu.pc.wrapping_sub(1 << 8);
+                } else {
+                    nes.cpu.pc = nes.cpu.pc.wrapping_add(1 << 8);
+                }
+                end_instr(nes);
+            }
+            _ => unreachable!(),
+        }
+    }
+    
+
+    
     /*
         If not a control instruction, must be a read/write/read-modify-write instruction
         The per-cycle operation of these instructions is defined by three things:
@@ -104,50 +189,60 @@ pub fn step_cpu(nes: &mut Nes) {
     // These category matches could be in a match? idk
     // could have an instruction state thing, like an enum for each section of 
 
-    let cat = nes.cpu.instruction.category; 
-    if cat == R || cat == W || cat == RMW {
+    
+    else if cat == R || cat == W || cat == RMW {
         match nes.cpu.instruction.mode {
             Implied | Accumulator => { match c {
                 1 => DUMMY_READ_FROM_PC(nes),
+                _ => (),
             }}
             Immediate => { match c {
                 1 => {fetch_immediate_from_pc(nes); increment_pc(nes);}
+                _ => (),
             }}
             ZeroPage => { match c {
                 1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
+                _ => (),
             }}
             ZeroPageX => { match c {
                 1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
                 2 => {DUMMY_READ_FROM_ADDRESS(nes); add_x_to_lower_address(nes);}
+                _ => (),
             }}
             ZeroPageY => { match c {
                 1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
                 2 => {DUMMY_READ_FROM_ADDRESS(nes); add_y_to_lower_address(nes);}
+                _ => (),
             }}
             Absolute => { match c {
                 1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
                 2 => {fetch_upper_address_from_pc(nes); increment_pc(nes);}
+                _ => (),
             }}
             AbsoluteX => { match c {
                 1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
                 2 => {fetch_upper_address_from_pc(nes); add_x_to_lower_address(nes); increment_pc(nes);}
+                _ => (),
             }}
             AbsoluteY => { match c {
                 1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
                 2 => {fetch_upper_address_from_pc(nes); add_y_to_lower_address(nes); increment_pc(nes);}
+                _ => (),
             }}
             IndirectX => { match c {
                 1 => {fetch_lower_pointer_address_from_pc(nes); increment_pc(nes);}
                 2 => {DUMMY_READ_FROM_POINTER(nes); add_x_to_lower_address(nes);}
                 3 => {fetch_lower_address_from_pointer(nes); increment_lower_pointer(nes);}
                 4 => {fetch_upper_address_from_pointer(nes);}
+                _ => (),
             }}
             IndirectY => { match c {
                 1 => {fetch_lower_pointer_address_from_pc(nes); increment_pc(nes);}
                 2 => {fetch_lower_address_from_pointer(nes); increment_lower_pointer(nes);}
                 3 => {fetch_upper_address_from_pointer(nes); add_y_to_lower_address(nes);}
+                _ => (),
             }}
-            _ => (),
+            _ => unreachable!(),
         }
 
         /*
@@ -187,148 +282,115 @@ pub fn step_cpu(nes: &mut Nes) {
             all of these can just call the function!
             no other stuff needed
 
+            Then the only thing left is branches? 
 
+            so, branches
+            https://archive.nes.science/nesdev-forums/f3/t1421.xhtml
+
+            first cycle, get opcode
+            second, get offset, determine branch status
+
+            if branch, add offset to pcl 
+            
+            fetch opcode from new pc, fix pch, if it didn't change, increment 
+
+            if it was fixed, fetch opcode again, increment pc
+
+
+            all immediate instructions just do things on registers, doesn't seem to be any memory stuff
+            just the same as implied then, or at least the ones that aren't control instructions
 
 
         */
 
+
+        // Actually there can be a match here straight after matching with something above
+        // accumulator or implied or immediate instructions
 
         let c = nes.cpu.instruction_cycle - nes.cpu.instruction.mode.address_resolution_cycles();
         let func = nes.cpu.instruction.name.function();
 
         match nes.cpu.instruction.mode {
             Accumulator => { match c {
-                0 => {nes.cpu.data = nes.cpu.a; func(nes); nes.cpu.a = nes.cpu.data;}
+                0 => {nes.cpu.data = nes.cpu.a; func(nes); nes.cpu.a = nes.cpu.data; end_instr(nes);}
+                _ => unreachable!(),
             }}
-            Implied => { match c {
-                0 => {func(nes);}
+            Implied | Immediate => { match c {
+                0 => {func(nes); end_instr(nes);}
+                _ => unreachable!(),
             }}
-            Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => { match (m, c) {
-                (R,   0) => {read_from_address(nes); func(nes);}
-                (W,   0) => {func(nes);}
-                (RMW, 0) => read_from_address(nes),
-                (RMW, 1) => {write_to_address(nes); func(nes);}
-                (RMW, 2) => write_to_address(nes),
-                (_,   _) => panic!(),
-            }}
-            AbsoluteX | AbsoluteY | IndirectY => { match (m, c) {
-                (R, 0)   => {read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
-                (R, 1)   => read_from_address(nes),
-                (W, 0)   => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
-                (W, 1)   => read_from_address(nes),
-                (RMW, 0) => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
+            Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => { match (cat, c) {
+                (R,   1) => {read_from_address(nes); func(nes); end_instr(nes);}
+                (W,   1) => {func(nes); end_instr(nes);}
                 (RMW, 1) => read_from_address(nes),
                 (RMW, 2) => {write_to_address(nes); func(nes);}
-                (RMW, 3) => write_to_address(nes),
-                (_, _) => panic!(),
+                (RMW, 3) => {write_to_address(nes); end_instr(nes);}
+                (_,   _) => unreachable!(),
             }}
+            AbsoluteX | AbsoluteY | IndirectY => { match (cat, c) {
+                (R, 1)   => {read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
+                (R, 2)   => {read_from_address(nes); end_instr(nes);}
+                (W, 1)   => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
+                (W, 2)   => {read_from_address(nes); end_instr(nes);}
+                (RMW, 1) => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
+                (RMW, 2) => read_from_address(nes),
+                (RMW, 3) => {write_to_address(nes); func(nes);}
+                (RMW, 4) => {write_to_address(nes); end_instr(nes);}
+                (_, _) => unreachable!(),
+            }}
+            _ => unreachable!(),
         }
 
     }
 
-
     
-
-
-
     
-
-    
-    // match instr.mode {
-    //     absolute|zeropage|zeropageX|zeropageY|indirectX => {
-    //         read => 
-    //         rmw => 
-    //         write => 
-    //     }
-    //     absoluteX|absoluteY|indirectY => {
-    //         read => 
-    //         rmw => 
-    //         write => 
-    //     }
-    // }
-    
-    /*
-    absolute 
-    
-    read
-    read, (write, operate), write
-    write
-    
-    zero page
-
-    read
-    read, (write, operate), write
-    write
-
-    zero page x/y
-
-    read
-    read, (write, operate), write
-    write
-    
-    absolute x/y
-    
-    (read, fix high byte), optionally re-read if page was crossed
-    (read, fix high byte), re-read, (write value, do operation), write new value
-    (read, fix high byte), write
-
-    indirect x
-
-    read
-    read, (write, operation), write
-    write
-
-    indirect y
-
-    (read, fix high byte), optionally re-read if page was crossed
-    (read, fix high byte), re-read, (write value, do operation), write new value
-    (read, fix high byte), write
-    
-    */
-
 
 }
-// fn log(nes: &Nes) -> String{
 
-//     // pc, opcode
-//     let mut log_line = format!("{pc:04X}  {opc:02X} ", pc=nes.cpu.pc, opc=opcode);
 
-//     // byte2, byte3
-//     match instruction.mode.num_bytes() {
-//         1 => log_line.push_str("      "),
-//         2 => log_line.push_str(&format!("{byte2:02X}    ")),
-//         3 => log_line.push_str(&format!("{byte2:02X} {byte3:02X} ")),
-//         _ => {},
-//     }
+fn end_instr(nes: &mut Nes) {
+    nes.cpu.data = 0;
+    nes.cpu.lower_address = 0;
+    nes.cpu.upper_address = 0;
+    nes.cpu.lower_pointer = 0;
+    nes.cpu.upper_pointer = 0;
+    nes.cpu.internal_carry_out = false;
+    nes.cpu.branch_offset = 0;
+    nes.cpu.branching = false;
 
-//     // opc name
-//     log_line.push_str(&format!("{name:>4} ", name=instruction.name));
+    nes.cpu.instruction_cycle = 0;
+    nes.cpu.instruction_count += 1;
+}
 
-//     // mode formatting
-//     match instruction.mode {
-//         Mode::Implied => log_line.push_str("                            "),
-//         Mode::Accumulator => log_line.push_str("A                           "),
-//         Mode::Immediate => log_line.push_str(&format!("#${byte2:02X}                        ")),
-//         Mode::Absolute => {
-//             if opcode != 0x4C && opcode != 0x20 {
-//                 log_line.push_str(&format!("${instr_addr:04X} = {instr_val:02X}                  "));
-//             } else {
-//                 log_line.push_str(&format!("${instr_addr:04X}                       "));
-//             }
-//         },
 
-//         Mode::Relative => log_line.push_str(&format!("${instr_addr:04X}                       ")),
-//         Mode::AbsoluteX => log_line.push_str(&format!("${byte3:02X}{byte2:02X},X @ {instr_addr:04X} = {instr_val:02X}         ")),
-//         Mode::AbsoluteY => log_line.push_str(&format!("${byte3:02X}{byte2:02X},Y @ {instr_addr:04X} = {instr_val:02X}         ")),
-//         Mode::ZeroPage => log_line.push_str(&format!("${byte2:02X} = {instr_val:02X}                    ")),
-//         Mode::ZeroPageX => log_line.push_str(&format!("${byte2:02X},X @ {offset:02X} = {instr_val:02X}             ", offset=byte2.wrapping_add(nes.cpu.x))),
-//         Mode::ZeroPageY => log_line.push_str(&format!("${byte2:02X},Y @ {offset:02X} = {instr_val:02X}             ", offset=byte2.wrapping_add(nes.cpu.y))),
-//         Mode::IndirectX => log_line.push_str(&format!("(${byte2:02X},X) @ {ind_addr:02X} = {instr_addr:04X} = {instr_val:02X}    ", ind_addr=byte2.wrapping_add(nes.cpu.x))),
-//         Mode::IndirectY => log_line.push_str(&format!("(${byte2:02X}),Y = {ind_addr:04X} @ {instr_addr:04X} = {instr_val:02X}  ",ind_addr=read_mem_u16_zp(byte2 as u16, nes))),
-//         Mode::AbsoluteI => log_line.push_str(&format!("(${byte3:02X}{byte2:02X}) = {instr_addr:04X}              ")),
-//     }
+fn log(nes: &Nes) -> String {
 
-//     log_line.push_str(&format!("A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}", nes.cpu.a, nes.cpu.x, nes.cpu.y, p_to_byte(nes), nes.cpu.s));
+    let pc = format!("{:04X}", nes.cpu.pc);
 
-//     log_line
-// }
+
+    let stuff = match nes.cpu.instruction.mode {
+        Accumulator => format!("A"),
+        Immediate => format!("#${:02X}", nes.cpu.trace_imm),
+        ZeroPage  => format!("${:02X} = {:02X}", nes.cpu.trace_byte2, nes.cpu.trace_stored_val),
+        ZeroPageX => format!("${:02X},X @ {:02X} = {:02X}", nes.cpu.trace_byte2, nes.cpu.get_address(), nes.cpu.trace_stored_val),
+        ZeroPageY => format!("${:02X},Y @ {:02X} = {:02X}", nes.cpu.trace_byte2, nes.cpu.get_address(), nes.cpu.trace_stored_val),
+        Absolute  => format!("${:04X?} = {:02X}", nes.cpu.get_address(), nes.cpu.trace_stored_val),
+        AbsoluteX => format!("${:04X?},X @ {:04X} = {:02X}", concat_u8(nes.cpu.trace_byte3, nes.cpu.trace_byte2), nes.cpu.get_address(), nes.cpu.trace_stored_val),
+        AbsoluteY => format!("${:04X?},Y @ {:04X} = {:02X}", concat_u8(nes.cpu.trace_byte3, nes.cpu.trace_byte2), nes.cpu.get_address(), nes.cpu.trace_stored_val),
+        IndirectX => format!("(${:02x},X) @ {:02X} = {:04X} = {:02X}", nes.cpu.trace_byte2, nes.cpu.trace_byte2.wrapping_add(nes.cpu.x), nes.cpu.get_address(), nes.cpu.trace_stored_val),
+        IndirectY => format!("(${:02x}),Y = {:04x} @ {:04x} = {:02x}", nes.cpu.trace_byte2, nes.cpu.trace_byte2.wrapping_add(nes.cpu.x), nes.cpu.get_address(), nes.cpu.trace_stored_val),
+        // sort this out for tomorrow
+        // https://github.com/bugzmanov/nes_ebook/blob/master/code/ch5.1/src/trace.rs
+        // could clear this up
+
+        // nope, I will not use this again for testing because it's annoying
+        // syntax is hard to understand
+        // I'll do a better one
+        // but just need this to run the thing with nestest
+
+
+
+    }
+
+}

@@ -59,14 +59,25 @@ pub fn load_y(nes: &mut Nes) {
 
 
 pub fn store_a(nes: &mut Nes) {
+    nes.cpu.trace_stored_val = safe_trace_read(nes.cpu.get_address(), nes);
     write_mem(nes.cpu.get_address(), nes.cpu.a, nes);
 }
 pub fn store_x(nes: &mut Nes) {
+    nes.cpu.trace_stored_val = safe_trace_read(nes.cpu.get_address(), nes);
     write_mem(nes.cpu.get_address(), nes.cpu.x, nes);
 }
 pub fn store_y(nes: &mut Nes) {
+    nes.cpu.trace_stored_val = safe_trace_read(nes.cpu.get_address(), nes);
     write_mem(nes.cpu.get_address(), nes.cpu.y, nes);
 }
+
+// Used by trace to get stored value 
+// doesn't include oamdma and apu registers
+fn safe_trace_read(addr: u16, nes: &mut Nes) -> u8 {
+    assert!(addr < 0x2000 && addr > 0x2007);
+    read_mem(addr, nes)
+}
+
 
 
 pub fn xor(nes: &mut Nes) {

@@ -10,13 +10,13 @@ use ggez::mint::{Point2, Vector2};
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
 use ggez::graphics::{self, DrawParam, Transform};
+use crate::hw::Cpu;
 
 mod emu;
 mod hw;
 mod instr_defs;
 mod util;
 mod mem;
-mod log;
 mod cpu; 
 mod ppu;
 mod outfile;
@@ -94,6 +94,7 @@ fn main() {
         frame: vec![0u8; (WIDTH * HEIGHT * 4) as usize], // *4 because of RGBA
         cart,
         skip: 1,
+        old_cpu_state: Cpu::default(),
     };
 
     let emulator = Emulator {
