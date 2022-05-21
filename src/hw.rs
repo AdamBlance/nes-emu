@@ -1,4 +1,4 @@
-use crate::opc::Instruction;
+use crate::instr_defs::Instruction;
 use crate::util::*;
 
 pub struct Nes {

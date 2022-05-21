@@ -6,23 +6,22 @@
 
 use std::fs;
 
-// GGEZ HAS CHANGED SINCE I WROTE THIS, CHECK NEW DOCUMENTATION
-
 use ggez::mint::{Point2, Vector2};
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
-use ggez::graphics::{self, Color, DrawMode, DrawParam, Transform};
+use ggez::graphics::{self, DrawParam, Transform};
 
 mod emu;
 mod hw;
-mod opc;
+mod instr_defs;
 mod util;
 mod mem;
 mod log;
 mod cpu; 
 mod ppu;
 mod outfile;
-mod instr_func;
+mod instr_funcs;
+mod addressing_funcs;
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;
