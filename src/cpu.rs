@@ -3,8 +3,8 @@ use crate::hw::*;
 use crate::mem::*;
 use crate::instr_defs::{INSTRUCTIONS, Mode::*, Category::*, Name::*};
 use crate::addressing_funcs::*;
-use crate::util::concat_u8;
-use crate::util::is_neg;
+use crate::outfile::LOGS;
+use crate::util::*;
 
 
 const DUMMY_READ_FROM_PC:      fn(&mut Nes) = read_from_pc;
@@ -14,9 +14,18 @@ const DUMMY_READ_FROM_POINTER: fn(&mut Nes) = read_from_pointer;
 pub fn step_cpu(nes: &mut Nes) {
 
     if nes.cpu.instruction_cycle == 0 {
-        let opcode = read_mem(nes.cpu.get_address(), nes);
+
+        let opcode = read_mem(nes.cpu.pc, nes);
+        nes.cpu.trace_opcode = opcode;
         nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
-        nes.old_cpu_state = nes.cpu;
+
+
+        nes.old_cpu_state = nes.cpu.clone();
+        nes.old_ppu_state = nes.ppu.clone();
+        nes.cpu.cycles += 1;
+        nes.cpu.instruction_cycle += 1;
+        
+        increment_pc(nes);
         return;
     }
 
@@ -307,8 +316,10 @@ pub fn step_cpu(nes: &mut Nes) {
         // Actually there can be a match here straight after matching with something above
         // accumulator or implied or immediate instructions
 
-        let c = nes.cpu.instruction_cycle - nes.cpu.instruction.mode.address_resolution_cycles();
+        let c = nes.cpu.instruction_cycle as u8 - nes.cpu.instruction.mode.address_resolution_cycles();
         let func = nes.cpu.instruction.name.function();
+
+        // println!("Cycles after the addressing cycles: {}", c);
 
         match nes.cpu.instruction.mode {
             Accumulator => { match c {
@@ -325,7 +336,7 @@ pub fn step_cpu(nes: &mut Nes) {
                 (RMW, 1) => read_from_address(nes),
                 (RMW, 2) => {write_to_address(nes); func(nes);}
                 (RMW, 3) => {write_to_address(nes); end_instr(nes);}
-                (_,   _) => unreachable!(),
+                (_,   _) => (),
             }}
             AbsoluteX | AbsoluteY | IndirectY => { match (cat, c) {
                 (R, 1)   => {read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
@@ -336,20 +347,38 @@ pub fn step_cpu(nes: &mut Nes) {
                 (RMW, 2) => read_from_address(nes),
                 (RMW, 3) => {write_to_address(nes); func(nes);}
                 (RMW, 4) => {write_to_address(nes); end_instr(nes);}
-                (_, _) => unreachable!(),
+                (_, _) => (),
             }}
             _ => unreachable!(),
         }
 
     }
 
-    
-    
+    nes.cpu.cycles += 1;
+    nes.cpu.instruction_cycle += 1;
 
 }
 
 
 fn end_instr(nes: &mut Nes) {
+
+    let log_str = log(nes);
+    let correct_log_str = LOGS[nes.cpu.instruction_count as usize];
+
+    if log_str == correct_log_str {
+        print!("Equal! -> ");
+        println!("{}", &log_str);
+    } else {
+        println!("Not equal!");
+        println!("Current log -> {}", &log_str);
+        println!("Correct log -> {}", &correct_log_str);
+        panic!();
+    }
+
+    if nes.cpu.cycles == 5002 {
+        panic!("You did it! Nestest passed!");
+    }
+
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
     nes.cpu.upper_address = 0;
@@ -359,38 +388,145 @@ fn end_instr(nes: &mut Nes) {
     nes.cpu.branch_offset = 0;
     nes.cpu.branching = false;
 
-    nes.cpu.instruction_cycle = 0;
+    nes.cpu.instruction_cycle = -1;
     nes.cpu.instruction_count += 1;
 }
 
 
 fn log(nes: &Nes) -> String {
 
-    let pc = format!("{:04X}", nes.cpu.pc);
 
+    let instr_len = match nes.cpu.instruction.mode {
+        Accumulator => 1,
+        Implied => 1,
+        Immediate => 2,
+        Absolute  => 3,
+        AbsoluteX => 3,
+        AbsoluteY => 3,
+        ZeroPage  => 2,
+        ZeroPageX => 2,
+        ZeroPageY => 2,
+        Relative  => 2,
+        IndirectX => 2,
+        IndirectY => 2,
+        AbsoluteI => 3,
+    };
 
-    let stuff = match nes.cpu.instruction.mode {
-        Accumulator => format!("A"),
-        Immediate => format!("#${:02X}", nes.cpu.trace_imm),
-        ZeroPage  => format!("${:02X} = {:02X}", nes.cpu.trace_byte2, nes.cpu.trace_stored_val),
-        ZeroPageX => format!("${:02X},X @ {:02X} = {:02X}", nes.cpu.trace_byte2, nes.cpu.get_address(), nes.cpu.trace_stored_val),
-        ZeroPageY => format!("${:02X},Y @ {:02X} = {:02X}", nes.cpu.trace_byte2, nes.cpu.get_address(), nes.cpu.trace_stored_val),
-        Absolute  => format!("${:04X?} = {:02X}", nes.cpu.get_address(), nes.cpu.trace_stored_val),
-        AbsoluteX => format!("${:04X?},X @ {:04X} = {:02X}", concat_u8(nes.cpu.trace_byte3, nes.cpu.trace_byte2), nes.cpu.get_address(), nes.cpu.trace_stored_val),
-        AbsoluteY => format!("${:04X?},Y @ {:04X} = {:02X}", concat_u8(nes.cpu.trace_byte3, nes.cpu.trace_byte2), nes.cpu.get_address(), nes.cpu.trace_stored_val),
-        IndirectX => format!("(${:02x},X) @ {:02X} = {:04X} = {:02X}", nes.cpu.trace_byte2, nes.cpu.trace_byte2.wrapping_add(nes.cpu.x), nes.cpu.get_address(), nes.cpu.trace_stored_val),
-        IndirectY => format!("(${:02x}),Y = {:04x} @ {:04x} = {:02x}", nes.cpu.trace_byte2, nes.cpu.trace_byte2.wrapping_add(nes.cpu.x), nes.cpu.get_address(), nes.cpu.trace_stored_val),
-        // sort this out for tomorrow
-        // https://github.com/bugzmanov/nes_ebook/blob/master/code/ch5.1/src/trace.rs
-        // could clear this up
+    let mut bytes_str = String::new();
 
-        // nope, I will not use this again for testing because it's annoying
-        // syntax is hard to understand
-        // I'll do a better one
-        // but just need this to run the thing with nestest
+    let opcode_str = format!("{:02X} ", nes.cpu.trace_opcode);
+    bytes_str.push_str(&opcode_str);
 
-
-
+    if instr_len >= 2 {
+        let byte2_str = format!("{:02X} ", nes.cpu.trace_byte2);
+        bytes_str.push_str(&byte2_str);
+    }
+    if instr_len == 3 {
+        let byte3_str = format!("{:02X}", nes.cpu.trace_byte3);
+        bytes_str.push_str(&byte3_str);
     }
 
+    let mut instr_str = format!("{:?} ", nes.cpu.instruction.name);
+
+    let addressing_str = match nes.cpu.instruction.mode {
+        Implied => String::new(),
+        Accumulator => format!(
+            "A"
+        ),
+        Immediate => format!(
+            "#${:02X}", 
+            nes.cpu.trace_imm
+        ),
+        ZeroPage => format!(
+            "${:02X} = {:02X}", 
+            nes.cpu.trace_byte2, 
+            nes.cpu.trace_stored_val
+        ),
+        ZeroPageX => format!(
+            "${:02X},X @ {:02X} = {:02X}", 
+            nes.cpu.trace_byte2, 
+            nes.cpu.get_address(), 
+            nes.cpu.trace_stored_val
+        ),
+        ZeroPageY => format!(
+            "${:02X},Y @ {:02X} = {:02X}", 
+            nes.cpu.trace_byte2, 
+            nes.cpu.get_address(), 
+            nes.cpu.trace_stored_val
+        ),
+        Absolute => {
+            if nes.cpu.instruction.name != JMP && nes.cpu.instruction.name != JSR {
+                format!(
+                    "${:04X?} = {:02X}", 
+                    nes.cpu.get_address(), 
+                    nes.cpu.trace_stored_val
+                )
+            } else {
+                format!(
+                    "${:04X?}", 
+                    nes.cpu.get_address(), 
+                )
+            }
+        }
+
+        AbsoluteX => format!(
+            "${:04X?},X @ {:04X} = {:02X}", 
+            concat_u8(nes.cpu.trace_byte3, nes.cpu.trace_byte2), 
+            nes.cpu.get_address(), 
+            nes.cpu.trace_stored_val
+        ),
+        AbsoluteY => format!(
+            "${:04X?},Y @ {:04X} = {:02X}", 
+            concat_u8(nes.cpu.trace_byte3, nes.cpu.trace_byte2), 
+            nes.cpu.get_address(), 
+            nes.cpu.trace_stored_val
+        ),
+        IndirectX => format!(
+            "(${:02x},X) @ {:02X} = {:04X} = {:02X}", 
+            nes.cpu.trace_byte2, 
+            nes.cpu.trace_byte2.wrapping_add(nes.cpu.x), 
+            nes.cpu.get_address(), 
+            nes.cpu.trace_stored_val
+        ),
+        IndirectY => format!(
+            "(${:02x}),Y = {:04x} @ {:04x} = {:02x}", 
+            nes.cpu.trace_byte2, 
+            concat_u8(nes.cpu.upper_pointer, nes.cpu.lower_pointer),
+            nes.cpu.get_address(), 
+            nes.cpu.trace_stored_val
+        ),
+        AbsoluteI => format!(
+            "(${:04X}) = {:04X}",
+            concat_u8(nes.cpu.upper_pointer, nes.cpu.lower_pointer),
+            nes.cpu.pc,
+        ),
+        Relative => format!(
+            "${:04X}",
+            nes.cpu.pc,
+        ),
+    };
+
+    instr_str.push_str(&addressing_str);
+    
+    let register_str = format!(
+        "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{:>3},{:>3} CYC:{}",
+        nes.old_cpu_state.a,
+        nes.old_cpu_state.x,
+        nes.old_cpu_state.y,
+        nes.old_cpu_state.get_p(),
+        nes.old_cpu_state.s,
+        nes.old_ppu_state.scanline,
+        nes.old_ppu_state.scanline_cycle,
+        nes.old_cpu_state.cycles,
+    );
+    
+    let log_str = format!(
+        "{:04X}  {:10}{:32}{}",
+        nes.old_cpu_state.pc,
+        &bytes_str,
+        &instr_str,
+        &register_str,
+    );
+
+    log_str
 }

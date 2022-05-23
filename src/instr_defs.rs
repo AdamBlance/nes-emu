@@ -40,7 +40,7 @@ impl Default for Instruction {
 }
 
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Name {
     // Official opcodes
     LDA, LDX, LDY, 
@@ -209,6 +209,7 @@ pub enum Category {
 
 
 pub static INSTRUCTIONS: [Instruction; 256] = [
+    // 0
     Instruction {name:  BRK, mode: Implied,     category: C},
     Instruction {name:  ORA, mode: IndirectX,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
@@ -225,6 +226,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  ORA, mode: Absolute,    category: R},
     Instruction {name:  ASL, mode: Absolute,    category: RMW},
     Instruction {name: USLO, mode: Absolute,    category: R},
+    // 1
     Instruction {name:  BPL, mode: Relative,    category: B},
     Instruction {name:  ORA, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
@@ -241,6 +243,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  ORA, mode: AbsoluteX,   category: R},
     Instruction {name:  ASL, mode: AbsoluteX,   category: RMW},
     Instruction {name: USLO, mode: AbsoluteX,   category: R},
+
     Instruction {name:  JSR, mode: Absolute,    category: C},
     Instruction {name:  AND, mode: IndirectX,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
@@ -257,6 +260,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  AND, mode: Absolute,    category: R},
     Instruction {name:  ROL, mode: Absolute,    category: RMW},
     Instruction {name: URLA, mode: Absolute,    category: R},
+
     Instruction {name:  BMI, mode: Relative,    category: B},
     Instruction {name:  AND, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
@@ -273,6 +277,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  AND, mode: AbsoluteX,   category: R},
     Instruction {name:  ROL, mode: AbsoluteX,   category: RMW},
     Instruction {name: URLA, mode: AbsoluteX,   category: R},
+
     Instruction {name:  RTI, mode: Implied,     category: C},
     Instruction {name:  EOR, mode: IndirectX,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
@@ -289,6 +294,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  EOR, mode: Absolute,    category: R},
     Instruction {name:  LSR, mode: Absolute,    category: RMW},
     Instruction {name: USRE, mode: Absolute,    category: R},
+
     Instruction {name:  BVC, mode: Relative,    category: B},
     Instruction {name:  EOR, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
@@ -305,6 +311,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  EOR, mode: AbsoluteX,   category: R},
     Instruction {name:  LSR, mode: AbsoluteX,   category: RMW},
     Instruction {name: USRE, mode: AbsoluteX,   category: R},
+
     Instruction {name:  RTS, mode: Implied,     category: C},
     Instruction {name:  ADC, mode: IndirectX,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
@@ -321,6 +328,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  ADC, mode: Absolute,    category: R},
     Instruction {name:  ROR, mode: Absolute,    category: RMW},
     Instruction {name: URRA, mode: Absolute,    category: R},
+
     Instruction {name:  BVS, mode: Relative,    category: B},
     Instruction {name:  ADC, mode: IndirectY,   category: R},
     Instruction {name: UJAM, mode: Implied,     category: R},
@@ -337,6 +345,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  ADC, mode: AbsoluteX,   category: R},
     Instruction {name:  ROR, mode: AbsoluteX,   category: RMW},
     Instruction {name: URRA, mode: AbsoluteX,   category: R},
+
     Instruction {name: UNOP, mode: Immediate,   category: R},
     Instruction {name:  STA, mode: IndirectX,   category: W},
     Instruction {name: UNOP, mode: Immediate,   category: R},

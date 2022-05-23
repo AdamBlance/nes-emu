@@ -9,6 +9,7 @@ pub struct Nes {
     pub frame: Vec<u8>,
     pub skip: u64,
     pub old_cpu_state: Cpu,
+    pub old_ppu_state: Ppu,
 }
 
 pub struct Cartridge {
@@ -18,7 +19,7 @@ pub struct Cartridge {
     pub v_mirroring: bool,
 }
 
-// feel like I need some good comments here
+#[derive(Copy, Clone)]
 pub struct Ppu {
     // PPUCTRL
     pub nmi_enable: bool,
@@ -167,7 +168,7 @@ pub struct Cpu {
     pub upper_pointer:   u8,
     pub branch_offset: u8,
     pub branching: bool,
-    pub instruction_cycle: u8,
+    pub instruction_cycle: i8,
     // Interrupts
     pub nmi_interrupt:     bool,
     pub nmi_internal_flag: bool,
@@ -176,6 +177,7 @@ pub struct Cpu {
     pub instruction_count: u64,
 
     // nestest
+    pub trace_opcode: u8,
     pub trace_byte2: u8,
     pub trace_byte3: u8,
     pub trace_imm: u8,

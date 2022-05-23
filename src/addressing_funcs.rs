@@ -38,6 +38,7 @@ pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
 pub fn fetch_immediate_from_pc(nes: &mut Nes) {
     nes.cpu.data = read_mem(nes.cpu.pc, nes);
     nes.cpu.trace_imm = nes.cpu.data;
+    nes.cpu.trace_byte2 = nes.cpu.trace_imm;
 }
 
 // Address
@@ -116,6 +117,7 @@ pub fn write_to_address(nes: &mut Nes) {
 
 pub fn fetch_branch_offset_from_pc(nes: &mut Nes) {
     nes.cpu.branch_offset = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_byte2 = nes.cpu.branch_offset;
 }
 
 // Stack push

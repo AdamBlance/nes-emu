@@ -13,6 +13,7 @@ pub fn run_to_vblank(nes: &mut Nes) {
         // alright, apparently interrupts take 7 cycles to process 
         // https://forums.nesdev.org/viewtopic.php?t=18570
         nes.cpu.cycles = 7;
+        nes.ppu.scanline_cycle = 21;
         nes.cpu.p_i = true;
         nes.cpu.s = 0xFD;
     }
@@ -24,7 +25,6 @@ pub fn run_to_vblank(nes: &mut Nes) {
 
     loop {
         cpu::step_cpu(nes);
-        nes.cpu.cycles += 1;
         ppu::step_ppu(nes);
         ppu::step_ppu(nes);
         ppu::step_ppu(nes);

@@ -10,7 +10,7 @@ use ggez::mint::{Point2, Vector2};
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
 use ggez::graphics::{self, DrawParam, Transform};
-use crate::hw::Cpu;
+use crate::hw::*;
 
 mod emu;
 mod hw;
@@ -95,6 +95,7 @@ fn main() {
         cart,
         skip: 1,
         old_cpu_state: Cpu::default(),
+        old_ppu_state: Ppu::default(),
     };
 
     let emulator = Emulator {
