@@ -4,7 +4,7 @@ use crate::util::*;
 
 
 
-fn update_p_nz(val: u8, nes: &mut Nes) {
+pub fn update_p_nz(val: u8, nes: &mut Nes) {
     nes.cpu.p_n = val > 0x7F;
     nes.cpu.p_z = val == 0;
 }
@@ -83,17 +83,20 @@ fn safe_trace_read(addr: u16, nes: &mut Nes) -> u8 {
 
 pub fn xor(nes: &mut Nes) {
     nes.cpu.a ^= nes.cpu.data;
+    update_p_nz(nes.cpu.a, nes);
 }
 pub fn or(nes: &mut Nes) {
     nes.cpu.a |= nes.cpu.data;
+    update_p_nz(nes.cpu.a, nes);
 }
 pub fn and(nes: &mut Nes) {
     nes.cpu.a &= nes.cpu.data;
+    update_p_nz(nes.cpu.a, nes);
 }
 pub fn bit(nes: &mut Nes) {
     let result = nes.cpu.data & nes.cpu.a;
-    nes.cpu.p_n = get_bit(result, 7);
-    nes.cpu.p_v = get_bit(result, 6);
+    nes.cpu.p_n = get_bit(nes.cpu.data, 7);
+    nes.cpu.p_v = get_bit(nes.cpu.data, 6);
     nes.cpu.p_z = result == 0;
 }
 
@@ -141,9 +144,11 @@ pub fn rotate_right(nes: &mut Nes) {
 
 pub fn add_with_carry(nes: &mut Nes) {
     add_value_to_a_with_carry(nes.cpu.data, nes);
+    update_p_nz(nes.cpu.a, nes);
 }
 pub fn subtract_with_carry(nes: &mut Nes) {
     add_value_to_a_with_carry(!nes.cpu.data, nes);
+    update_p_nz(nes.cpu.a, nes);
 }
 
 

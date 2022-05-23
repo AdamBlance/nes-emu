@@ -77,12 +77,14 @@ pub fn add_lower_address_carry_bit_to_upper_address(nes: &mut Nes) {
 
 pub fn fetch_lower_pointer_address_from_pc(nes: &mut Nes) {
     nes.cpu.lower_pointer = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_byte2 = nes.cpu.lower_pointer;
 }
 pub fn fetch_upper_pointer_address_from_pc(nes: &mut Nes) {
     nes.cpu.upper_pointer = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_byte3 = nes.cpu.upper_pointer;
 }
 pub fn increment_lower_pointer(nes: &mut Nes) {
-    nes.cpu.lower_address = nes.cpu.lower_address.wrapping_add(1);
+    nes.cpu.lower_pointer = nes.cpu.lower_pointer.wrapping_add(1);
 }
 pub fn add_x_to_lower_pointer(nes: &mut Nes) {
     nes.cpu.lower_pointer = nes.cpu.lower_pointer.wrapping_add(nes.cpu.x);
@@ -133,10 +135,10 @@ pub fn push_upper_pc_to_stack(nes: &mut Nes) {
     push_to_stack((nes.cpu.pc >> 8) as u8, nes);    
 }
 pub fn push_p_to_stack(nes: &mut Nes) {
-    push_to_stack(nes.cpu.get_p(), nes);
+    push_to_stack(nes.cpu.get_p() | 0b0011_0000, nes);
 }
-pub fn push_p_to_stack_with_brk_flag(nes: &mut Nes) {
-    push_to_stack(nes.cpu.get_p() | 0b0001_0000, nes);
+pub fn push_p_to_stack_during_interrupt(nes: &mut Nes) {
+    push_to_stack(nes.cpu.get_p() | 0b0010_0000, nes);
 }
 pub fn push_a_to_stack(nes: &mut Nes) {
     push_to_stack(nes.cpu.a, nes);

@@ -15,6 +15,8 @@ pub fn run_to_vblank(nes: &mut Nes) {
         nes.cpu.cycles = 7;
         nes.ppu.scanline_cycle = 21;
         nes.cpu.p_i = true;
+        nes.cpu.p_b5 = true;
+        nes.cpu.p_b4 = false;
         nes.cpu.s = 0xFD;
     }
     

@@ -103,6 +103,10 @@ impl Name {
             INX => instr_funcs::increment_x,
             INY => instr_funcs::increment_y,
             
+            CMP => instr_funcs::compare_memory_with_a,
+            CPX => instr_funcs::compare_memory_with_x,
+            CPY => instr_funcs::compare_memory_with_y,
+
             CLC => instr_funcs::clear_carry_flag,
             CLD => instr_funcs::clear_decimal_flag,
             CLI => instr_funcs::clear_interrupt_flag,

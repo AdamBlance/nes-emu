@@ -5,6 +5,7 @@ use crate::instr_defs::{INSTRUCTIONS, Mode::*, Category::*, Name::*};
 use crate::addressing_funcs::*;
 use crate::outfile::LOGS;
 use crate::util::*;
+use crate::instr_funcs::update_p_nz;
 
 
 const DUMMY_READ_FROM_PC:      fn(&mut Nes) = read_from_pc;
@@ -66,7 +67,7 @@ pub fn step_cpu(nes: &mut Nes) {
                 1 => {DUMMY_READ_FROM_PC(nes); increment_pc(nes);}
                 2 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
                 3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
-                4 => {push_p_to_stack_with_brk_flag(nes); decrement_s(nes);}
+                4 => {push_p_to_stack(nes); decrement_s(nes);}
                 5 => {fetch_lower_pc_from_interrupt_vector(nes);}
                 6 => {fetch_upper_pc_from_interrupt_vector(nes); end_instr(nes);}
                 _ => unreachable!(),
@@ -108,7 +109,7 @@ pub fn step_cpu(nes: &mut Nes) {
             (PLA, _) => { match c {
                 1 => {DUMMY_READ_FROM_PC(nes);}
                 2 => {increment_s(nes);}
-                3 => {pull_a_from_stack(nes); end_instr(nes);}
+                3 => {pull_a_from_stack(nes); update_p_nz(nes.cpu.a, nes); end_instr(nes);}
                 _ => unreachable!(),
             }}
             (PLP, _) => { match c {
@@ -125,7 +126,7 @@ pub fn step_cpu(nes: &mut Nes) {
             (JMP, AbsoluteI) => { match c {
                 1 => {fetch_lower_pointer_address_from_pc(nes); increment_pc(nes);}
                 2 => {fetch_upper_pointer_address_from_pc(nes); increment_pc(nes);}
-                3 => {fetch_lower_address_from_pointer(nes);}
+                3 => {fetch_lower_address_from_pointer(nes); increment_lower_pointer(nes);}
                 4 => {fetch_upper_address_from_pointer(nes); copy_address_to_pc(nes); end_instr(nes);}
                 _ => unreachable!(),
             }}
@@ -240,7 +241,7 @@ pub fn step_cpu(nes: &mut Nes) {
             }}
             IndirectX => { match c {
                 1 => {fetch_lower_pointer_address_from_pc(nes); increment_pc(nes);}
-                2 => {DUMMY_READ_FROM_POINTER(nes); add_x_to_lower_address(nes);}
+                2 => {DUMMY_READ_FROM_POINTER(nes); add_x_to_lower_pointer(nes);}
                 3 => {fetch_lower_address_from_pointer(nes); increment_lower_pointer(nes);}
                 4 => {fetch_upper_address_from_pointer(nes);}
                 _ => (),
@@ -316,7 +317,14 @@ pub fn step_cpu(nes: &mut Nes) {
         // Actually there can be a match here straight after matching with something above
         // accumulator or implied or immediate instructions
 
-        let c = nes.cpu.instruction_cycle as u8 - nes.cpu.instruction.mode.address_resolution_cycles();
+        let temp1 = nes.cpu.instruction_cycle as u8;
+        let temp2 = nes.cpu.instruction.mode.address_resolution_cycles();
+
+        // println!("instruction? {:?}", nes.cpu.instruction.name);
+        // println!("addressing mode {:?}", nes.cpu.instruction.mode);
+        // println!("instruction cycle {}, resolution cycles {}", temp1, temp2);
+
+        let c = nes.cpu.instruction_cycle as i8 - nes.cpu.instruction.mode.address_resolution_cycles() as i8;
         let func = nes.cpu.instruction.name.function();
 
         // println!("Cycles after the addressing cycles: {}", c);
@@ -339,20 +347,33 @@ pub fn step_cpu(nes: &mut Nes) {
                 (_,   _) => (),
             }}
             AbsoluteX | AbsoluteY | IndirectY => { match (cat, c) {
-                (R, 1)   => {read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
-                (R, 2)   => {read_from_address(nes); end_instr(nes);}
+                (R, 1)   => {
+                    read_from_address(nes); 
+                    add_lower_address_carry_bit_to_upper_address(nes);
+                    if !nes.cpu.internal_carry_out {
+                        func(nes);
+                        end_instr(nes);
+                    }
+                }
+                (R, 2)   => {read_from_address(nes); func(nes); end_instr(nes);}
+
                 (W, 1)   => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
-                (W, 2)   => {read_from_address(nes); end_instr(nes);}
+                (W, 2)   => {func(nes); end_instr(nes);}
+
                 (RMW, 1) => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
                 (RMW, 2) => read_from_address(nes),
                 (RMW, 3) => {write_to_address(nes); func(nes);}
                 (RMW, 4) => {write_to_address(nes); end_instr(nes);}
+
                 (_, _) => (),
             }}
             _ => unreachable!(),
         }
 
     }
+
+    // println!("End of instruction cycle {}, address is {}", nes.cpu.instruction_cycle, nes.cpu.get_address());
+
 
     nes.cpu.cycles += 1;
     nes.cpu.instruction_cycle += 1;
@@ -375,7 +396,7 @@ fn end_instr(nes: &mut Nes) {
         panic!();
     }
 
-    if nes.cpu.cycles == 5002 {
+    if nes.cpu.instruction_count == 5002 {
         panic!("You did it! Nestest passed!");
     }
 
@@ -394,6 +415,8 @@ fn end_instr(nes: &mut Nes) {
 
 
 fn log(nes: &Nes) -> String {
+
+    // println!("RAM {:02X} = {:02X}", 0x89, nes.wram[0x89]);
 
 
     let instr_len = match nes.cpu.instruction.mode {
@@ -482,32 +505,33 @@ fn log(nes: &Nes) -> String {
             nes.cpu.trace_stored_val
         ),
         IndirectX => format!(
-            "(${:02x},X) @ {:02X} = {:04X} = {:02X}", 
+            "(${:02X},X) @ {:02X} = {:04X} = {:02X}", 
             nes.cpu.trace_byte2, 
             nes.cpu.trace_byte2.wrapping_add(nes.cpu.x), 
             nes.cpu.get_address(), 
             nes.cpu.trace_stored_val
         ),
         IndirectY => format!(
-            "(${:02x}),Y = {:04x} @ {:04x} = {:02x}", 
+            "(${:02X}),Y = {:04X} @ {:04X} = {:02X}", 
             nes.cpu.trace_byte2, 
-            concat_u8(nes.cpu.upper_pointer, nes.cpu.lower_pointer),
+            nes.cpu.get_address().wrapping_sub(nes.cpu.y as u16),
             nes.cpu.get_address(), 
             nes.cpu.trace_stored_val
         ),
         AbsoluteI => format!(
             "(${:04X}) = {:04X}",
-            concat_u8(nes.cpu.upper_pointer, nes.cpu.lower_pointer),
+            concat_u8(nes.cpu.upper_pointer, nes.cpu.lower_pointer.wrapping_sub(1)),
             nes.cpu.pc,
         ),
         Relative => format!(
             "${:04X}",
-            nes.cpu.pc,
+            nes.old_cpu_state.pc.wrapping_add_signed(2 + nes.cpu.branch_offset as i8 as i16),
         ),
     };
 
     instr_str.push_str(&addressing_str);
     
+
     let register_str = format!(
         "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{:>3},{:>3} CYC:{}",
         nes.old_cpu_state.a,

@@ -157,6 +157,11 @@ pub struct Cpu {
     pub p_i: bool,
     pub p_z: bool,
     pub p_c: bool,
+
+    // don't actually exist, just trying to match nestest log
+    pub p_b5: bool,
+    pub p_b4: bool,
+
     // Internal
     pub pc:             u16,
     pub instruction:    Instruction,
@@ -200,8 +205,8 @@ impl Cpu {
     pub fn get_p(&self) -> u8 {
         (self.p_n as u8) << 7 | 
         (self.p_v as u8) << 6 | 
-                       1 << 5 | 
-        /*  set during BRK   */
+        1 << 5 |
+        // (self.p_b4 as u8) << 4 |
         (self.p_d as u8) << 3 |
         (self.p_i as u8) << 2 |
         (self.p_z as u8) << 1 |
@@ -210,6 +215,8 @@ impl Cpu {
     pub fn set_p(&mut self, byte: u8) {
         self.p_n = get_bit(byte, 7);
         self.p_v = get_bit(byte, 6);
+        // self.p_b5 = get_bit(byte, 5);
+        // self.p_b4 = get_bit(byte, 4);
         self.p_d = get_bit(byte, 3);
         self.p_i = get_bit(byte, 2);
         self.p_z = get_bit(byte, 1);
