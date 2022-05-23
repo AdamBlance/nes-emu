@@ -59,15 +59,15 @@ pub fn load_y(nes: &mut Nes) {
 
 
 pub fn store_a(nes: &mut Nes) {
-    nes.cpu.trace_stored_val = safe_trace_read(nes.cpu.get_address(), nes);
+    // nes.cpu.trace_stored_val = safe_trace_read(nes.cpu.get_address(), nes);
     write_mem(nes.cpu.get_address(), nes.cpu.a, nes);
 }
 pub fn store_x(nes: &mut Nes) {
-    nes.cpu.trace_stored_val = safe_trace_read(nes.cpu.get_address(), nes);
+    // nes.cpu.trace_stored_val = safe_trace_read(nes.cpu.get_address(), nes);
     write_mem(nes.cpu.get_address(), nes.cpu.x, nes);
 }
 pub fn store_y(nes: &mut Nes) {
-    nes.cpu.trace_stored_val = safe_trace_read(nes.cpu.get_address(), nes);
+    // nes.cpu.trace_stored_val = safe_trace_read(nes.cpu.get_address(), nes);
     write_mem(nes.cpu.get_address(), nes.cpu.y, nes);
 }
 

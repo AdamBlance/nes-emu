@@ -14,41 +14,64 @@ const DUMMY_READ_FROM_POINTER: fn(&mut Nes) = read_from_pointer;
 
 pub fn step_cpu(nes: &mut Nes) {
 
-    if nes.cpu.instruction_cycle == 0 {
+    /*
+        If the NMI signal has been raised by the PPU 
+        AND the instruction that was running at the time it was raised has completed
+        AND the CPU is not already transferring control to the NMI handler,
+        start transferring control to the NMI handler. 
 
-        let opcode = read_mem(nes.cpu.pc, nes);
-        nes.cpu.trace_opcode = opcode;
-        nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
+        Once completed, reset all flags. 
+        The CPU doesn't actually reset the NMI signal when it's done since the PPU controls it. 
+        Not sure about the exact steps involved.
+    */
+    if nes.cpu.nmi_interrupt && nes.cpu.instruction_cycle == 0 && !nes.cpu.nmi_internal_flag {
+        nes.cpu.nmi_internal_flag = true;
+    }
 
-
-        nes.old_cpu_state = nes.cpu.clone();
-        nes.old_ppu_state = nes.ppu.clone();
-        nes.cpu.cycles += 1;
+    if nes.cpu.nmi_internal_flag {
+        println!("In NMI");
+        match nes.cpu.instruction_cycle {
+            0 => DUMMY_READ_FROM_PC(nes),
+            1 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
+            2 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
+            3 => {push_p_to_stack_during_interrupt(nes); decrement_s(nes);}
+            4 => {fetch_lower_pc_from_nmi_vector(nes);}
+            5 => {
+                fetch_upper_pc_from_nmi_vector(nes); 
+                nes.cpu.nmi_interrupt = false;
+                nes.cpu.nmi_internal_flag = false;
+                nes.cpu.instruction_cycle = -1;
+            }
+            _ => unreachable!(),
+        }
         nes.cpu.instruction_cycle += 1;
-        
-        increment_pc(nes);
         return;
     }
 
 
 
-    /*
-    
-        Need some way to signal the end of an instruction when it exits early 
-        For example, branch, which has extra cycles when it branches and if page boundary is crossed
+
+    if nes.cpu.instruction_cycle == 0 {
+
+        let opcode = read_mem(nes.cpu.pc, nes);
+
+        nes.cpu.trace_opcode = opcode;
+        nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
         
-        Also, all instructions need to exit at some point? 
+        if nes.cpu.instruction.name == UJAM {
+            nes.jammed = true;
+        }
 
-        There's no point in storing an explicit cycle count for each instruction since 
-        that will be inaccurate depending on optional cycles
+        nes.old_cpu_state = nes.cpu;
+        nes.old_ppu_state = nes.ppu;
 
-        Just need to set the cycles to 0? 
-        Also reset the temp values to 0
-        Increment instruction counter
-    
-    
-    */
+        increment_pc(nes);
 
+        nes.cpu.cycles += 1;
+        nes.cpu.instruction_cycle += 1;
+        
+        return;
+    }
 
 
 
@@ -160,7 +183,7 @@ pub fn step_cpu(nes: &mut Nes) {
                 // Idk where it's reading from 
                 // come back to this later, should work fine for the now
                 let prev_pcl = nes.cpu.pc as u8;
-                let (new_pcl, overflow) = prev_pcl.overflowing_add(nes.cpu.branch_offset);
+                let (new_pcl, overflow) = prev_pcl.overflowing_add_signed(nes.cpu.branch_offset as i8);
                 
                 nes.cpu.set_lower_pc(new_pcl);
 
@@ -384,21 +407,23 @@ pub fn step_cpu(nes: &mut Nes) {
 fn end_instr(nes: &mut Nes) {
 
     let log_str = log(nes);
-    let correct_log_str = LOGS[nes.cpu.instruction_count as usize];
 
-    if log_str == correct_log_str {
-        print!("Equal! -> ");
-        println!("{}", &log_str);
-    } else {
-        println!("Not equal!");
-        println!("Current log -> {}", &log_str);
-        println!("Correct log -> {}", &correct_log_str);
-        panic!();
-    }
+    println!("{}", &log_str);
+    // let correct_log_str = LOGS[nes.cpu.instruction_count as usize];
 
-    if nes.cpu.instruction_count == 5002 {
-        panic!("You did it! Nestest passed!");
-    }
+    // if log_str == correct_log_str {
+    //     print!("Equal! -> ");
+    //     println!("{}", &log_str);
+    // } else {
+    //     println!("Not equal!");
+    //     println!("Current log -> {}", &log_str);
+    //     println!("Correct log -> {}", &correct_log_str);
+    //     panic!();
+    // }
+
+    // if nes.cpu.instruction_count == 5002 {
+    //     panic!("You did it! Nestest passed!");
+    // }
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;

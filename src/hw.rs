@@ -10,6 +10,7 @@ pub struct Nes {
     pub skip: u64,
     pub old_cpu_state: Cpu,
     pub old_ppu_state: Ppu,
+    pub jammed: bool,
 }
 
 pub struct Cartridge {

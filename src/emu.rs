@@ -2,21 +2,21 @@ use std::io;
 
 use crate::hw::*;
 use crate::cpu;
+use crate::mem::read_mem;
 use crate::ppu;
+use crate::util::concat_u8;
 
 
 pub fn run_to_vblank(nes: &mut Nes) {
 
     if nes.cpu.cycles == 0 {
         // nes.cpu.pc = read_mem_u16(0xFFFC, nes);
-        nes.cpu.pc = 0xC000;
+        nes.cpu.pc = concat_u8(read_mem(0xFFFD, nes), read_mem(0xFFFC, nes));
         // alright, apparently interrupts take 7 cycles to process 
         // https://forums.nesdev.org/viewtopic.php?t=18570
         nes.cpu.cycles = 7;
         nes.ppu.scanline_cycle = 21;
         nes.cpu.p_i = true;
-        nes.cpu.p_b5 = true;
-        nes.cpu.p_b4 = false;
         nes.cpu.s = 0xFD;
     }
     

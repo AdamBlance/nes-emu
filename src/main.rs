@@ -10,6 +10,7 @@ use ggez::mint::{Point2, Vector2};
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
 use ggez::graphics::{self, DrawParam, Transform};
+use ggez::audio::{Source, SoundSource};
 use crate::hw::*;
 
 mod emu;
@@ -36,6 +37,18 @@ impl EventHandler<ggez::GameError> for Emulator {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
         emu::run_to_vblank(&mut self.nes);
 
+
+        if self.nes.jammed {
+            let mut sound = Source::new(_ctx, "/jam.mp3")?;
+
+            sound.play_detached(_ctx)?;
+
+            self.nes.jammed = false;
+        }
+
+
+
+
         Ok(())
     }
 
@@ -58,7 +71,7 @@ impl EventHandler<ggez::GameError> for Emulator {
 
 fn main() {
 
-    let ines_data = fs::read("nestest.nes").expect("Failed to read rom");
+    let ines_data = fs::read("donkeykong.nes").expect("Failed to read rom");
 
     // If the file isn't long enough to contain ines header, quit
     if ines_data.len() < 16 {
@@ -96,6 +109,7 @@ fn main() {
         skip: 1,
         old_cpu_state: Cpu::default(),
         old_ppu_state: Ppu::default(),
+        jammed: false,
     };
 
     let emulator = Emulator {

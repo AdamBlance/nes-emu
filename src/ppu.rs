@@ -476,6 +476,7 @@ fn fill_attribute_latch(nes: &mut Nes) {
 
 
 fn draw_pixel(nes: &mut Nes) {
+
     // Render pixel!
     let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, nes.ppu.x) as u8;
     let msb_attr = get_bit(nes.ppu.attr_msb_sr, nes.ppu.x) as u8;
