@@ -477,17 +477,32 @@ fn fill_attribute_latch(nes: &mut Nes) {
 
 fn draw_pixel(nes: &mut Nes) {
 
-    // Render pixel!
-    let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, nes.ppu.x) as u8;
-    let msb_attr = get_bit(nes.ppu.attr_msb_sr, nes.ppu.x) as u8;
-    let lsb_ptable = get_bit_u16(nes.ppu.ptable_lsb_sr, nes.ppu.x + 8) as u8;
-    let msb_ptable = get_bit_u16(nes.ppu.ptable_msb_sr, nes.ppu.x + 8) as u8;
+    // need to log out everything about the internal state of the ppu and match it with stuff I understand
 
-    let palette_index = (msb_ptable << 3) 
+    //  {
+    //     println!("sl: {}, cyc: {}", nes.ppu.scanline, nes.ppu.scanline_cycle);
+    //     println!("v: {:016b} ({:04X})", nes.ppu.v, nes.ppu.v);
+    //     println!("t: {:016b} ({:04X}), x: {:08b}", nes.ppu.t, nes.ppu.t, nes.ppu.x);
+    //     println!("pt_lsb_sr: {:016b}", nes.ppu.ptable_lsb_sr);
+    //     println!("pt_msb_sr: {:016b}", nes.ppu.ptable_msb_sr);
+    //     println!("at_lsb_sr: {:08b}", nes.ppu.attr_lsb_sr);
+    //     println!("at_msb_sr: {:08b}", nes.ppu.attr_msb_sr);
+    // }
+
+
+    // Render pixel!
+    let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, nes.ppu.x) as u16;
+    let msb_attr = get_bit(nes.ppu.attr_msb_sr, nes.ppu.x) as u16;
+    let lsb_ptable = get_bit_u16(nes.ppu.ptable_lsb_sr, nes.ppu.x + 8) as u16;
+    let msb_ptable = get_bit_u16(nes.ppu.ptable_msb_sr, nes.ppu.x + 8) as u16;
+
+    let palette_index =   (msb_ptable << 3) + 0x3F00
                         | (lsb_ptable << 2) 
                         | (msb_attr   << 1) 
                         |  lsb_attr;
     
+    // println!("idx {} pal {:?}", palette_index, nes.ppu.palette_mem);
+
     let frame_index = ((nes.ppu.scanline * 256 + nes.ppu.scanline_cycle - 1) * 4) as usize;
     
     let pixel_hue_value = read_vram(palette_index as u16, nes);
@@ -497,6 +512,18 @@ fn draw_pixel(nes: &mut Nes) {
     nes.frame[frame_index + 1] = pixel_rgb.1;  // G
     nes.frame[frame_index + 2] = pixel_rgb.2;  // B
     nes.frame[frame_index + 3] =           255;  // A
+
+    // println!(
+        // "attribute: {:}, pattern: {}, palette_idx: {}", 
+        // ((msb_attr << 1) | lsb_attr), 
+        // ((msb_ptable << 1) | lsb_ptable), 
+        // palette_index
+    // );
+    // println!("attr_sr    patt_sr");
+    // println!("{:08b}  {:016b}", nes.ppu.attr_lsb_sr, nes.ppu.ptable_lsb_sr);
+    // println!("{:08b}  {:016b}", nes.ppu.attr_msb_sr, nes.ppu.ptable_msb_sr);
+    
+
 }
 
 const IDLE_CYCLE: u32 = 0;
@@ -545,22 +572,24 @@ pub fn step_ppu(nes: &mut Nes) {
                       && (cycle <= LAST_VISIBLE_CYCLE || cycle >= PREFETCH_START)
                       && (cycle != 0);    
 
-    if in_visible_area {
+    let rendering = nes.ppu.show_bg || nes.ppu.show_sprites;
+
+    if in_visible_area && rendering {
         draw_pixel(nes);
     }
 
-    if in_fetch_cycle {
+    if in_fetch_cycle && rendering {
         match cycle % 8 {
             NAMETABLE_READ => {
                 nes.ppu.ntable_tmp = read_vram(0x2000 | (nes.ppu.v & NO_FINE_Y), nes);
-            }
-            ATTRIBUTE_READ => {
+                // at cycles 9, 17, 25, 257, update shift registers from temp latches
                 if cycle > 1 {
-                    // Shift registers are also filled during first ATTRIBUTE_READ cycle
                     nes.ppu.ptable_lsb_sr |= nes.ppu.ptable_lsb_tmp as u16;
                     nes.ppu.ptable_msb_sr |= nes.ppu.ptable_msb_tmp as u16;
                     fill_attribute_latch(nes);
                 }
+            }
+            ATTRIBUTE_READ => {
                 let attribute_addr = 0x23C0 | (nes.ppu.v & ONLY_NAMETABLE) 
                                             | ((nes.ppu.v & 0b11100_00000) >> 4)
                                             | ((nes.ppu.v & 0b00000_11100) >> 2);
@@ -571,6 +600,7 @@ pub fn step_ppu(nes: &mut Nes) {
                               | ((nes.ppu.ntable_tmp as u16) << 4) 
                               | ((nes.ppu.v & ONLY_FINE_Y) >> 12);
                 nes.ppu.ptable_lsb_tmp = read_vram(tile_addr, nes);
+                println!("tile addr {}", tile_addr);
             }
             PATTERN_MSB_READ => {
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
@@ -589,12 +619,17 @@ pub fn step_ppu(nes: &mut Nes) {
         }
     }
 
+    // this single line copy is wrong! need to clear the bits first! 
+    // if you just do or, if something is already a 1, it won't change to a 0 when or'd with a 0
     // could just say "not in vblank" or something
-    if cycle == COPY_T_HORIZONTAL_TO_V && (scanline <= LAST_VISIBLE_SCANLINE || scanline == PRE_RENDER_SCANLINE) {
+    // fixed now, hopefully this makes things work slightly
+    if cycle == COPY_T_HORIZONTAL_TO_V && (scanline <= LAST_VISIBLE_SCANLINE || scanline == PRE_RENDER_SCANLINE) && rendering {
+        nes.ppu.v &= 0b111_10_11111_11111;
         nes.ppu.v |= (nes.ppu.t & 0b000_01_00000_11111);
     }
 
-    if scanline == PRE_RENDER_SCANLINE && cycle >= 280 && cycle <= 304 {
+    if scanline == PRE_RENDER_SCANLINE && cycle >= 280 && cycle <= 304 && rendering {
+        nes.ppu.v &= 0b000_01_00000_11111;
         nes.ppu.v |= (nes.ppu.t & 0b111_10_11111_00000);
     }
 

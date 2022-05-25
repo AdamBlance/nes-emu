@@ -15,8 +15,9 @@ const OAMDMA: u16    = 0x4014;
 const PPU_WARMUP: u64 = 29658;
 
 fn mapper(addr: u16, nes: &mut Nes) -> u8 {
+    let offset = if nes.cart.prg_rom.len() == 32768 {0x8000} else {0xC000};
     match addr {
-        0x8000..=0xFFFF => nes.cart.prg_rom[(addr - 0xC000) as usize],
+        0x8000..=0xFFFF => nes.cart.prg_rom[(addr - offset) as usize],
         _ => 0,
     }
 }
@@ -80,8 +81,10 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
             match 0x2000 + (addr % 8) {
                 PPUCTRL   => {
                     if nes.cpu.cycles < PPU_WARMUP {return};
+
                     byte_to_ppuctrl(val, nes);
-                    nes.ppu.t &= 0b1_111001111111111;
+                    nes.ppu.t &= 0b111_00_11111_11111;
+                    // put nametable bits from ppuctrl into t
                     nes.ppu.t |= (val_u16 & 0b11) << 10;
                 },
                 PPUMASK   => {
@@ -97,13 +100,16 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                     if nes.cpu.cycles < PPU_WARMUP {return};
 
                     if !nes.ppu.w {
-                        nes.ppu.t &= 0b1_111_11_11111_00000;
-                        nes.ppu.t |= (val as u16) >> 3;
-                        nes.ppu.x = val & 0b0000_0111;
+                        nes.ppu.t &= 0b111_11_11111_00000;
+                        // put x scroll co-ord in fine x and coarse x (t)
+                        nes.ppu.t |= (val_u16 >> 3);
+                        nes.ppu.x = val & 0b111;
                     } else {
-                        nes.ppu.t &= 0b1_000_11_00000_11111;
-                        nes.ppu.t |= (val_u16 & 0b11111_000) << 2;
-                        nes.ppu.t |= (val_u16 & 0b00000_111) << 12;
+                        nes.ppu.t &= 0b000_11_00000_11111;
+                        // put coarse y in to t
+                        nes.ppu.t |= (val_u16 & 0b11111000) << 2;
+                        // put fine y at the end of t
+                        nes.ppu.t |= (val_u16 & 0b00000111) << 12;
                     }
                     nes.ppu.w = !nes.ppu.w;
                 },
@@ -111,10 +117,12 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                     if nes.cpu.cycles < PPU_WARMUP {return};
 
                     if !nes.ppu.w {
-                        nes.ppu.t &= 0b1_0_00000_11111111;
-                        nes.ppu.t |= (val_u16 & 0b00011111) << 8;
+                        nes.ppu.t &= 0b11000000_11111111;
+                        // put the lower 6 bits into the upper 6 bits of t (address space is only 14bits)
+                        nes.ppu.t |= (val_u16 & 0b00111111) << 8;
+                        nes.ppu.t &= !(1 << 14); // clear 15th bit? idk if that does anything THIS SHIT BROKE EVERYTHING LOL
                     } else {
-                        nes.ppu.t &= 0b1_1_11111_00000000;
+                        nes.ppu.t &= 0b11111111_00000000;
                         nes.ppu.t |= val_u16;
                         nes.ppu.v = nes.ppu.t;
                     }
@@ -123,6 +131,16 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 PPUSTATUS => {},
                 PPUDATA   => {
                     ppu::write_vram(nes.ppu.v, val, nes);
+                    // println!("Value just written to PPUDATA");
+                    // println!("v was {}", nes.ppu.v);
+                    // println!("value was {}", val);
+                    // for y in 0..=29 {
+                        // println!("{:?}", &nes.ppu.vram[(0x400 + y*30)..(0x400 + y*30 + 32)]);
+                    // }
+                    // for y in 0..=29 {
+                        // println!("{:?}", &nes.ppu.vram[(0x000 + y*30)..(0x000 + y*30 + 32)]);
+                    // }
+                    // panic!();
                     // Should really use enums or something, this is hard to read
                     let increment = if nes.ppu.increment_select == false {1} else {32};
                     nes.ppu.v = nes.ppu.v.wrapping_add(increment);
@@ -135,7 +153,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
             for offset in 0x00..0xFF {
                 nes.ppu.oam[offset] = read_mem(base + offset as u16, nes);
             }
-        },
+        }
         _ => (),
     };
 }

@@ -409,6 +409,9 @@ fn end_instr(nes: &mut Nes) {
     let log_str = log(nes);
 
     println!("{}", &log_str);
+    // println!("t: {:016b} ({:#06X})", nes.ppu.v, nes.ppu.v);
+    // println!("v: {:016b} ({:#06X})", nes.ppu.v, nes.ppu.v);
+
     // let correct_log_str = LOGS[nes.cpu.instruction_count as usize];
 
     // if log_str == correct_log_str {
