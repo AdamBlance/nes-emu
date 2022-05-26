@@ -483,17 +483,14 @@ fn draw_pixel(nes: &mut Nes) {
     let lsb_ptable = get_bit_u16(nes.ppu.ptable_lsb_sr, nes.ppu.x + 8) as u16;
     let msb_ptable = get_bit_u16(nes.ppu.ptable_msb_sr, nes.ppu.x + 8) as u16;
 
-    // let palette_index =   (msb_ptable << 3) + 0x3F00
-    //                     | (lsb_ptable << 2) 
-    //                     | (msb_attr   << 1) 
-    //                     |  lsb_attr;
+    // if lsb_ptable == 0 && msb_ptable == 0 {return;}
 
-    // need something to specify whether a sprite or background pixel is being drawn
-    let palette_index = 0x3F00
-                        | (msb_attr << 3) 
-                        | (lsb_attr << 2)
-                        | (msb_ptable << 1)
-                        | lsb_ptable;
+    let palette_index = if lsb_ptable == 0 && msb_ptable == 0 {0x3F00} else {
+        // need something to specify whether a sprite or background pixel is being drawn
+        0x3F00 | (msb_attr << 3) | (lsb_attr << 2) | (msb_ptable << 1) | lsb_ptable
+    };
+
+
 
     let frame_index = ((nes.ppu.scanline * 256 + nes.ppu.scanline_cycle - 1) * 4) as usize;
     
@@ -506,19 +503,19 @@ fn draw_pixel(nes: &mut Nes) {
     nes.frame[frame_index + 3] =           255;  // A
 
     if nes.ppu_log_toggle {
-        println!("\nPixel drawn!");
-        println!(
-            "lsb attr = {}, msb attr = {}, lsb ptable = {}, msb ptable = {}",
-            lsb_attr, 
-            msb_attr,
-            lsb_ptable,
-            msb_ptable,
-        );
-        println!("palette index = {:016b} ({:04X})", palette_index, palette_index);
-        println!("frame index = {}", frame_index);
-        println!("raw colour byte from palette = {:02X}", pixel_hue_value);
-        println!("as tuple {:?}", pixel_rgb);
-        println!();
+        // println!("\nPixel drawn!");
+        // println!(
+            // "lsb attr = {}, msb attr = {}, lsb ptable = {}, msb ptable = {}",
+            // lsb_attr, 
+            // msb_attr,
+            // lsb_ptable,
+            // msb_ptable,
+        // );
+        // println!("palette index = {:016b} ({:04X})", palette_index, palette_index);
+        // println!("frame index = {}", frame_index);
+        // println!("raw colour byte from palette = {:02X}", pixel_hue_value);
+        // println!("as tuple {:?}", pixel_rgb);
+        // println!();
     }
     
 
@@ -602,7 +599,7 @@ pub fn step_ppu(nes: &mut Nes) {
     let in_visible_area = (scanline <= LAST_VISIBLE_SCANLINE) && (cycle <= LAST_VISIBLE_CYCLE) && (cycle != 0);
 
     let in_fetch_cycle = (scanline <= LAST_VISIBLE_SCANLINE || scanline == PRE_RENDER_SCANLINE)
-                      && (cycle <= LAST_VISIBLE_CYCLE || cycle >= PREFETCH_START)
+                      && (cycle <= LAST_VISIBLE_CYCLE || (cycle >= PREFETCH_START && cycle <= 336))
                       && (cycle != 0);    
 
 

@@ -39,13 +39,13 @@ impl EventHandler<ggez::GameError> for Emulator {
         emu::run_to_vblank(&mut self.nes);
 
 
-        if self.nes.jammed {
-            let mut sound = Source::new(_ctx, "/jam.mp3")?;
+        // if self.nes.jammed {
+            // let mut sound = Source::new(_ctx, "/jam.mp3")?;
 
-            sound.play_detached(_ctx)?;
+            // sound.play_detached(_ctx)?;
 
-            self.nes.jammed = false;
-        }
+            // self.nes.jammed = false;
+        // }
 
         Ok(())
     }
@@ -53,91 +53,10 @@ impl EventHandler<ggez::GameError> for Emulator {
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         self.frames += 1;
 
-        let mut new_frame = vec![0u8; (256*128*4) as usize];
-
- 
-        // for y in 0u32..=127 {
-        //     for x in 0u32..=255 {
-        //         // let mut input_string = String::new();
-        //         // io::stdin().read_line(&mut input_string).unwrap();
-        //         // let nametable_entry = self.nes.ppu.vram[((y/8)*32 + (x/8)) as usize] as u32;
-
-        //         // let nametable_entry = 
-
-        //         let offset = if x > 127 {256} else {0};
-
-        //         let ptable_index = (y/8)*16 + ((x/8)%16) + offset;
-
-        //         // println!("current nametable entry {}", ptable_index);
-
-        //         let pattern_lsb_byte = self.nes.cart.chr_rom[(ptable_index*16 + (y%8)) as usize];
-        //         let pattern_msb_byte = self.nes.cart.chr_rom[((ptable_index*16) + (y%8) + 8) as usize];
-        //         let pattern_lsb = get_bit(pattern_lsb_byte, (7 - (x%8)) as u8) as u8;
-        //         let pattern_msb = get_bit(pattern_msb_byte, (7 - (x%8)) as u8) as u8;
-
-        //         let this_pixel = ((pattern_msb << 1) | pattern_lsb) & 0b00000011;
-                
-                
-
-        //         let frame_index: usize = ((y*256 + x)*4) as usize;
-
-        //         // println!("x {} y {} shift {} lsb {:08b} lsb_byte {:08b} msb {:08b} msb_byte {:08b} this_pixel {:08b}", x, y, 7 - (x%8), pattern_lsb, pattern_lsb_byte, pattern_msb, pattern_msb_byte, this_pixel);
-
-        //         /*
-                
-        //             Going to figure out the layout of the pattern tables
-        //             The default mappers have 8kB of chr rom 
-        //             8kB is 0x2000 (this is where the nametables start)
-
-        //             One tile is 16B (8B + 8B), so the CHR rom can store 
-
-        //             that is 512 tiles in total
-
-        //             Each tile is 8*8 pixels
-
-        //             pattern table is best represented as two 16*16 tile squares
-        //             this is two 128*128 pixel squares
-                    
-                
-        //         */
-
-        //         let colour = match this_pixel {
-        //             0b00 => {
-        //                 new_frame[frame_index    ] =  76;  // R
-        //                 new_frame[frame_index + 1] = 154;  // G
-        //                 new_frame[frame_index + 2] = 236;  // B
-        //                 new_frame[frame_index + 3] = 255;  // A
-        //             }
-        //             0b01 => {
-        //                 new_frame[frame_index    ] =  92;  // R92  30 228
-        //                 new_frame[frame_index + 1] =  30;  // G
-        //                 new_frame[frame_index + 2] = 228;  // B
-        //                 new_frame[frame_index + 3] = 255;  // A
-        //             }
-        //             0b10 => {
-        //                 new_frame[frame_index    ] =  116;  // R116 196   0   
-        //                 new_frame[frame_index + 1] =  196;  // G
-        //                 new_frame[frame_index + 2] = 0;  // B
-        //                 new_frame[frame_index + 3] = 255;  // A
-        //             }
-        //             0b11 => {
-        //                 new_frame[frame_index    ] =  0;  // R116 196   0   
-        //                 new_frame[frame_index + 1] =  30;  // G
-        //                 new_frame[frame_index + 2] = 116;  // B
-        //                 new_frame[frame_index + 3] = 255;  // A
-        //             }
-        //             _ => unreachable!(),
-        //         };
-
-
-        //     }
-        // }
-
-        // let image = graphics::Image::from_rgba8(ctx, 256, 128, &new_frame)?;
 
         let image = graphics::Image::from_rgba8(ctx, WIDTH as u16, HEIGHT as u16, &self.nes.frame)?;
 
-        let scalev = Vector2{x: 3., y: 3.};
+        let scalev = Vector2{x: 4.0, y: 4.0};
         let destv = Point2{x: 0.0, y: 0.0};
         let offsetv = Point2{x: 0.0, y: 0.0};
         let trans = Transform::Values{dest: destv, rotation: 0.0, scale: scalev, offset: offsetv};
@@ -199,13 +118,15 @@ fn main() {
     };
 
     let window_mode = WindowMode {
-        width: 1000.0,
-        height: 1000.0,
+        width: 1024.0,
+        height: 960.0,
         ..WindowMode::default()
     };
 
     // Make a Context.
-    let (mut ctx, event_loop) = ContextBuilder::new("my_game", "Cool Game Author").window_mode(window_mode).build().expect("Something went wrong");
+    let cb = ContextBuilder::new("my_game", "Cool Game Author").window_mode(window_mode);
+    let (mut ctx, event_loop) = cb.build().expect("hello");
+    graphics::set_default_filter(&mut ctx, graphics::FilterMode::Nearest);
     
     event::run(ctx, event_loop, emulator);
 

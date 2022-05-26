@@ -29,7 +29,7 @@ pub fn step_cpu(nes: &mut Nes) {
     }
 
     if nes.cpu.nmi_internal_flag {
-        println!("In NMI");
+        // println!("In NMI");
         match nes.cpu.instruction_cycle {
             0 => DUMMY_READ_FROM_PC(nes),
             1 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
@@ -406,9 +406,9 @@ pub fn step_cpu(nes: &mut Nes) {
 
 fn end_instr(nes: &mut Nes) {
 
-    let log_str = log(nes);
+    // let log_str = log(nes);
 
-    println!("{}", &log_str);
+    // println!("{}", &log_str);
     // println!("t: {:016b} ({:#06X})", nes.ppu.v, nes.ppu.v);
     // println!("v: {:016b} ({:#06X})", nes.ppu.v, nes.ppu.v);
 

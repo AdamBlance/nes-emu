@@ -89,8 +89,8 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                     // put nametable bits from ppuctrl into t
                     nes.ppu.t |= (val_u16 & 0b11) << 10;
 
-                    println!("Write to PPUCTRL! Value was {:08b}", val);
-                    println!("t is now {:08b}", nes.ppu.t);
+                    // println!("Write to PPUCTRL! Value was {:08b}", val);
+                    // println!("t is now {:08b}", nes.ppu.t);
                     let mut input_string = String::new();
                     // io::stdin().read_line(&mut input_string).unwrap();
                 },
@@ -137,8 +137,8 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 },
                 PPUSTATUS => {},
                 PPUDATA   => {
-                    println!("Write to vram! v is {:04X}, data is {:02X}", nes.ppu.v, val);
-                    println!("t is {:04X}, write toggle is {:?}", nes.ppu.t, nes.ppu.w);
+                    // println!("Write to vram! v is {:04X}, data is {:02X}", nes.ppu.v, val);
+                    // println!("t is {:04X}, write toggle is {:?}", nes.ppu.t, nes.ppu.w);
                     let mut input_string = String::new();
                     // io::stdin().read_line(&mut input_string).unwrap();
                     ppu::write_vram(nes.ppu.v, val, nes);
