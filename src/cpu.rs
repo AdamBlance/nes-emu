@@ -1,9 +1,7 @@
-use std::io;
 use crate::hw::*;
 use crate::mem::*;
 use crate::instr_defs::{INSTRUCTIONS, Mode::*, Category::*, Name::*};
 use crate::addressing_funcs::*;
-use crate::outfile::LOGS;
 use crate::util::*;
 use crate::instr_funcs::update_p_nz;
 
@@ -26,10 +24,10 @@ pub fn step_cpu(nes: &mut Nes) {
     */
     if nes.cpu.nmi_interrupt && nes.cpu.instruction_cycle == 0 && !nes.cpu.nmi_internal_flag {
         nes.cpu.nmi_internal_flag = true;
+        println!("In NMI");
     }
 
     if nes.cpu.nmi_internal_flag {
-        // println!("In NMI");
         match nes.cpu.instruction_cycle {
             0 => DUMMY_READ_FROM_PC(nes),
             1 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
@@ -340,8 +338,6 @@ pub fn step_cpu(nes: &mut Nes) {
         // Actually there can be a match here straight after matching with something above
         // accumulator or implied or immediate instructions
 
-        let temp1 = nes.cpu.instruction_cycle as u8;
-        let temp2 = nes.cpu.instruction.mode.address_resolution_cycles();
 
         // println!("instruction? {:?}", nes.cpu.instruction.name);
         // println!("addressing mode {:?}", nes.cpu.instruction.mode);

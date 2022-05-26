@@ -120,47 +120,6 @@ impl Name {
             _   => instr_funcs::nop,
         }
     }
-    pub fn as_string(self) -> &'static str {
-        match self {
-            LDA => "LDA",
-            LDX => "LDX",
-            LDY => "LDY",
-            STA => "STA",
-            STX => "STX",
-            STY => "STY",
-            TAX => "TAX",
-            TAY => "TAY",
-            TSX => "TSX",
-            TXA => "TXA",
-            TXS => "TXS",
-            TYA => "TYA",
-            ASL => "ASL",
-            LSR => "LSR",
-            ROL => "ROL",
-            ROR => "ROR",
-            AND => "AND",
-            BIT => "BIT",
-            EOR => "EOR",
-            ORA => "ORA",
-            ADC => "ADC",
-            SBC => "SBC",
-            DEC => "DEC",
-            DEX => "DEX",
-            DEY => "DEY",
-            INC => "INC",
-            INX => "INX",
-            INY => "INY",
-            CLC => "CLC",
-            CLD => "CLD",
-            CLI => "CLI",
-            CLV => "CLV",
-            SEC => "SEC",
-            SED => "SED",
-            SEI => "SEI",
-            NOP => "NOP",
-            _   => "?",
-        }
-    }
 }
 
 

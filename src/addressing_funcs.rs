@@ -96,9 +96,6 @@ pub fn increment_lower_pointer(nes: &mut Nes) {
 pub fn add_x_to_lower_pointer(nes: &mut Nes) {
     nes.cpu.lower_pointer = nes.cpu.lower_pointer.wrapping_add(nes.cpu.x);
 }
-pub fn add_y_to_lower_pointer(nes: &mut Nes) {
-    nes.cpu.lower_pointer = nes.cpu.lower_pointer.wrapping_add(nes.cpu.y);
-}
 
 // Data read
 
@@ -180,28 +177,10 @@ pub fn pull_a_from_stack(nes: &mut Nes) {
 pub fn increment_s(nes: &mut Nes) {
     nes.cpu.s = nes.cpu.s.wrapping_add(1);
 }
-pub fn increment_x(nes: &mut Nes) {
-    nes.cpu.x = nes.cpu.x.wrapping_add(1);
-}
-pub fn increment_y(nes: &mut Nes) {
-    nes.cpu.y = nes.cpu.y.wrapping_add(1);
-}
-pub fn increment_data(nes: &mut Nes) {
-    nes.cpu.data = nes.cpu.data.wrapping_add(1);
-}
 pub fn decrement_s(nes: &mut Nes) {
     nes.cpu.s = nes.cpu.s.wrapping_sub(1);
-}
-pub fn decrement_x(nes: &mut Nes) {
-    nes.cpu.x = nes.cpu.x.wrapping_sub(1);
-}
-pub fn decrement_y(nes: &mut Nes) {
-    nes.cpu.y = nes.cpu.y.wrapping_sub(1);
-}
-pub fn decrement_data(nes: &mut Nes) {
-    nes.cpu.data = nes.cpu.data.wrapping_sub(1);
 }
 
 // No op
 
-pub fn none(nes: &mut Nes) {}
+pub fn none(_nes: &mut Nes) {}

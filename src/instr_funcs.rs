@@ -71,15 +71,6 @@ pub fn store_y(nes: &mut Nes) {
     write_mem(nes.cpu.get_address(), nes.cpu.y, nes);
 }
 
-// Used by trace to get stored value 
-// doesn't include oamdma and apu registers
-fn safe_trace_read(addr: u16, nes: &mut Nes) -> u8 {
-    // println!("Attempting safe read at {}", addr);
-    assert!(addr < 0x2000 || addr > 0x2007);
-    read_mem(addr, nes)
-}
-
-
 
 pub fn xor(nes: &mut Nes) {
     nes.cpu.a ^= nes.cpu.data;
@@ -211,4 +202,4 @@ pub fn set_interrupt_flag(nes: &mut Nes) {
     nes.cpu.p_i = true;
 }
 
-pub fn nop(nes: &mut Nes) {}
+pub fn nop(_nes: &mut Nes) {}

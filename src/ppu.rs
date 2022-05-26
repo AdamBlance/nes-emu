@@ -469,7 +469,9 @@ fn fill_attribute_latch(nes: &mut Nes) {
     if (nes.ppu.v & 0b000_00_00000_00010) != 0 {bit_index += 2;}
     if (nes.ppu.v & 0b000_00_00010_00000) != 0 {bit_index += 4;}
     nes.ppu.attr_lsb_latch = get_bit(nes.ppu.attr_tmp, bit_index);
-    nes.ppu.attr_msb_latch = get_bit(nes.ppu.attr_tmp, bit_index+1);   
+    nes.ppu.attr_msb_latch = get_bit(nes.ppu.attr_tmp, bit_index+1); 
+    // nes.ppu.attr_lsb_latch = true;
+    // nes.ppu.attr_msb_latch = true;  
 }
 
 
@@ -503,37 +505,23 @@ fn draw_pixel(nes: &mut Nes) {
     nes.frame[frame_index + 3] =           255;  // A
 
     if nes.ppu_log_toggle {
-        // println!("\nPixel drawn!");
-        // println!(
-            // "lsb attr = {}, msb attr = {}, lsb ptable = {}, msb ptable = {}",
-            // lsb_attr, 
-            // msb_attr,
-            // lsb_ptable,
-            // msb_ptable,
-        // );
-        // println!("palette index = {:016b} ({:04X})", palette_index, palette_index);
-        // println!("frame index = {}", frame_index);
-        // println!("raw colour byte from palette = {:02X}", pixel_hue_value);
-        // println!("as tuple {:?}", pixel_rgb);
-        // println!();
+        println!("\nPixel drawn!");
+        println!(
+            "lsb attr = {}, msb attr = {}, lsb ptable = {}, msb ptable = {}",
+            lsb_attr, 
+            msb_attr,
+            lsb_ptable,
+            msb_ptable,
+        );
+        println!("palette index = {:016b} ({:04X})", palette_index, palette_index);
+        println!("frame index = {}", frame_index);
+        println!("raw colour byte from palette = {:02X}", pixel_hue_value);
+        println!("as tuple {:?}", pixel_rgb);
+        println!();
     }
     
 
-
-    // println!(
-        // "attribute: {:}, pattern: {}, palette_idx: {}", 
-        // ((msb_attr << 1) | lsb_attr), 
-        // ((msb_ptable << 1) | lsb_ptable), 
-        // palette_index
-    // );
-    // println!("attr_sr    patt_sr");
-    // println!("{:08b}  {:016b}", nes.ppu.attr_lsb_sr, nes.ppu.ptable_lsb_sr);
-    // println!("{:08b}  {:016b}", nes.ppu.attr_msb_sr, nes.ppu.ptable_msb_sr);
-    
-
 }
-
-const IDLE_CYCLE: u32 = 0;
 
 const NAMETABLE_READ:   u32 = 1;
 const ATTRIBUTE_READ:   u32 = 3;
@@ -662,13 +650,13 @@ pub fn step_ppu(nes: &mut Nes) {
     // fixed now, hopefully this makes things work slightly
     if cycle == COPY_T_HORIZONTAL_TO_V && (scanline <= LAST_VISIBLE_SCANLINE || scanline == PRE_RENDER_SCANLINE) && rendering {
         nes.ppu.v &= 0b111_10_11111_00000;
-        nes.ppu.v |= (nes.ppu.t & 0b000_01_00000_11111);
+        nes.ppu.v |= nes.ppu.t & 0b000_01_00000_11111;
         if nes.ppu_log_toggle {println!("copied horizontal bits from t to v\n");}
     }
 
     if scanline == PRE_RENDER_SCANLINE && cycle >= 280 && cycle <= 304 && rendering {
         nes.ppu.v &= 0b000_01_00000_11111;
-        nes.ppu.v |= (nes.ppu.t & 0b111_10_11111_00000);
+        nes.ppu.v |= nes.ppu.t & 0b111_10_11111_00000;
         if nes.ppu_log_toggle {println!("copied vertical bits from t to v\n");}
 
     }

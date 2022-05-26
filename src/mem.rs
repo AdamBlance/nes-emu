@@ -1,5 +1,3 @@
-use std::io;
-
 use crate::util::*;
 use crate::hw::*;
 use crate::ppu;
@@ -89,10 +87,10 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                     // put nametable bits from ppuctrl into t
                     nes.ppu.t |= (val_u16 & 0b11) << 10;
 
-                    // println!("Write to PPUCTRL! Value was {:08b}", val);
-                    // println!("t is now {:08b}", nes.ppu.t);
+                    println!("Write to PPUCTRL! Value was {:08b}", val);
+                    println!("t is now {:08b}", nes.ppu.t);
                     let mut input_string = String::new();
-                    // io::stdin().read_line(&mut input_string).unwrap();
+                    std::io::stdin().read_line(&mut input_string).unwrap();
                 },
                 PPUMASK   => {
                     if nes.cpu.cycles < PPU_WARMUP {return};
@@ -109,7 +107,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                     if !nes.ppu.w {
                         nes.ppu.t &= 0b111_11_11111_00000;
                         // put x scroll co-ord in fine x and coarse x (t)
-                        nes.ppu.t |= (val_u16 >> 3);
+                        nes.ppu.t |= val_u16 >> 3;
                         nes.ppu.x = val & 0b111;
                     } else {
                         nes.ppu.t &= 0b000_11_00000_11111;
@@ -139,7 +137,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 PPUDATA   => {
                     // println!("Write to vram! v is {:04X}, data is {:02X}", nes.ppu.v, val);
                     // println!("t is {:04X}, write toggle is {:?}", nes.ppu.t, nes.ppu.w);
-                    let mut input_string = String::new();
+                    // let mut input_string = String::new();
                     // io::stdin().read_line(&mut input_string).unwrap();
                     ppu::write_vram(nes.ppu.v, val, nes);
                     // println!("Value just written to PPUDATA");
@@ -160,7 +158,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
             },
 
         OAMDMA    => {
-            let base = (val_u16 << 8);
+            let base = val_u16 << 8;
             for offset in 0x00..0xFF {
                 nes.ppu.oam[offset] = read_mem(base + offset as u16, nes);
             }
@@ -195,9 +193,4 @@ fn ppustatus_to_byte(nes: &Nes) -> u8 {
     (if nes.ppu.in_vblank       {0b1000_0000} else {0}) | 
     (if nes.ppu.sprite_zero_hit {0b0100_0000} else {0}) | 
     (if nes.ppu.sprite_overflow {0b0000_1000} else {0})
-}
-fn byte_to_ppustatus(byte: u8, nes: &mut Nes) {
-    nes.ppu.in_vblank = get_bit(byte, 7);
-    nes.ppu.sprite_zero_hit = get_bit(byte, 6);
-    nes.ppu.sprite_overflow = get_bit(byte, 5);
 }

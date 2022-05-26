@@ -1,18 +1,12 @@
 #![feature(bigint_helper_methods)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-#![allow(unused_parens)]
 #![feature(mixed_integer_ops)]
-
-use std::{fs, io};
 
 use ggez::conf::WindowMode;
 use ggez::mint::{Point2, Vector2};
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
 use ggez::graphics::{self, DrawParam, Transform};
-use ggez::audio::{Source, SoundSource};
-use util::get_bit;
+
 use crate::hw::*;
 
 mod emu;
@@ -22,7 +16,6 @@ mod util;
 mod mem;
 mod cpu; 
 mod ppu;
-mod outfile;
 mod instr_funcs;
 mod addressing_funcs;
 
@@ -70,7 +63,13 @@ impl EventHandler<ggez::GameError> for Emulator {
 
 fn main() {
 
-    let ines_data = fs::read("donkeykong.nes").expect("Failed to read rom");
+    let args: Vec<String> = std::env::args().collect();
+
+    if args.is_empty() {panic!("No filename provided");}
+
+    let filename = &args[1];
+
+    let ines_data = std::fs::read(filename).expect("Failed to read rom");
 
     // If the file isn't long enough to contain ines header, quit
     if ines_data.len() < 16 {
