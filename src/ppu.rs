@@ -483,12 +483,17 @@ fn draw_pixel(nes: &mut Nes) {
     let lsb_ptable = get_bit_u16(nes.ppu.ptable_lsb_sr, nes.ppu.x + 8) as u16;
     let msb_ptable = get_bit_u16(nes.ppu.ptable_msb_sr, nes.ppu.x + 8) as u16;
 
-    let palette_index =   (msb_ptable << 3) + 0x3F00
-                        | (lsb_ptable << 2) 
-                        | (msb_attr   << 1) 
-                        |  lsb_attr;
-    
-    // println!("idx {} pal {:?}", palette_index, nes.ppu.palette_mem);
+    // let palette_index =   (msb_ptable << 3) + 0x3F00
+    //                     | (lsb_ptable << 2) 
+    //                     | (msb_attr   << 1) 
+    //                     |  lsb_attr;
+
+    // need something to specify whether a sprite or background pixel is being drawn
+    let palette_index = 0x3F00
+                        | (msb_attr << 3) 
+                        | (lsb_attr << 2)
+                        | (msb_ptable << 1)
+                        | lsb_ptable;
 
     let frame_index = ((nes.ppu.scanline * 256 + nes.ppu.scanline_cycle - 1) * 4) as usize;
     
@@ -499,6 +504,24 @@ fn draw_pixel(nes: &mut Nes) {
     nes.frame[frame_index + 1] = pixel_rgb.1;  // G
     nes.frame[frame_index + 2] = pixel_rgb.2;  // B
     nes.frame[frame_index + 3] =           255;  // A
+
+    if nes.ppu_log_toggle {
+        println!("\nPixel drawn!");
+        println!(
+            "lsb attr = {}, msb attr = {}, lsb ptable = {}, msb ptable = {}",
+            lsb_attr, 
+            msb_attr,
+            lsb_ptable,
+            msb_ptable,
+        );
+        println!("palette index = {:016b} ({:04X})", palette_index, palette_index);
+        println!("frame index = {}", frame_index);
+        println!("raw colour byte from palette = {:02X}", pixel_hue_value);
+        println!("as tuple {:?}", pixel_rgb);
+        println!();
+    }
+    
+
 
     // println!(
         // "attribute: {:}, pattern: {}, palette_idx: {}", 

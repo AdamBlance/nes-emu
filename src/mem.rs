@@ -88,6 +88,11 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                     nes.ppu.t &= 0b111_00_11111_11111;
                     // put nametable bits from ppuctrl into t
                     nes.ppu.t |= (val_u16 & 0b11) << 10;
+
+                    println!("Write to PPUCTRL! Value was {:08b}", val);
+                    println!("t is now {:08b}", nes.ppu.t);
+                    let mut input_string = String::new();
+                    // io::stdin().read_line(&mut input_string).unwrap();
                 },
                 PPUMASK   => {
                     if nes.cpu.cycles < PPU_WARMUP {return};
