@@ -87,10 +87,6 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                     // put nametable bits from ppuctrl into t
                     nes.ppu.t |= (val_u16 & 0b11) << 10;
 
-                    println!("Write to PPUCTRL! Value was {:08b}", val);
-                    println!("t is now {:08b}", nes.ppu.t);
-                    let mut input_string = String::new();
-                    std::io::stdin().read_line(&mut input_string).unwrap();
                 },
                 PPUMASK   => {
                     if nes.cpu.cycles < PPU_WARMUP {return};
@@ -135,21 +131,11 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 },
                 PPUSTATUS => {},
                 PPUDATA   => {
-                    // println!("Write to vram! v is {:04X}, data is {:02X}", nes.ppu.v, val);
-                    // println!("t is {:04X}, write toggle is {:?}", nes.ppu.t, nes.ppu.w);
+                    println!("Write to vram! v is {:04X}, data is {:02X}", nes.ppu.v, val);
+                    println!("t is {:04X}, write toggle is {:?}", nes.ppu.t, nes.ppu.w);
                     // let mut input_string = String::new();
-                    // io::stdin().read_line(&mut input_string).unwrap();
+                    // std::io::stdin().read_line(&mut input_string).unwrap();
                     ppu::write_vram(nes.ppu.v, val, nes);
-                    // println!("Value just written to PPUDATA");
-                    // println!("v was {}", nes.ppu.v);
-                    // println!("value was {}", val);
-                    // for y in 0..=29 {
-                        // println!("{:?}", &nes.ppu.vram[(0x400 + y*30)..(0x400 + y*30 + 32)]);
-                    // }
-                    // for y in 0..=29 {
-                        // println!("{:?}", &nes.ppu.vram[(0x000 + y*30)..(0x000 + y*30 + 32)]);
-                    // }
-                    // panic!();
                     // Should really use enums or something, this is hard to read
                     let increment = if nes.ppu.increment_select == false {1} else {32};
                     nes.ppu.v = nes.ppu.v.wrapping_add(increment);

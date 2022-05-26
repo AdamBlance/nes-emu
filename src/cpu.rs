@@ -339,14 +339,9 @@ pub fn step_cpu(nes: &mut Nes) {
         // accumulator or implied or immediate instructions
 
 
-        // println!("instruction? {:?}", nes.cpu.instruction.name);
-        // println!("addressing mode {:?}", nes.cpu.instruction.mode);
-        // println!("instruction cycle {}, resolution cycles {}", temp1, temp2);
 
         let c = nes.cpu.instruction_cycle as i8 - nes.cpu.instruction.mode.address_resolution_cycles() as i8;
         let func = nes.cpu.instruction.name.function();
-
-        // println!("Cycles after the addressing cycles: {}", c);
 
         match nes.cpu.instruction.mode {
             Accumulator => { match c {
@@ -402,27 +397,9 @@ pub fn step_cpu(nes: &mut Nes) {
 
 fn end_instr(nes: &mut Nes) {
 
-    // let log_str = log(nes);
+    let log_str = log(nes);
 
-    // println!("{}", &log_str);
-    // println!("t: {:016b} ({:#06X})", nes.ppu.v, nes.ppu.v);
-    // println!("v: {:016b} ({:#06X})", nes.ppu.v, nes.ppu.v);
-
-    // let correct_log_str = LOGS[nes.cpu.instruction_count as usize];
-
-    // if log_str == correct_log_str {
-    //     print!("Equal! -> ");
-    //     println!("{}", &log_str);
-    // } else {
-    //     println!("Not equal!");
-    //     println!("Current log -> {}", &log_str);
-    //     println!("Correct log -> {}", &correct_log_str);
-    //     panic!();
-    // }
-
-    // if nes.cpu.instruction_count == 5002 {
-    //     panic!("You did it! Nestest passed!");
-    // }
+    if nes.cpu.cycles > 10000000 {println!("{}", &log_str);}
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
@@ -439,9 +416,6 @@ fn end_instr(nes: &mut Nes) {
 
 
 fn log(nes: &Nes) -> String {
-
-    // println!("RAM {:02X} = {:02X}", 0x89, nes.wram[0x89]);
-
 
     let instr_len = match nes.cpu.instruction.mode {
         Accumulator => 1,

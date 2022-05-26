@@ -476,14 +476,13 @@ fn fill_attribute_latch(nes: &mut Nes) {
 
 
 
-
 fn draw_pixel(nes: &mut Nes) {
 
     // Render pixel!
-    let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, nes.ppu.x) as u16;
-    let msb_attr = get_bit(nes.ppu.attr_msb_sr, nes.ppu.x) as u16;
-    let lsb_ptable = get_bit_u16(nes.ppu.ptable_lsb_sr, nes.ppu.x + 8) as u16;
-    let msb_ptable = get_bit_u16(nes.ppu.ptable_msb_sr, nes.ppu.x + 8) as u16;
+    let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, 7 - nes.ppu.x) as u16;
+    let msb_attr = get_bit(nes.ppu.attr_msb_sr, 7 - nes.ppu.x) as u16;
+    let lsb_ptable = get_bit_u16(nes.ppu.ptable_lsb_sr, 15 - nes.ppu.x) as u16;
+    let msb_ptable = get_bit_u16(nes.ppu.ptable_msb_sr, 15 - nes.ppu.x) as u16;
 
     // if lsb_ptable == 0 && msb_ptable == 0 {return;}
 
@@ -494,7 +493,7 @@ fn draw_pixel(nes: &mut Nes) {
 
 
 
-    let frame_index = ((nes.ppu.scanline * 256 + nes.ppu.scanline_cycle - 1) * 4) as usize;
+    let frame_index = ((nes.ppu.scanline * 256 + nes.ppu.scanline_cycle-1) * 4) as usize;
     
     let pixel_hue_value = read_vram(palette_index as u16, nes);
     let pixel_rgb = PALETTE[pixel_hue_value as usize];
@@ -594,6 +593,17 @@ pub fn step_ppu(nes: &mut Nes) {
     if in_visible_area && rendering {
         draw_pixel(nes);
     }
+
+    /*
+    
+        from ppu timing graph:
+
+        tile fetches at 321-336 fill the shift registers with stuff to render immediately on the next
+        scanline 
+
+        shift registers are loaded with stuff at ticks 9, 17, 25, ... , 257
+    
+    */
 
     if in_fetch_cycle && rendering {
         match cycle % 8 {

@@ -1,6 +1,8 @@
 /target
 *.nes
-nestest.log
+*.log
+*.pal
 *.py
 *.xml
 *.iml
+*.deb

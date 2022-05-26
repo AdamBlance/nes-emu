@@ -5,7 +5,7 @@ use ggez::conf::WindowMode;
 use ggez::mint::{Point2, Vector2};
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
-use ggez::graphics::{self, DrawParam, Transform};
+use ggez::graphics::{self, DrawParam, Transform, Mesh, Color};
 
 use crate::hw::*;
 
@@ -20,7 +20,7 @@ mod instr_funcs;
 mod addressing_funcs;
 
 const WIDTH: u32 = 256;
-const HEIGHT: u32 = 256;
+const HEIGHT: u32 = 240;
 
 struct Emulator {
     frames: u64,
@@ -44,13 +44,20 @@ impl EventHandler<ggez::GameError> for Emulator {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
+
+        // Create and draw a filled rectangle mesh.
+        let rect = graphics::Rect::new(0.0, 0.0, 1024.0, 960.0);
+        let r1 =
+            Mesh::new_rectangle(ctx, graphics::DrawMode::fill(), rect, Color::WHITE)?;
+        graphics::draw(ctx, &r1, DrawParam::default())?;
+
         self.frames += 1;
 
 
         let image = graphics::Image::from_rgba8(ctx, WIDTH as u16, HEIGHT as u16, &self.nes.frame)?;
 
-        let scalev = Vector2{x: 4.0, y: 4.0};
-        let destv = Point2{x: 0.0, y: 0.0};
+        let scalev = Vector2{x: 3.0, y: 3.0};
+        let destv = Point2{x: 50.0, y: 50.0};
         let offsetv = Point2{x: 0.0, y: 0.0};
         let trans = Transform::Values{dest: destv, rotation: 0.0, scale: scalev, offset: offsetv};
         let mut dp = DrawParam::new();
