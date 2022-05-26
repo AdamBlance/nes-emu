@@ -23,9 +23,16 @@ pub fn run_to_vblank(nes: &mut Nes) {
     let mut input_string = String::new();
     io::stdin().read_line(&mut input_string).unwrap();
 
-    let parsed_input = input_string.trim_end().parse::<u64>().unwrap_or(1);
+    let parsed_input = input_string.trim().parse::<u64>().unwrap_or(1);
 
     let target: u64 = nes.cpu.instruction_count + parsed_input;
+
+    if input_string.trim() == "vram" {
+        println!("{:02X?}", &nes.ppu.vram);
+    }
+    if input_string.trim() == "toggle ppu output" {
+        nes.ppu_log_toggle = !nes.ppu_log_toggle;
+    }
 
     loop {
         cpu::step_cpu(nes);
@@ -35,16 +42,8 @@ pub fn run_to_vblank(nes: &mut Nes) {
 
         // if (nes.ppu.scanline == 241 && nes.ppu.scanline_cycle == 1) {break;}
         // break;
-        if parsed_input == 2 {
-            for y in 0..=29 {
-                println!("{:?}", &nes.ppu.vram[(0x400 + y*30)..(0x400 + y*30 + 32)]);
-            }
-        }
-        if parsed_input == 3 {
-            for y in 0..=29 {
-                println!("{:?}", &nes.ppu.vram[(0x000 + y*30)..(0x000 + y*30 + 32)]);
-            }
-        }
+
+
         if (nes.cpu.instruction_count == target) {break;}
     }
 

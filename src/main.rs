@@ -151,7 +151,7 @@ impl EventHandler<ggez::GameError> for Emulator {
 
 fn main() {
 
-    let ines_data = fs::read("palette.nes").expect("Failed to read rom");
+    let ines_data = fs::read("donkeykong.nes").expect("Failed to read rom");
 
     // If the file isn't long enough to contain ines header, quit
     if ines_data.len() < 16 {
@@ -190,6 +190,7 @@ fn main() {
         old_cpu_state: Cpu::default(),
         old_ppu_state: Ppu::default(),
         jammed: false,
+        ppu_log_toggle: false,
     };
 
     let emulator = Emulator {

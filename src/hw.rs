@@ -11,6 +11,8 @@ pub struct Nes {
     pub old_cpu_state: Cpu,
     pub old_ppu_state: Ppu,
     pub jammed: bool,
+    pub ppu_log_toggle: bool,
+    
 }
 
 pub struct Cartridge {

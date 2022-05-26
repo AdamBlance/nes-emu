@@ -477,19 +477,6 @@ fn fill_attribute_latch(nes: &mut Nes) {
 
 fn draw_pixel(nes: &mut Nes) {
 
-    // need to log out everything about the internal state of the ppu and match it with stuff I understand
-
-    //  {
-    //     println!("sl: {}, cyc: {}", nes.ppu.scanline, nes.ppu.scanline_cycle);
-    //     println!("v: {:016b} ({:04X})", nes.ppu.v, nes.ppu.v);
-    //     println!("t: {:016b} ({:04X}), x: {:08b}", nes.ppu.t, nes.ppu.t, nes.ppu.x);
-    //     println!("pt_lsb_sr: {:016b}", nes.ppu.ptable_lsb_sr);
-    //     println!("pt_msb_sr: {:016b}", nes.ppu.ptable_msb_sr);
-    //     println!("at_lsb_sr: {:08b}", nes.ppu.attr_lsb_sr);
-    //     println!("at_msb_sr: {:08b}", nes.ppu.attr_msb_sr);
-    // }
-
-
     // Render pixel!
     let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, nes.ppu.x) as u16;
     let msb_attr = get_bit(nes.ppu.attr_msb_sr, nes.ppu.x) as u16;
@@ -544,9 +531,32 @@ const COPY_T_HORIZONTAL_TO_V: u32 = 257;
 
 pub fn step_ppu(nes: &mut Nes) {
     
+    let rendering = nes.ppu.show_bg || nes.ppu.show_sprites;
 
 
+    if nes.ppu_log_toggle {
 
+        println!("Values at beginning of PPU step:");
+
+        println!("rendering: {}", rendering);
+        println!("scanline: {}, cycle: {}", nes.ppu.scanline, nes.ppu.scanline_cycle);
+        println!("v: {:016b} ({:04X})", nes.ppu.v, nes.ppu.v);
+        println!("t: {:016b} ({:04X}), x: {:08b}", nes.ppu.t, nes.ppu.t, nes.ppu.x);
+
+        println!("pt_lsb_sr: {:016b}", nes.ppu.ptable_lsb_sr);
+        println!("pt_msb_sr: {:016b}", nes.ppu.ptable_msb_sr);
+
+        println!("at_lsb_sr: {:08b}", nes.ppu.attr_lsb_sr);
+        println!("at_msb_sr: {:08b}", nes.ppu.attr_msb_sr);
+
+        println!("ntable_tmp: {:08b} ({:02X})", nes.ppu.ntable_tmp, nes.ppu.ntable_tmp);
+        println!("attr_tmp: {:08b} ({:02X})", nes.ppu.attr_tmp, nes.ppu.attr_tmp);
+        println!("ptable_lsb_tmp: {:08b} ({:02X})", nes.ppu.ptable_lsb_tmp, nes.ppu.ptable_lsb_tmp);
+        println!("ptable_msb_tmp: {:08b} ({:02X})", nes.ppu.ptable_msb_tmp, nes.ppu.ptable_msb_tmp);
+
+        println!("attr_lsb_latch: {:?}, attr_msb_latch: {:?}", nes.ppu.attr_lsb_latch, nes.ppu.attr_msb_latch);
+        println!();
+    }
 
     let cycle = nes.ppu.scanline_cycle;
     let scanline = nes.ppu.scanline;
@@ -572,7 +582,6 @@ pub fn step_ppu(nes: &mut Nes) {
                       && (cycle <= LAST_VISIBLE_CYCLE || cycle >= PREFETCH_START)
                       && (cycle != 0);    
 
-    let rendering = nes.ppu.show_bg || nes.ppu.show_sprites;
 
     if in_visible_area && rendering {
         draw_pixel(nes);
@@ -581,26 +590,30 @@ pub fn step_ppu(nes: &mut Nes) {
     if in_fetch_cycle && rendering {
         match cycle % 8 {
             NAMETABLE_READ => {
-                nes.ppu.ntable_tmp = read_vram(0x2000 | (nes.ppu.v & NO_FINE_Y), nes);
-                // at cycles 9, 17, 25, 257, update shift registers from temp latches
                 if cycle > 1 {
                     nes.ppu.ptable_lsb_sr |= nes.ppu.ptable_lsb_tmp as u16;
                     nes.ppu.ptable_msb_sr |= nes.ppu.ptable_msb_tmp as u16;
                     fill_attribute_latch(nes);
+                    if nes.ppu_log_toggle {println!("Temp values copied to shift register\n");}
                 }
+                let ntable_address = 0x2000 | (nes.ppu.v & NO_FINE_Y);
+                nes.ppu.ntable_tmp = read_vram(ntable_address, nes);
+                if nes.ppu_log_toggle {println!("read nametable byte {:02X} from {:016b} ({:04X})\n", nes.ppu.ntable_tmp, ntable_address, ntable_address);}
+                // at cycles 9, 17, 25, 257, update shift registers from temp latches
             }
             ATTRIBUTE_READ => {
                 let attribute_addr = 0x23C0 | (nes.ppu.v & ONLY_NAMETABLE) 
                                             | ((nes.ppu.v & 0b11100_00000) >> 4)
                                             | ((nes.ppu.v & 0b00000_11100) >> 2);
                 nes.ppu.attr_tmp = read_vram(attribute_addr, nes);
+                if nes.ppu_log_toggle {println!("read attribute byte {:02X} from {:016b} ({:04X}\n)", nes.ppu.attr_tmp, attribute_addr, attribute_addr);}
             }
             PATTERN_LSB_READ => {
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
                               | ((nes.ppu.ntable_tmp as u16) << 4) 
                               | ((nes.ppu.v & ONLY_FINE_Y) >> 12);
                 nes.ppu.ptable_lsb_tmp = read_vram(tile_addr, nes);
-                println!("tile addr {}", tile_addr);
+                if nes.ppu_log_toggle {println!("read pattern lsb {:08b} from {:016b} ({:04X})\n", nes.ppu.ptable_lsb_tmp, tile_addr, tile_addr);}
             }
             PATTERN_MSB_READ => {
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
@@ -608,12 +621,16 @@ pub fn step_ppu(nes: &mut Nes) {
                                 | ((nes.ppu.v & ONLY_FINE_Y) >> 12)
                                 + 8; // equivalently | 0b1000, lower 3 are fine y 
                 nes.ppu.ptable_msb_tmp = read_vram(tile_addr, nes);
+                if nes.ppu_log_toggle {println!("read pattern msb {:08b} from {:016b} ({:04X})\n", nes.ppu.ptable_msb_tmp, tile_addr, tile_addr);}
             }
             HORIZONTAL_INCREMENT => {
+                if nes.ppu_log_toggle {println!("v incremented horizontally\n");}
                 inc_v_horizontal(nes);
                 if cycle == LAST_VISIBLE_CYCLE {
+                    if nes.ppu_log_toggle {println!("v incremented vertically\n");}
                     inc_v_vertical(nes);
                 }
+
             }
             _ => ()
         }
@@ -624,13 +641,16 @@ pub fn step_ppu(nes: &mut Nes) {
     // could just say "not in vblank" or something
     // fixed now, hopefully this makes things work slightly
     if cycle == COPY_T_HORIZONTAL_TO_V && (scanline <= LAST_VISIBLE_SCANLINE || scanline == PRE_RENDER_SCANLINE) && rendering {
-        nes.ppu.v &= 0b111_10_11111_11111;
+        nes.ppu.v &= 0b111_10_11111_00000;
         nes.ppu.v |= (nes.ppu.t & 0b000_01_00000_11111);
+        if nes.ppu_log_toggle {println!("copied horizontal bits from t to v\n");}
     }
 
     if scanline == PRE_RENDER_SCANLINE && cycle >= 280 && cycle <= 304 && rendering {
         nes.ppu.v &= 0b000_01_00000_11111;
         nes.ppu.v |= (nes.ppu.t & 0b111_10_11111_00000);
+        if nes.ppu_log_toggle {println!("copied vertical bits from t to v\n");}
+
     }
 
 
