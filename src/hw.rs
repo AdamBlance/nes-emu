@@ -67,8 +67,8 @@ pub struct Ppu {
     pub w: bool,
 
     // Rendering counters
-    pub scanline: u32,
-    pub scanline_cycle: u32,
+    pub scanline: i32,
+    pub scanline_cycle: i32,
     pub odd_frame: bool,
 
     // Internal latches for just-read values
