@@ -62,7 +62,7 @@ pub struct Ppu {
     pub sprite_lsb_srs: [u8; 8],
     pub sprite_msb_srs: [u8; 8],
 
-    pub sprite_attr_latches: [bool; 8],
+    pub sprite_property_latches: [u8; 8],
     pub sprite_x_counters: [u8; 0],
 
     // v/t PPU addresses
@@ -133,7 +133,7 @@ impl Default for Ppu {
             sprite_lsb_srs: [0; 8],
             sprite_msb_srs: [0; 8],
 
-            sprite_attr_latches: [false; 8],
+            sprite_property_latches: [0; 8],
             sprite_x_counters: [0; 0],
 
             t: 0,

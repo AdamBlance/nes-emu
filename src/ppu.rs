@@ -255,6 +255,15 @@ pub fn step_ppu(nes: &mut Nes) {
     // If in visible area, draw pixel
     if (cycle >= 1 && cycle <= 256) && (scanline >= 0 && scanline <= 239) && rendering_enabled {
 
+
+
+        // this is where x decrement should happen
+        // happens on every cycle where a pixel is rendered
+
+        // if zero, move it to a mux so it can be compared with the background pixel
+        // and a decision about which should be drawn can be made 
+
+
         // OAM sprite evaluation will not be cycle accurate, at least for now
         // I think there are only one or two games that would try to interfere 
         // with OAM while sprite evaluation is going on
@@ -472,13 +481,17 @@ pub fn step_ppu(nes: &mut Nes) {
                                 | ((sprite_tile_index as u16) << 4) 
                                 + (tile_y as u16)
                                 + 8;
-                nes.ppu.sprite_lsb_srs[current_sprite as usize] = read_vram(tile_addr, nes);
+                nes.ppu.sprite_msb_srs[current_sprite as usize] = read_vram(tile_addr, nes);
             }
 
             _ => (),
 
         }
     }
+
+
+    // https://fceux.com/web/help/PPU.html
+
 
 
     // could tidy up these conditions later
