@@ -131,8 +131,8 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 },
                 PPUSTATUS => {},
                 PPUDATA   => {
-                    println!("Write to vram! v is {:04X}, data is {:02X}", nes.ppu.v, val);
-                    println!("t is {:04X}, write toggle is {:?}", nes.ppu.t, nes.ppu.w);
+                    // println!("Write to vram! v is {:04X}, data is {:02X}", nes.ppu.v, val);
+                    // println!("t is {:04X}, write toggle is {:?}", nes.ppu.t, nes.ppu.w);
                     // let mut input_string = String::new();
                     // std::io::stdin().read_line(&mut input_string).unwrap();
                     ppu::write_vram(nes.ppu.v, val, nes);

@@ -20,19 +20,19 @@ pub fn run_to_vblank(nes: &mut Nes) {
         nes.cpu.s = 0xFD;
     }
     
-    let mut input_string = String::new();
-    io::stdin().read_line(&mut input_string).unwrap();
+    // let mut input_string = String::new();
+    // io::stdin().read_line(&mut input_string).unwrap();
 
-    let parsed_input = input_string.trim().parse::<u64>().unwrap_or(1);
+    // let parsed_input = input_string.trim().parse::<u64>().unwrap_or(1);
 
-    let target: u64 = nes.cpu.instruction_count + parsed_input;
+    // let target: u64 = nes.cpu.instruction_count + parsed_input;
 
-    if input_string.trim() == "vram" {
-        println!("{:02X?}", &nes.ppu.vram);
-    }
-    if input_string.trim() == "toggle ppu output" {
-        nes.ppu_log_toggle = !nes.ppu_log_toggle;
-    }
+    // if input_string.trim() == "vram" {
+        // println!("{:02X?}", &nes.ppu.vram);
+    // }
+    // if input_string.trim() == "toggle ppu output" {
+        // nes.ppu_log_toggle = !nes.ppu_log_toggle;
+    // }
 
     loop {
         cpu::step_cpu(nes);
@@ -40,9 +40,9 @@ pub fn run_to_vblank(nes: &mut Nes) {
         ppu::step_ppu(nes);
         ppu::step_ppu(nes);
 
-        // if (nes.ppu.scanline == 241 && nes.ppu.scanline_cycle == 1) {break;}
+        if nes.ppu.scanline == 241 && nes.ppu.scanline_cycle == 1 {break;}
 
-        if nes.cpu.instruction_count == target {break;}
+        // if nes.cpu.instruction_count == target {break;}
     }
 
 

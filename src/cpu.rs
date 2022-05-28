@@ -24,7 +24,7 @@ pub fn step_cpu(nes: &mut Nes) {
     */
     if nes.cpu.nmi_interrupt && nes.cpu.instruction_cycle == 0 && !nes.cpu.nmi_internal_flag {
         nes.cpu.nmi_internal_flag = true;
-        println!("In NMI");
+        // println!("In NMI");
     }
 
     if nes.cpu.nmi_internal_flag {
@@ -397,9 +397,9 @@ pub fn step_cpu(nes: &mut Nes) {
 
 fn end_instr(nes: &mut Nes) {
 
-    let log_str = log(nes);
+    // let log_str = log(nes);
 
-    if nes.cpu.cycles > 10000000 {println!("{}", &log_str);}
+    // if nes.cpu.cycles > 10000000 {println!("{}", &log_str);}
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;

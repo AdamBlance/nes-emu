@@ -54,7 +54,16 @@ pub struct Ppu {
     // Memories
     pub vram:        [u8; 2048],
     pub oam:         [u8; 256],
+    pub s_oam: [u8; 32],
     pub palette_mem: [u8; 32],
+
+    // sprite stuff
+
+    pub sprite_lsb_srs: [u8; 8],
+    pub sprite_msb_srs: [u8; 8],
+
+    pub sprite_attr_latches: [bool; 8],
+    pub sprite_x_counters: [u8; 0],
 
     // v/t PPU addresses
     pub t: u16,
@@ -118,7 +127,14 @@ impl Default for Ppu {
 
             vram: [0; 2048],
             oam: [0; 256],
+            s_oam: [0; 32],
             palette_mem: [0; 32],
+
+            sprite_lsb_srs: [0; 8],
+            sprite_msb_srs: [0; 8],
+
+            sprite_attr_latches: [false; 8],
+            sprite_x_counters: [0; 0],
 
             t: 0,
             v: 0,

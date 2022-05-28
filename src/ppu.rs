@@ -160,6 +160,85 @@ fn print_ppu_log(nes: &Nes) {
     println!();
 }
 
+
+/*
+
+Sprite evaluation!
+
+secondary OAM is cleared from cycle 1 to cycle 64 inclusive, I'm assuming 2 cycles per byte clear
+yep, it writes FF into all of secondary oam here
+
+then, from 65..=256, it does sprite evaluation for the next scanline
+
+it reads through OAM, checking which sprites have the same y coord as the current scanline I think
+
+this is why sprites have a y coord one higher than they are displayed on, so the hardware can just 
+check for equality with the current scanline number I guess
+
+It chooses the first 8 sprites that appear on the scanline
+
+if it finds 8, it continues checking to set the sprite overflow flag, but this doesn't work propperly
+
+
+on odd cycles, data is read from oam
+on even cycles, data is written to secondary oam 
+
+starting with the first sprite, read it's y coordinate, copying it to the next open slot in sOAM
+
+if the y coordinate is in range, copy the remaining bytes of sprite data into secondary oam 
+
+increment n 
+
+
+
+
+
+
+
+oam:
+
+byte 0 stores the y coordinate of the sprite (the y coordinate is 1 above the sprites top pixel)
+
+byte1 selects the tiles that make up the sprite
+
+for 8x8 sprites, this is just an index into the pattern table selected with PPUCTRL bit 3
+
+for 8x16 sprites, bit 0 is used to select the pattern table, ignoring the PPUCTRL bit
+bits 7-1 are an index into the pattern table
+the bottom half of the sprite is the next tile along
+
+byte 2 configures the sprite
+
+bits 1,0 select the palette 
+
+bits 4,3,2 are unused
+
+bit 5 determines what layer the sprite is drawn on 
+if it's 0, it's drawn in front of the background
+if it's 1, it's drawn behind the background
+
+bit 6 flips the sprite horizontally
+bit 7 flips the sprite vertically
+
+byte 3 is the x position of the sprite
+
+
+
+
+
+
+
+
+sprites at higher oam addresses are rendered on top of sprites in lower oam addresses
+
+
+at any given pixel, if the frontmost opaque sprite's priority bit is 1 (draw behind background), 
+an opaque background pixel is drawn in front of it
+
+
+*/
+
+
 pub fn step_ppu(nes: &mut Nes) {
     
 
@@ -175,6 +254,41 @@ pub fn step_ppu(nes: &mut Nes) {
 
     // If in visible area, draw pixel
     if (cycle >= 1 && cycle <= 256) && (scanline >= 0 && scanline <= 239) && rendering_enabled {
+
+        // OAM sprite evaluation will not be cycle accurate, at least for now
+        // I think there are only one or two games that would try to interfere 
+        // with OAM while sprite evaluation is going on
+
+        // s_oam initialisation spans cycles 1..=64 in reality
+        if cycle == 1 {
+            nes.ppu.s_oam = [0xFF; 32];
+        }
+
+        // sprite evaluation spans cycles 65..=256 in reality
+        if cycle == 65 {
+            let sprite_height = if nes.ppu.tall_sprites {16} else {8};
+
+            let mut n: usize = 0;
+            let mut s_oam_head: usize = 0;
+
+            // loop until 8 in-range sprites have been found,
+            // or until all sprites in oam have been checked
+            while (s_oam_head < 32) && (n < 256) {
+                let sprite_y = nes.ppu.oam[n] as i32;
+                // if in range
+                if (sprite_y <= nes.ppu.scanline) && (sprite_y + sprite_height > nes.ppu.scanline) {
+                    // copy sprite data from oam to secondary oam
+                    for i in 0..4 {nes.ppu.s_oam[s_oam_head+i] = nes.ppu.oam[n+i];}
+                    // move index of next free space in secondary oam
+                    s_oam_head += 4;
+                }
+                // move n to next sprite in oam 
+                n += 4;
+            }
+
+
+        }
+
         draw_pixel(nes);
     }
     // At (1, 241), set PPUSTATUS in_vblank bit and raise NMI if enabled
@@ -268,10 +382,10 @@ pub fn step_ppu(nes: &mut Nes) {
 
 
 
-    let in_fetch_cycle = ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336))
+    let in_bg_fetch_cycle = ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336))
                       && (scanline <= 239);  
 
-    if in_fetch_cycle && rendering_enabled {
+    if in_bg_fetch_cycle && rendering_enabled {
         // Fetching happens in 8-cycle cycles
         match cycle % 8 {
             
@@ -314,6 +428,59 @@ pub fn step_ppu(nes: &mut Nes) {
         }
     }
 
+
+    // sprite fetch spans 64 cycles
+    // each sprite does 4 memory reads, each taking 2 cycles
+    let in_sprite_fetch_cycle = (cycle >= 257 && cycle <= 320) && (scanline <= 239);
+
+    if in_sprite_fetch_cycle && rendering_enabled {
+
+        let current_sprite = (cycle - 257) / 8;
+
+        let sprite_y = nes.ppu.s_oam[(current_sprite * 4) as usize];
+        let mut sprite_tile_index = nes.ppu.s_oam[(current_sprite * 4 + 1) as usize];
+
+        let ptable_select = if nes.ppu.tall_sprites {
+            let ptable_bit = (sprite_tile_index & 1) == 1;
+            sprite_tile_index &= 0b11111110;
+            ptable_bit
+        } else {
+            nes.ppu.sprite_ptable_select
+        };
+
+        // this should be fine for overflow since sprites can't get into s_oam
+        // that would make this negative
+        let mut tile_y = nes.ppu.scanline - (sprite_y as i32);
+        if tile_y >= 8 {
+            tile_y += 16;
+        }
+
+        match cycle % 8 {
+            NAMETABLE_READ => {/* garbage nametable read */}
+            ATTRIBUTE_READ => {/* garbage attribute read */}
+
+            PATTERN_LSB_READ => {
+                let tile_addr = ((ptable_select as u16) << 12) 
+                                | ((sprite_tile_index as u16) << 4) 
+                                + (tile_y as u16);
+
+                nes.ppu.sprite_lsb_srs[current_sprite as usize] = read_vram(tile_addr, nes);
+            }
+
+            PATTERN_MSB_READ => {
+                let tile_addr = ((ptable_select as u16) << 12) 
+                                | ((sprite_tile_index as u16) << 4) 
+                                + (tile_y as u16)
+                                + 8;
+                nes.ppu.sprite_lsb_srs[current_sprite as usize] = read_vram(tile_addr, nes);
+            }
+
+            _ => (),
+
+        }
+    }
+
+
     // could tidy up these conditions later
 
     // Horizontal v increment happens on cycles {8, 16, 24, ... , 256} and {328, 336}
@@ -347,16 +514,6 @@ pub fn step_ppu(nes: &mut Nes) {
 
     
     */
-
-    
-
-
-
-
-
-
-
-
 
 
 
