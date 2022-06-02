@@ -22,6 +22,15 @@ pub struct Cartridge {
     pub v_mirroring: bool,
 }
 
+
+// This makes things a lot more readable, but adds overhead (that I can probably afford)
+// I wonder if there is a way to make like a "view" into the OAM that is still just an array
+// but with named values? 
+
+// So OAM is a custom type, but underneath it's just an array with extra methods
+// traits? 
+
+
 #[derive(Copy, Clone)]
 pub struct Ppu {
     // PPUCTRL
@@ -54,7 +63,7 @@ pub struct Ppu {
     // Memories
     pub vram:        [u8; 2048],
     pub oam:         [u8; 256],
-    pub s_oam: [u8; 32],
+    pub s_oam:       [u8; 32],
     pub palette_mem: [u8; 32],
 
     // sprite stuff
@@ -63,7 +72,7 @@ pub struct Ppu {
     pub sprite_msb_srs: [u8; 8],
 
     pub sprite_property_latches: [u8; 8],
-    pub sprite_x_counters: [u8; 0],
+    pub sprite_x_counters: [u8; 8],
 
     // v/t PPU addresses
     pub t: u16,
@@ -134,7 +143,7 @@ impl Default for Ppu {
             sprite_msb_srs: [0; 8],
 
             sprite_property_latches: [0; 8],
-            sprite_x_counters: [0; 0],
+            sprite_x_counters: [0; 8],
 
             t: 0,
             v: 0,
