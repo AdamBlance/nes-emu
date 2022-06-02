@@ -1,4 +1,4 @@
-use crate::{hw::*, util::{get_bit, get_bit_u16}};
+use crate::{hw::*, util::{get_bit, get_bit_u16, flip_byte}};
 
 pub static PALETTE: [(u8,u8,u8); 64] = [
     ( 84,  84,  84), (  0,  30, 116), (  8,  16, 144), ( 48,   0, 136), ( 68,   0, 100), ( 92,   0,  48), ( 84,   4,   0), ( 60,  24,   0), ( 32,  42,   0), (  8,  58,   0), (  0,  64,   0), (  0,  60,   0), (  0,  50,  60), (  0,   0,   0), (  0,   0,   0), (  0,   0,   0), 
@@ -32,25 +32,7 @@ pub fn step_ppu(nes: &mut Nes) {
     // If in visible area, draw pixel
     if (cycle >= 1 && cycle <= 256) && (scanline >= 0 && scanline <= 239) && rendering_enabled {
 
-        // Decrement all sprite x counters until they hit 0
-        for i in 0..8 {
 
-            // If a sprite's x counter has reached zero, shift pattern table registers
-            if nes.ppu.sprite_x_counters[i] == 0 {
-                nes.ppu.sprite_lsb_srs[i] <<= 1;
-                nes.ppu.sprite_msb_srs[i] <<= 1;
-            }
-
-            // If an x counter hasn't reached zero yet, decrement it
-            if nes.ppu.sprite_x_counters[i] > 0 {
-                nes.ppu.sprite_x_counters[i] -= 1;
-            } 
-
-            // This happens in this order so that the pattern shift registers for a sprite
-            // don't immediately shift out a value when it's x counter hits zero
-            // The value in the MSB of the shift register will persist for one more cycle 
-            // so it can be read
-        }
         
         // secondary OAM initialisation spans cycles 1..=64 in reality
         if cycle == 1 {
@@ -70,6 +52,7 @@ pub fn step_ppu(nes: &mut Nes) {
                 let sprite_y = nes.ppu.oam[n] as i32;
                 // if in range
                 if (sprite_y <= nes.ppu.scanline) && (sprite_y + sprite_height > nes.ppu.scanline) {
+                    println!("sprite copied to soam {}", n/4);
                     // copy sprite data from oam to secondary oam
                     for i in 0..4 {nes.ppu.s_oam[s_oam_head+i] = nes.ppu.oam[n+i];}
                     // move index of next free space in secondary oam
@@ -78,7 +61,19 @@ pub fn step_ppu(nes: &mut Nes) {
                 // move n to next sprite in oam 
                 n += 4;
             }
+
+
+            // for i in (s_oam_head/4)..8 {
+            //     nes.ppu.s_oam[s_oam_head]
+            // }
+
+
+            if nes.ppu_log_toggle {println!("secondary oam {:02X?}", nes.ppu.s_oam);}
+
+
+
         }
+
 
 
         // After this point, both the background pixel and sprite pixel are calculated
@@ -106,6 +101,7 @@ pub fn step_ppu(nes: &mut Nes) {
             
             if nes.ppu.sprite_x_counters[i] == 0 {
 
+                
                 let patt_lsb = get_bit(nes.ppu.sprite_lsb_srs[i], 7);
                 let patt_msb = get_bit(nes.ppu.sprite_msb_srs[i], 7);
 
@@ -137,24 +133,23 @@ pub fn step_ppu(nes: &mut Nes) {
 
 
 
+        for i in 0..8 {
+            // If a sprite's x counter has reached zero, shift pattern table registers
+            if nes.ppu.sprite_x_counters[i] == 0 {
+                nes.ppu.sprite_lsb_srs[i] <<= 1;
+                nes.ppu.sprite_msb_srs[i] <<= 1;
+            }
+        }
 
+        // Decrement all sprite x counters until they hit 0
+        for i in 0..8 {
 
-        /*
-        
-            there is something very wrong
+            // If an x counter hasn't reached zero yet, decrement it
+            if nes.ppu.sprite_x_counters[i] > 0 {
+                nes.ppu.sprite_x_counters[i] -= 1;
+            } 
 
-            when rendering, stuff is being checked inside s_oam
-
-            s_oam contains stuff for the next scanline, not for this one 
-
-            need to instead check the latches
-        
-        */
-
-
-
-
-
+        }
 
 
 
@@ -404,6 +399,8 @@ pub fn step_ppu(nes: &mut Nes) {
             tile_y += 16;
         }
 
+        let flip_horizontally = (sprite_properties & 0b01000000) > 0;
+
         match cycle % 8 {
             NAMETABLE_READ => {/* garbage nametable read */}
             ATTRIBUTE_READ => {/* garbage attribute read */}
@@ -412,15 +409,18 @@ pub fn step_ppu(nes: &mut Nes) {
                 let tile_addr = ((ptable_select as u16) << 12) 
                                 | ((sprite_tile_index as u16) << 4) 
                                 .wrapping_add(tile_y as u16);
-
-                nes.ppu.sprite_lsb_srs[current_sprite as usize] = read_vram(tile_addr, nes);
+                let mut data = read_vram(tile_addr, nes);
+                if flip_horizontally {data = flip_byte(data);}
+                nes.ppu.sprite_lsb_srs[current_sprite as usize] = data;
             }
 
             PATTERN_MSB_READ => {
                 let tile_addr = ((ptable_select as u16) << 12) 
                                 | ((sprite_tile_index as u16) << 4) 
                                 .wrapping_add((tile_y + 8) as u16);
-                nes.ppu.sprite_msb_srs[current_sprite as usize] = read_vram(tile_addr, nes);
+                let mut data = read_vram(tile_addr, nes);
+                if flip_horizontally {data = flip_byte(data);}
+                nes.ppu.sprite_msb_srs[current_sprite as usize] = data;
             }
 
             _ => (),

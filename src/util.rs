@@ -11,3 +11,12 @@ pub fn concat_u8(msb: u8, lsb: u8) -> u16 {
 pub fn is_neg(val: u8) -> bool {
     val > 0x7F
 }
+pub fn flip_byte(val: u8) -> u8 {
+      ((val & 0b1) << 7) | ((val & 0b10) << 5)
+                         | ((val & 0b100) << 3) 
+                         | ((val & 0b1000) << 1) 
+                         | ((val & 0b10000) >> 1) 
+                         | ((val & 0b100000) >> 3) 
+                         | ((val & 0b1000000) >> 5) 
+                         | ((val & 0b10000000) >> 7)
+}
