@@ -43,7 +43,7 @@ pub fn step_ppu(nes: &mut Nes) {
 
             // If an x counter hasn't reached zero yet, decrement it
             if nes.ppu.sprite_x_counters[i] > 0 {
-                nes.ppu.sprite_x_counters[i] = nes.ppu.sprite_x_counters[i].wrapping_sub(1);
+                nes.ppu.sprite_x_counters[i] -= 1;
             } 
 
             // This happens in this order so that the pattern shift registers for a sprite
@@ -99,25 +99,28 @@ pub fn step_ppu(nes: &mut Nes) {
         let mut sprite_patt_lsb = false;
         let mut sprite_patt_msb = false;
         let mut sprite_palette_number = 0u16;
-        let mut draw_sprite_behind = false;
+        let mut draw_sprite_behind = true;
 
         // Loop through all sprites on the next scanline (up to 8)
         for i in 0..8 {
             
-            let patt_lsb = get_bit(nes.ppu.sprite_lsb_srs[i], 7);
-            let patt_msb = get_bit(nes.ppu.sprite_msb_srs[i], 7);
+            if nes.ppu.sprite_x_counters[i] == 0 {
 
-            // If sprite pixel is not transparent, choose this sprite to draw and break
-            // from the loop.
-            if patt_lsb || patt_msb {
-                let properties = nes.ppu.s_oam[i * 4 + 2];
+                let patt_lsb = get_bit(nes.ppu.sprite_lsb_srs[i], 7);
+                let patt_msb = get_bit(nes.ppu.sprite_msb_srs[i], 7);
 
-                sprite_patt_lsb = patt_lsb;
-                sprite_patt_msb = patt_msb;
-                sprite_palette_number = (properties & 0b00000011) as u16;
-                draw_sprite_behind = get_bit(properties, 5);
+                // If sprite pixel is not transparent, choose this sprite to draw and break
+                // from the loop.
+                if patt_lsb || patt_msb {
+                    let properties = nes.ppu.sprite_property_latches[i];
 
-                break;
+                    sprite_patt_lsb = patt_lsb;
+                    sprite_patt_msb = patt_msb;
+                    sprite_palette_number = (properties & 0b00000011) as u16;
+                    draw_sprite_behind = get_bit(properties, 5);
+
+                    break;
+                }
             }
         }
         
@@ -128,6 +131,34 @@ pub fn step_ppu(nes: &mut Nes) {
         let bg_patt_lsb = get_bit_u16(nes.ppu.ptable_lsb_sr, 15 - nes.ppu.x);
         let bg_patt_msb = get_bit_u16(nes.ppu.ptable_msb_sr, 15 - nes.ppu.x);
         
+
+        
+
+
+
+
+
+
+        /*
+        
+            there is something very wrong
+
+            when rendering, stuff is being checked inside s_oam
+
+            s_oam contains stuff for the next scanline, not for this one 
+
+            need to instead check the latches
+        
+        */
+
+
+
+
+
+
+
+
+
 
 
         /*
@@ -141,30 +172,43 @@ pub fn step_ppu(nes: &mut Nes) {
         */
 
         let bg_transparent = !bg_patt_lsb && !bg_patt_msb;
-
+        let sprite_transparent = !sprite_patt_lsb && !sprite_patt_msb;
 
         let palette_index = {
             
-            let mut temp = 0x3F00;
+            // these conditions are pretty redundant, will get around to improving them
+            // just want to be exhaustive for the now and get this working
 
-            if !draw_sprite_behind || bg_transparent {
-                temp = 0x3F10 | (sprite_palette_number << 2) 
-                              | ((sprite_patt_msb as u16) << 1)
-                              |  (sprite_patt_lsb as u16);
+            if bg_transparent && sprite_transparent {
+                0x3F00
             }
 
-            else if draw_sprite_behind && !bg_transparent {
+            else if (bg_transparent && !sprite_transparent)
+                 || (!bg_transparent && !sprite_transparent && !draw_sprite_behind) {
+
+                // println!("scanline {}, cycle {}, bg_transparent {}, sprite_transparent {}, draw_sprite_behind {}", nes.ppu.scanline, nes.ppu.scanline_cycle, bg_transparent, sprite_transparent, draw_sprite_behind);
+                // println!("sprite msb {} lsb {}", sprite_patt_msb, sprite_patt_lsb);
+                // println!("secondary oam {:X?}", nes.ppu.s_oam);
+                0x3F10 | (sprite_palette_number << 2)   // fuckin gross looking
+                       | ((sprite_patt_msb as u16) << 1)
+                       |  (sprite_patt_lsb as u16)
+            }
+
+            else if (!bg_transparent && sprite_transparent) 
+                 || (!bg_transparent && !sprite_transparent && draw_sprite_behind) {
                 let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, 7 - nes.ppu.x) as u16;
                 let msb_attr = get_bit(nes.ppu.attr_msb_sr, 7 - nes.ppu.x) as u16;
 
-                temp = 0x3F00 | (msb_attr << 3) 
-                              | (lsb_attr << 2) 
-                              | ((bg_patt_msb as u16) << 1) 
-                              |  (bg_patt_lsb as u16);
-
+                0x3F00 | (msb_attr << 3) 
+                       | (lsb_attr << 2) 
+                       | ((bg_patt_msb as u16) << 1) 
+                       |  (bg_patt_lsb as u16)
             }
 
-            temp
+            else {
+                panic!("Idk what would reach here?")
+            }
+
         };
 
         // Which pixel in the frame are we drawing to? 
@@ -175,7 +219,7 @@ pub fn step_ppu(nes: &mut Nes) {
 
         // this isn't a normal memory access I don't think
         // I think palette memory can be accessed internally without a proper memory read
-        let pixel_hue_value = read_vram(palette_index as u16, nes);
+        let pixel_hue_value = read_vram(palette_index, nes);
         let pixel_rgb = PALETTE[pixel_hue_value as usize];
 
         // Draw the pixel!
@@ -191,21 +235,25 @@ pub fn step_ppu(nes: &mut Nes) {
         //     nes.frame[frame_index+1] = nes.frame[frame_index+1].wrapping_add(150);
         // }
 
-    //     if nes.ppu_log_toggle {
-    //         println!("\nPixel drawn!");
-    //         println!(
-    //             "lsb attr = {}, msb attr = {}, lsb ptable = {}, msb ptable = {}",
-    //             lsb_attr, 
-    //             msb_attr,
-    //             lsb_ptable,
-    //             msb_ptable,
-    //         );
-    //         println!("palette index = {:016b} ({:04X})", palette_index, palette_index);
-    //         println!("frame index = {}", frame_index);
-    //         println!("raw colour byte from palette = {:02X}", pixel_hue_value);
-    //         println!("as tuple {:?}", pixel_rgb);
-    //         println!();
-    //     }
+        if nes.ppu_log_toggle {
+            println!("\nPixel drawn!");
+            println!("sprite pattern srs lsb {:04X?}", nes.ppu.sprite_lsb_srs);
+            println!("sprite pattern srs msb {:04X?}", nes.ppu.sprite_msb_srs);
+            println!("sprite x counters {:?}", nes.ppu.sprite_x_counters);
+
+            // println!(
+                // "lsb attr = {}, msb attr = {}, lsb ptable = {}, msb ptable = {}",
+                // lsb_attr, 
+                // msb_attr,
+                // lsb_ptable,
+                // msb_ptable,
+            // );
+            // println!("palette index = {:016b} ({:04X})", palette_index, palette_index);
+            // println!("frame index = {}", frame_index);
+            // println!("raw colour byte from palette = {:02X}", pixel_hue_value);
+            // println!("as tuple {:?}", pixel_rgb);
+            println!();
+        }
     
 
     }
@@ -321,6 +369,8 @@ pub fn step_ppu(nes: &mut Nes) {
     if in_sprite_fetch_cycle && rendering_enabled {
 
         let current_sprite = (cycle as usize - 257) / 8;
+
+        // println!("current sprite during fetch {}", current_sprite);
 
         let sprite_y              = nes.ppu.s_oam[current_sprite * 4];
         let mut sprite_tile_index = nes.ppu.s_oam[current_sprite * 4 + 1];
@@ -501,7 +551,15 @@ pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
         0x0000..=0x1FFF => nes.cart.chr_rom[a],
         0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart)],
         0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cart)],
-        0x3F00..=0x3FFF => nes.ppu.palette_mem[(a - 0x3F00) % 32],
+        0x3F00..=0x3F0F => nes.ppu.palette_mem[a - 0x3F00],
+        0x3F10..=0x3F1F => {
+            let temp = a - 0x3F00;
+            if temp % 4 == 0 {
+                nes.ppu.palette_mem[temp - 0x10]  // need to extract this stuff to avoid duplication
+            } else {
+                nes.ppu.palette_mem[temp]
+            }
+        }
         _ => 0,
     }
 }
@@ -511,7 +569,15 @@ pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
     match addr {
         0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart)] = val,
         0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cart)] = val,
-        0x3F00..=0x3FFF => nes.ppu.palette_mem[(a - 0x3F00) % 32] = val,
+        0x3F00..=0x3F0F => nes.ppu.palette_mem[a - 0x3F00] = val,
+        0x3F10..=0x3F1F => {
+            let temp = a - 0x3F00;
+            if temp % 4 == 0 {
+                nes.ppu.palette_mem[temp - 0x10] = val;
+            } else {
+                nes.ppu.palette_mem[temp] = val;
+            }
+        }
         _ => (),
     }
 }

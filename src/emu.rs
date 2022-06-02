@@ -28,10 +28,10 @@ pub fn run_to_vblank(nes: &mut Nes) {
     // let target: u64 = nes.cpu.instruction_count + parsed_input;
 
     // if input_string.trim() == "vram" {
-        // println!("{:02X?}", &nes.ppu.vram);
+    //     println!("{:02X?}", &nes.ppu.vram);
     // }
     // if input_string.trim() == "toggle ppu output" {
-        // nes.ppu_log_toggle = !nes.ppu_log_toggle;
+    //     nes.ppu_log_toggle = !nes.ppu_log_toggle;
     // }
 
     loop {
