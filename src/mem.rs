@@ -198,10 +198,10 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
 
         CONTROLLER_1 => {
             // If latch was high, now low, put controller state in shift register
-            if nes.controller_1.sr_latch_pin && (val == 0) {
+            if nes.controller_1.sr_latch_pin && (val & 1) == 0 {
                 nes.controller_1.shift_register = nes.controller_1.button_state;
             }
-            nes.controller_1.sr_latch_pin = val > 0;
+            nes.controller_1.sr_latch_pin = (val & 1) == 1;
         }
 
         _ => (),
