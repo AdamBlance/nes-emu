@@ -53,11 +53,50 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
                 // Apparently one games uses this
                 OAMDATA => nes.ppu.oam_addr,
                 PPUDATA => {
-                    let val = ppu::read_vram(nes.ppu.v, nes);
-                    // Should really use enums or something, this is hard to read
-                    let increment = if nes.ppu.increment_select == false {1} else {32};
-                    nes.ppu.v = nes.ppu.v.wrapping_add(increment);
-                    val
+                    /*
+                    Just going to be as explicit as possible here
+
+                    When the CPU reads VRAM through PPUDATA, it pulls the value from an internal 
+                    PPUDATA buffer.
+                    Then, immediately after, the PPU fills this buffer with the data you were trying
+                    to read. 
+
+                    This means the data read through PPUDATA is delayed by one byte. 
+                    Therefore, the buffer has to be primed the first time you read it to put a value
+                    in there.
+
+                    This behaviour changes when reading any palette data 0x3F00..=0x3FFF.
+                    In this case, the data is placed directly on the CPU data bus.
+                    The internal PPUDATA buffer is then filled with addr-0x1000, who knows why
+
+                    https://archive.nes.science/nesdev-forums/f3/t18627.xhtml
+                    https://www.nesdev.org/wiki/PPU_registers#The_PPUDATA_read_buffer_(post-fetch)
+
+
+                    */
+
+                    if addr < 0x3F00 {
+                        let data_in_memory = ppu::read_vram(nes.ppu.v, nes);
+                        let prev_data_in_buffer = nes.ppu.ppudata_buffer;
+                        nes.ppu.ppudata_buffer = data_in_memory;
+
+                        // increment v
+                        let increment = if nes.ppu.increment_select == false {1} else {32};
+                        nes.ppu.v = nes.ppu.v.wrapping_add(increment);
+
+                        prev_data_in_buffer
+                    } else {
+
+                        let data_in_memory = ppu::read_vram(nes.ppu.v, nes);
+                        nes.ppu.ppudata_buffer = ppu::read_vram(nes.ppu.v.wrapping_sub(0x1000), nes);
+
+                        // increment v
+                        let increment = if nes.ppu.increment_select == false {1} else {32};
+                        nes.ppu.v = nes.ppu.v.wrapping_add(increment);
+
+                        data_in_memory
+                    }
+
                 },
                 
                 _ => panic!("Literally impossible"),

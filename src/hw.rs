@@ -31,12 +31,107 @@ pub struct Cartridge {
 }
 
 
-// This makes things a lot more readable, but adds overhead (that I can probably afford)
-// I wonder if there is a way to make like a "view" into the OAM that is still just an array
-// but with named values? 
 
-// So OAM is a custom type, but underneath it's just an array with extra methods
-// traits? 
+
+/*
+
+sound is too hard, going to improve the cpu and ppu for now? 
+yeah, will try to get mario running first
+so sprite 0 hit flag and one byte delay when reading ppudata need to be implemented
+
+APU NOTES
+
+Two square wave channels
+One triangle wave channel
+One noise channel
+One sample channel
+
+
+a divider outputs a clock every n input clocks, where n is the dividers period
+internally, this is just a counter that gets decremented by the input clock until it hits 0
+then the value n is reloaded
+
+
+
+
+frame conuter
+
+so there's this thing called the frame counter (nothing to do with video frames) that has a divider
+it divides the master clock to produce a 240Hz clock (that I think can be used by channels)
+
+in the frame counter, there is also a sequencer, which I think is like a selector in 
+little big planet? 
+
+the sequencer is not controlled by the 240Hz clock! the sequencer is clocked every second CPU cycle
+
+there is some counter in the sequencer that counts how many apu cycles have passed (1 apu = 2 cpu)
+
+once the count has reached some value, the sequencer advances and the count resets
+
+the sequencer will "clock" envelopes, sweep units, length counters and all that stuff
+once that step in the sequencer is reached, those things happen
+
+
+    f = set interrupt flag
+    l = clock length counters and sweep units
+    e = clock envelopes and triangle's linear counter
+
+mode 0: 4-step  effective rate (approx)
+---------------------------------------
+    - - - f      60 Hz
+    - l - l     120 Hz
+    e e e e     240 Hz
+
+mode 1: 5-step  effective rate (approx)
+---------------------------------------
+    - - - - -   (interrupt flag never set)
+    l - l - -    96 Hz
+    e e e e -   192 Hz
+
+right so the 240Hz clock does clock the sequencer!
+I guess? I suppose the exact reason doesn't matter
+
+
+
+most channels have a "length counter", which will store a number and count down
+when the counter reaches zero, the channel will be muted
+
+all channels have a bit that says whether they will stop when the counter reaches zero
+
+
+Square wave channels
+
+square waves have a duty cycle that can be modified
+two bits in the i/o register can change this
+
+there is a constant volume bit, which determines whether the volume is constant, or controlled
+by an envelope
+
+an envelope is like, a changing value? So like EEeeeeeuuuuoooooommmmmm ↓
+
+if volume is constant, the volume is stored in 4 bits
+
+there is a bit to enable and disable sweep
+
+
+
+
+right so there's envelope which is volume
+there's sweep which is pitch (period)
+duty cycle, which changes timbre
+
+there are also length counters, which is clocked by the frame thing
+these stop the sound when the counter is 0, setting a length for the note basically
+
+
+
+
+
+*/
+
+
+
+
 
 
 #[derive(Copy, Clone)]
@@ -75,6 +170,8 @@ pub struct Ppu {
     pub palette_mem: [u8; 32],
 
     pub in_range_counter: u8,
+
+    pub ppudata_buffer: u8,
 
     // sprite stuff
     pub sprite_lsb_srs: [u8; 8],
@@ -149,6 +246,8 @@ impl Default for Ppu {
             palette_mem: [0; 32],
 
             in_range_counter: 0,
+
+            ppudata_buffer: 0,
 
             sprite_lsb_srs: [0; 8],
             sprite_msb_srs: [0; 8],

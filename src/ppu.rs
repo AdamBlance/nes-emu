@@ -32,8 +32,6 @@ pub fn step_ppu(nes: &mut Nes) {
     // If in visible area, draw pixel
     if (cycle >= 1 && cycle <= 256) && (scanline >= 0 && scanline <= 239) && rendering_enabled {
 
-
-        
         // secondary OAM initialisation spans cycles 1..=64 in reality
         if cycle == 1 {
             nes.ppu.s_oam = [0xFF; 32];
@@ -94,6 +92,8 @@ pub fn step_ppu(nes: &mut Nes) {
         let mut sprite_palette_number = 0u16;
         let mut draw_sprite_behind = true;
 
+        let mut sprite_zero = false;
+
         // Loop through all sprites on the next scanline (up to 8)
         for i in 0..8 {
             
@@ -112,6 +112,7 @@ pub fn step_ppu(nes: &mut Nes) {
                     sprite_patt_msb = patt_msb;
                     sprite_palette_number = (properties & 0b00000011) as u16;
                     draw_sprite_behind = get_bit(properties, 5);
+                    sprite_zero = i == 0;
 
                     break;
                 }
@@ -150,10 +151,6 @@ pub fn step_ppu(nes: &mut Nes) {
         }
 
 
-
-
-
-
         /*
         Now, decide whether to render the bacground or sprite
 
@@ -166,6 +163,10 @@ pub fn step_ppu(nes: &mut Nes) {
 
         let bg_transparent = !bg_patt_lsb && !bg_patt_msb;
         let sprite_transparent = !sprite_patt_lsb && !sprite_patt_msb;
+
+        if !bg_transparent && !sprite_transparent && sprite_zero {
+            nes.ppu.sprite_zero_hit = true;
+        }
 
         let palette_index = {
             
@@ -261,6 +262,7 @@ pub fn step_ppu(nes: &mut Nes) {
     // At (1, -1), clear PPUSTATUS in_vblank bit and disable NMI signal
     else if scanline == -1 && cycle == 1 {
         nes.ppu.in_vblank = false;
+        nes.ppu.sprite_zero_hit = false;
         nes.cpu.nmi_interrupt = false;
     }
     // Shift register reload happens on cycles {9, 17, 25, ... , 257} and {329, 337}
