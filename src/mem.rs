@@ -11,6 +11,8 @@ const PPUSCROLL: u16 = 0x2005;
 const PPUADDR: u16   = 0x2006;
 const PPUDATA: u16   = 0x2007;
 const OAMDMA: u16    = 0x4014;
+const CONTROLLER_1: u16 = 0x4016;
+const CONTROLLER_2: u16 = 0x4017;
 
 const PPU_WARMUP: u64 = 29658;
 
@@ -62,6 +64,12 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
             },
 
         OAMDMA => 0,
+
+        CONTROLLER_1 => {
+            let button_bit = nes.controller_1.shift_register & 1;
+            nes.controller_1.shift_register >>= 1;
+            button_bit
+        }
 
         0x4000..=0x4017 => 0,
         0x4018..=0x401F => 0,
@@ -149,6 +157,15 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 nes.ppu.oam[offset] = read_mem(base + offset as u16, nes);
             }
         }
+
+        CONTROLLER_1 => {
+            // If latch was high, now low, put controller state in shift register
+            if nes.controller_1.sr_latch_pin && (val == 0) {
+                nes.controller_1.shift_register = nes.controller_1.button_state;
+            }
+            nes.controller_1.sr_latch_pin = val > 0;
+        }
+
         _ => (),
     };
 }

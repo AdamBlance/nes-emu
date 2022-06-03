@@ -18,14 +18,9 @@ pub struct Nes {
 
 #[derive(Copy, Clone, Default)]
 pub struct Controller {
-    up: bool,
-    down: bool,
-    left: bool,
-    right: bool,
-    b: bool,
-    a: bool,
-    start: bool,
-    select: bool,
+    pub button_state: u8,
+    pub shift_register: u8,    
+    pub sr_latch_pin: bool,
 }
 
 pub struct Cartridge {

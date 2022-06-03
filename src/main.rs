@@ -4,7 +4,7 @@
 use ggez::conf::WindowMode;
 use ggez::mint::{Point2, Vector2};
 use ggez::{Context, ContextBuilder, GameResult, timer};
-use ggez::event::{self, EventHandler};
+use ggez::event::{self, EventHandler, KeyCode};
 use ggez::graphics::{self, DrawParam, Transform, Mesh, Color};
 
 use crate::hw::*;
@@ -24,6 +24,16 @@ const HEIGHT: u32 = 240;
 
 const FRAMERATE: u32 = 60;
 
+const RIGHT:  u8 = 0b1000_0000;
+const LEFT:   u8 = 0b0100_0000;
+const DOWN:   u8 = 0b0010_0000;
+const UP:     u8 = 0b0001_0000;
+const START:  u8 = 0b0000_1000;
+const SELECT: u8 = 0b0000_0100;
+const B:      u8 = 0b0000_0010;
+const A:      u8 = 0b0000_0001;
+
+
 struct Emulator {
     frames: u64,
     nes: hw::Nes,
@@ -31,6 +41,8 @@ struct Emulator {
 
 impl EventHandler<ggez::GameError> for Emulator {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
+
+        // ctx shouldn't have underscore here
 
         // This is in a while loop incase the computer freezes or something and the game has not 
         // produced a frame in over 1/60th of a second. 
@@ -79,6 +91,34 @@ impl EventHandler<ggez::GameError> for Emulator {
         graphics::draw(ctx, &image, dp)?;
         graphics::present(ctx)?;
         Ok(())
+    }
+
+    fn key_down_event(&mut self, _ctx: &mut Context, keycode: event::KeyCode, _keymods: event::KeyMods, _repeat: bool) {
+        match keycode {
+            KeyCode::W => self.nes.controller_1.button_state |= UP,
+            KeyCode::A => self.nes.controller_1.button_state |= LEFT,
+            KeyCode::R => self.nes.controller_1.button_state |= DOWN,
+            KeyCode::S => self.nes.controller_1.button_state |= RIGHT,
+            KeyCode::E => self.nes.controller_1.button_state |= B,
+            KeyCode::I => self.nes.controller_1.button_state |= A,
+            KeyCode::LBracket => self.nes.controller_1.button_state |= SELECT,
+            KeyCode::RBracket => self.nes.controller_1.button_state |= START,
+            _ => ()
+        }   
+    }
+
+    fn key_up_event(&mut self, _ctx: &mut Context, keycode: event::KeyCode, _keymods: event::KeyMods) {
+        match keycode {
+            KeyCode::W => self.nes.controller_1.button_state &= !UP,
+            KeyCode::A => self.nes.controller_1.button_state &= !LEFT,
+            KeyCode::R => self.nes.controller_1.button_state &= !DOWN,
+            KeyCode::S => self.nes.controller_1.button_state &= !RIGHT,
+            KeyCode::E => self.nes.controller_1.button_state &= !B,
+            KeyCode::I => self.nes.controller_1.button_state &= !A,
+            KeyCode::LBracket => self.nes.controller_1.button_state &= !SELECT,
+            KeyCode::RBracket => self.nes.controller_1.button_state &= !START,
+            _ => ()
+        }   
     }
 }
 
