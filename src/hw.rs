@@ -180,6 +180,9 @@ pub struct Ppu {
     pub sprite_property_latches: [u8; 8],
     pub sprite_x_counters: [u8; 8],
 
+    pub sprite_zero_in_soam: bool,
+    pub sprite_zero_in_latches: bool,
+
     // v/t PPU addresses
     pub t: u16,
     pub v: u16,
@@ -239,6 +242,9 @@ impl Default for Ppu {
             sprite_overflow: false,
 
             oam_addr: 0,
+
+            sprite_zero_in_soam: false,
+            sprite_zero_in_latches: false,
 
             vram: [0; 2048],
             oam: [0; 256],

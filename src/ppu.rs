@@ -50,6 +50,9 @@ pub fn step_ppu(nes: &mut Nes) {
                 let sprite_y = nes.ppu.oam[n] as i32;
                 // if in range
                 if (sprite_y <= nes.ppu.scanline) && (sprite_y + sprite_height > nes.ppu.scanline) {
+                    if n == 0 {
+                        nes.ppu.sprite_zero_in_soam = true;
+                    }
                     // copy sprite data from oam to secondary oam
                     for i in 0..4usize {nes.ppu.s_oam[((nes.ppu.in_range_counter * 4) as usize)+i] = nes.ppu.oam[n+i];}
                     // move index of next free space in secondary oam
@@ -92,7 +95,7 @@ pub fn step_ppu(nes: &mut Nes) {
         let mut sprite_palette_number = 0u16;
         let mut draw_sprite_behind = true;
 
-        let mut sprite_zero = false;
+        let mut sprite_number = 0xFF;
 
         // Loop through all sprites on the next scanline (up to 8)
         for i in 0..8 {
@@ -112,7 +115,7 @@ pub fn step_ppu(nes: &mut Nes) {
                     sprite_patt_msb = patt_msb;
                     sprite_palette_number = (properties & 0b00000011) as u16;
                     draw_sprite_behind = get_bit(properties, 5);
-                    sprite_zero = i == 0;
+                    sprite_number = i;
 
                     break;
                 }
@@ -164,8 +167,10 @@ pub fn step_ppu(nes: &mut Nes) {
         let bg_transparent = !bg_patt_lsb && !bg_patt_msb;
         let sprite_transparent = !sprite_patt_lsb && !sprite_patt_msb;
 
-        if !bg_transparent && !sprite_transparent && sprite_zero {
-            nes.ppu.sprite_zero_hit = true;
+        if !bg_transparent && !sprite_transparent && cycle < 256 && sprite_number == 0 && nes.ppu.sprite_zero_in_latches {
+            if !(cycle <= 8 && (!nes.ppu.show_leftmost_bg || !nes.ppu.show_leftmost_sprites)) {
+                nes.ppu.sprite_zero_hit = true;
+            }
         }
 
         let palette_index = {
@@ -218,9 +223,14 @@ pub fn step_ppu(nes: &mut Nes) {
 
         // Draw the pixel!
         nes.frame[frame_index    ] = pixel_rgb.0;  // R
-        nes.frame[frame_index + 1] = pixel_rgb.1;  // G
+        // nes.frame[frame_index + 1] = pixel_rgb.1;  // G
+        nes.frame[frame_index + 1] = if nes.ppu.sprite_zero_in_latches && sprite_number == 0 {255} else {pixel_rgb.1};  // G
         nes.frame[frame_index + 2] = pixel_rgb.2;  // B
         nes.frame[frame_index + 3] =         255;  // A
+
+        if cycle == 256 {
+            nes.ppu.sprite_zero_in_latches = false;
+        }
 
         // if (frame_index / 4) % 8 == 0 {
         //     nes.frame[frame_index] = nes.frame[frame_index].wrapping_add(150);
@@ -264,6 +274,8 @@ pub fn step_ppu(nes: &mut Nes) {
         nes.ppu.in_vblank = false;
         nes.ppu.sprite_zero_hit = false;
         nes.cpu.nmi_interrupt = false;
+        // nes.ppu.sprite_zero_in_latches = false;
+        // nes.ppu.sprite_zero_in_soam = false;
     }
     // Shift register reload happens on cycles {9, 17, 25, ... , 257} and {329, 337}
     let shift_register_reload = ((cycle % 8 == 1) && (cycle >= 9 && cycle <= 257)) 
@@ -364,6 +376,11 @@ pub fn step_ppu(nes: &mut Nes) {
     if in_sprite_fetch_cycle && rendering_enabled {
 
         let current_sprite = (cycle as usize - 257) / 8;
+
+        if nes.ppu.sprite_zero_in_soam && scanline > 0 {
+            nes.ppu.sprite_zero_in_soam = false;
+            nes.ppu.sprite_zero_in_latches = true;
+        }
 
         // println!("current sprite during fetch {}", current_sprite);
 
