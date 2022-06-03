@@ -12,7 +12,20 @@ pub struct Nes {
     pub old_ppu_state: Ppu,
     pub jammed: bool,
     pub ppu_log_toggle: bool,
-    
+    pub controller_1: Controller,
+    pub controller_2: Controller,
+}
+
+#[derive(Copy, Clone, Default)]
+pub struct Controller {
+    up: bool,
+    down: bool,
+    left: bool,
+    right: bool,
+    b: bool,
+    a: bool,
+    start: bool,
+    select: bool,
 }
 
 pub struct Cartridge {

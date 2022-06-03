@@ -3,7 +3,7 @@
 
 use ggez::conf::WindowMode;
 use ggez::mint::{Point2, Vector2};
-use ggez::{Context, ContextBuilder, GameResult};
+use ggez::{Context, ContextBuilder, GameResult, timer};
 use ggez::event::{self, EventHandler};
 use ggez::graphics::{self, DrawParam, Transform, Mesh, Color};
 
@@ -22,6 +22,8 @@ mod addressing_funcs;
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;
 
+const FRAMERATE: u32 = 60;
+
 struct Emulator {
     frames: u64,
     nes: hw::Nes,
@@ -29,7 +31,19 @@ struct Emulator {
 
 impl EventHandler<ggez::GameError> for Emulator {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        emu::run_to_vblank(&mut self.nes);
+
+        // This is in a while loop incase the computer freezes or something and the game has not 
+        // produced a frame in over 1/60th of a second. 
+        // In this case, the loop will execute twice, catching the game back up again.
+        
+        while timer::check_update_time(_ctx, FRAMERATE) {
+            emu::run_to_vblank(&mut self.nes);  // I think I know what the problem is
+            // run_to_vblank maybe overruns? Or misses a vblank? 
+            // I am checking for one cycle in particular, but cpu uses cycles and so does ppu, so 
+            // it will be skipping over frames I guess
+        }
+
+        if self.frames % 100 == 0 {println!("FPS = {}", timer::fps(_ctx));}
 
 
         // if self.nes.jammed {
@@ -116,6 +130,8 @@ fn main() {
         old_ppu_state: Ppu::default(),
         jammed: false,
         ppu_log_toggle: false,
+        controller_1: Controller::default(),
+        controller_2: Controller::default(),
     };
 
     let emulator = Emulator {

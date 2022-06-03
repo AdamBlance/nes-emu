@@ -40,7 +40,13 @@ pub fn run_to_vblank(nes: &mut Nes) {
         ppu::step_ppu(nes);
         ppu::step_ppu(nes);
 
-        if nes.ppu.scanline == 241 && nes.ppu.scanline_cycle == 1 {break;}
+        // So, after 3 ppu cycles, when reaching end of frame, ppu should land somewhere inside 
+        // the 3 cycle range after the frame ends
+        // After 3 more ppu cycles, it should leave this range
+        // This way, we don't need a bit to say that we've just entered vblank or whatever
+        // and we shouldn't skip any frames
+        
+        if nes.ppu.scanline == 239 && (nes.ppu.scanline_cycle >= 257 && nes.ppu.scanline_cycle <= 259) {break;}
 
         // if nes.cpu.instruction_count == target {break;}
     }
