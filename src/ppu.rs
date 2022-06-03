@@ -387,17 +387,46 @@ pub fn step_ppu(nes: &mut Nes) {
         };
 
         
-        // need to calculate the 
 
-        // This will be wrong during the pre-render line, although shouldn't matter
-        // as no sprites can be drawn on the next line (line 0) anyway
-        let mut tile_y = nes.ppu.scanline - (sprite_y as u32 as i32);
 
-        // println!("sprite y {}", sprite_y);
-        // println!("Tile y {}", tile_y);
-        if tile_y >= 8 {
-            tile_y += 16;
-        }
+
+
+        /*
+        
+        I think we need a match for calculating the tile addr
+        there's already duplication in the match below with a bunch of conditions and shit
+    
+        
+        */
+
+
+
+
+
+
+        let vertically_flipped = (sprite_properties >> 7) == 1;
+
+        let tile_y = nes.ppu.scanline - (sprite_y as u32 as i32);
+
+        let offset = match (vertically_flipped, nes.ppu.tall_sprites) {
+            (false, false) => tile_y,
+            (false, true)  => tile_y + if tile_y >= 8 {8} else {0},
+            (true, false)  => 7 - tile_y,
+            (true, true)   => {
+                // if in top tile, invert, then move to bottom tile
+                if tile_y < 8 {
+                    (7 - tile_y) + 16
+                } 
+                // if in bottom tile, move back to top tile, then invert
+                else {
+                    (tile_y - 8) + 7
+                }
+            }
+        };
+        
+        let tile_addr = ((ptable_select as u16) << 12) 
+                      | ((sprite_tile_index as u16) << 4) 
+                        .wrapping_add(offset as u16);
 
         let flip_horizontally = (sprite_properties & 0b01000000) > 0;
 
@@ -406,9 +435,6 @@ pub fn step_ppu(nes: &mut Nes) {
             ATTRIBUTE_READ => {/* garbage attribute read */}
 
             PATTERN_LSB_READ => {
-                let tile_addr = ((ptable_select as u16) << 12) 
-                                | ((sprite_tile_index as u16) << 4) 
-                                .wrapping_add(tile_y as u16);
                 let mut data = read_vram(tile_addr, nes);
                 if current_sprite >= (nes.ppu.in_range_counter as usize) {data = 0;}
                 if flip_horizontally {data = flip_byte(data);}
@@ -416,10 +442,7 @@ pub fn step_ppu(nes: &mut Nes) {
             }
 
             PATTERN_MSB_READ => {
-                let tile_addr = ((ptable_select as u16) << 12) 
-                                | ((sprite_tile_index as u16) << 4) 
-                                .wrapping_add((tile_y + 8) as u16);
-                let mut data = read_vram(tile_addr, nes);
+                let mut data = read_vram(tile_addr.wrapping_add(8), nes);
                 if current_sprite >= (nes.ppu.in_range_counter as usize) {data = 0;}
                 if flip_horizontally {data = flip_byte(data);}
                 nes.ppu.sprite_msb_srs[current_sprite as usize] = data;
