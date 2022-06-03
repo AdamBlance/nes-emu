@@ -223,8 +223,8 @@ pub fn step_ppu(nes: &mut Nes) {
 
         // Draw the pixel!
         nes.frame[frame_index    ] = pixel_rgb.0;  // R
-        // nes.frame[frame_index + 1] = pixel_rgb.1;  // G
-        nes.frame[frame_index + 1] = if nes.ppu.sprite_zero_in_latches && sprite_number == 0 {255} else {pixel_rgb.1};  // G
+        nes.frame[frame_index + 1] = pixel_rgb.1;  // G
+        // nes.frame[frame_index + 1] = if nes.ppu.sprite_zero_in_latches && sprite_number == 0 {255} else {pixel_rgb.1};  // G
         nes.frame[frame_index + 2] = pixel_rgb.2;  // B
         nes.frame[frame_index + 3] =         255;  // A
 
@@ -557,10 +557,14 @@ fn inc_v_horizontal(nes: &mut Nes) {
 fn inc_v_vertical(nes: &mut Nes) {
     if ((nes.ppu.v & FINE_Y) >> 12) == 7 {
         nes.ppu.v &= !FINE_Y;
-        if ((nes.ppu.v & COARSE_Y) >> 5) == 31 {
+        if ((nes.ppu.v & COARSE_Y) >> 5) == 29 {
             nes.ppu.v &= !COARSE_Y;
-            nes.ppu.v ^= NAMETABLE_MSB;  // this was bugged previously
-        } else {
+            nes.ppu.v ^= NAMETABLE_MSB;
+        }
+        else if ((nes.ppu.v & COARSE_Y) >> 5) == 31 {
+            nes.ppu.v &= !COARSE_Y;
+        }
+        else {
             nes.ppu.v += 0b000_00_00001_00000;
         }
     } else {

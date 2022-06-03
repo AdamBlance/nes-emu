@@ -17,11 +17,9 @@ const CONTROLLER_2: u16 = 0x4017;
 const PPU_WARMUP: u64 = 29658;
 
 fn mapper(addr: u16, nes: &mut Nes) -> u8 {
-    let offset = if nes.cart.prg_rom.len() == 32768 {0x8000} else {0xC000};
-    match addr {
-        0x8000..=0xFFFF => nes.cart.prg_rom[(addr - offset) as usize],
-        _ => 0,
-    }
+    // this is just nrom 
+    let prg_size = nes.cart.prg_rom.len() as u16;
+    nes.cart.prg_rom[(addr % prg_size) as usize]
 }
 
 pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
@@ -112,7 +110,8 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
 
         0x4000..=0x4017 => 0,
         0x4018..=0x401F => 0,
-        0x4020..=0xFFFF => mapper(addr, nes),
+        0x8000..=0xFFFF => mapper(addr, nes),
+        _ => 0,
     }
 }
 
