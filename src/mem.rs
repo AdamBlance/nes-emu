@@ -145,7 +145,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
 
         OAMDMA    => {
             let base = val_u16 << 8;
-            for offset in 0x00..0xFF {
+            for offset in 0x00..=0xFF {
                 nes.ppu.oam[offset] = read_mem(base + offset as u16, nes);
             }
         }

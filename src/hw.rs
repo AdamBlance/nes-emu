@@ -66,8 +66,9 @@ pub struct Ppu {
     pub s_oam:       [u8; 32],
     pub palette_mem: [u8; 32],
 
-    // sprite stuff
+    pub in_range_counter: u8,
 
+    // sprite stuff
     pub sprite_lsb_srs: [u8; 8],
     pub sprite_msb_srs: [u8; 8],
 
@@ -138,6 +139,8 @@ impl Default for Ppu {
             oam: [0; 256],
             s_oam: [0; 32],
             palette_mem: [0; 32],
+
+            in_range_counter: 0,
 
             sprite_lsb_srs: [0; 8],
             sprite_msb_srs: [0; 8],

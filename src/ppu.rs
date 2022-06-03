@@ -44,31 +44,29 @@ pub fn step_ppu(nes: &mut Nes) {
             let sprite_height = if nes.ppu.tall_sprites {16} else {8};
 
             let mut n: usize = 0;
-            let mut s_oam_head: usize = 0;
+            nes.ppu.in_range_counter = 0;
 
             // loop until 8 in-range sprites have been found,
             // or until all sprites in oam have been checked
-            while (s_oam_head < 32) && (n < 256) {
+            while (nes.ppu.in_range_counter < 8) && (n < 256) {
                 let sprite_y = nes.ppu.oam[n] as i32;
                 // if in range
                 if (sprite_y <= nes.ppu.scanline) && (sprite_y + sprite_height > nes.ppu.scanline) {
-                    println!("sprite copied to soam {}", n/4);
                     // copy sprite data from oam to secondary oam
-                    for i in 0..4 {nes.ppu.s_oam[s_oam_head+i] = nes.ppu.oam[n+i];}
+                    for i in 0..4usize {nes.ppu.s_oam[((nes.ppu.in_range_counter * 4) as usize)+i] = nes.ppu.oam[n+i];}
                     // move index of next free space in secondary oam
-                    s_oam_head += 4;
+                    nes.ppu.in_range_counter += 1;
                 }
                 // move n to next sprite in oam 
                 n += 4;
             }
 
 
-            // for i in (s_oam_head/4)..8 {
-            //     nes.ppu.s_oam[s_oam_head]
-            // }
 
-
-            if nes.ppu_log_toggle {println!("secondary oam {:02X?}", nes.ppu.s_oam);}
+            if nes.ppu_log_toggle {
+                println!("primary oam {:02X?}", nes.ppu.oam);
+                println!("secondary oam {:02X?}", nes.ppu.s_oam);
+            }
 
 
 
@@ -410,6 +408,7 @@ pub fn step_ppu(nes: &mut Nes) {
                                 | ((sprite_tile_index as u16) << 4) 
                                 .wrapping_add(tile_y as u16);
                 let mut data = read_vram(tile_addr, nes);
+                if current_sprite >= (nes.ppu.in_range_counter as usize) {data = 0;}
                 if flip_horizontally {data = flip_byte(data);}
                 nes.ppu.sprite_lsb_srs[current_sprite as usize] = data;
             }
@@ -419,6 +418,7 @@ pub fn step_ppu(nes: &mut Nes) {
                                 | ((sprite_tile_index as u16) << 4) 
                                 .wrapping_add((tile_y + 8) as u16);
                 let mut data = read_vram(tile_addr, nes);
+                if current_sprite >= (nes.ppu.in_range_counter as usize) {data = 0;}
                 if flip_horizontally {data = flip_byte(data);}
                 nes.ppu.sprite_msb_srs[current_sprite as usize] = data;
             }
