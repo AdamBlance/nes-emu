@@ -18,6 +18,7 @@ mod cpu;
 mod ppu;
 mod instr_funcs;
 mod addressing_funcs;
+mod apu;
 
 const WIDTH: u32 = 256;
 const HEIGHT: u32 = 240;
@@ -163,6 +164,7 @@ fn main() {
         cpu:   Default::default(),
         wram:  [0; 2048],
         ppu:   Default::default(),
+        apu: Apu::default(),
         frame: vec![0u8; (WIDTH * HEIGHT * 4) as usize], // *4 because of RGBA
         cart,
         skip: 1,

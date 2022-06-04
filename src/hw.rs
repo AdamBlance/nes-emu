@@ -5,6 +5,7 @@ pub struct Nes {
     pub cpu: Cpu,
     pub wram: [u8; 2048],
     pub ppu: Ppu,
+    pub apu: Apu,
     pub cart: Cartridge,
     pub frame: Vec<u8>,
     pub skip: u64,
@@ -29,6 +30,104 @@ pub struct Cartridge {
     pub mapper: u8,
     pub v_mirroring: bool,
 }
+
+
+
+
+/*
+
+So I think I know how to do the sound
+
+The nes generates sound at a sample rate of 44100Hz apparently
+
+that means the digital to analogue converter inside the nes samples the waveforms generated from
+the apu 44,100 times every second
+
+the problem is, the NES code runs way faster than the actual NES does, so any samples generated
+would have to be placed in a ring buffer, I guess
+
+Even then, there is the problem of timing. If the code produces even one less sample than it should
+have at any point (for whatever reason), the buffer will empty, or will get full over time 
+
+floating point errors or anything could cause something like that to happen over time
+
+Audio will always be read at exactly 44100Hz, which is guaranteed by the operating system and all
+that low level stuff, probably driven by hardware interrupts and stuff
+
+
+
+There are a couple ways I can think of to guarantee that samples are provided at the right rate
+
+The first is to drive the emulator directly from the sound library
+For example, the Rust rodio crate has a Source trait that lets you write your own sound sources
+
+A struct that implements the Source trait must implement Iterator
+
+This iterator is used to get the next sample at the required rate
+
+Iterator objects must implement the "next" method that returns the next sample
+
+The next method could run the emulation for the right number of cycles to produce the next sample
+
+Only thing is that might look a bit weird, since the emulator will start running after the call to 
+
+OutputStream::play_raw(nes_audio)
+
+
+One other way, which is probably what I'll go for, is to do something like this person did:
+https://ltriant.github.io/2019/11/22/nes-emulator.html
+
+coincidentally, they used rust also!
+
+Basically, have the emulator produce samples into a buffer
+
+If the buffer ever gets nearly empty or nearly full, do something about it
+Not sure exactly what they did, but maybe just don't put the next sample in the buffer
+This might happen every 10000 cycles or something, so will probably not be noticable 
+
+
+To produce samples at the correct rate, could probably just look at the CPU clock count
+
+CPU runs at ~1,789,773 Hz 
+
+Sample rate is ~44,100Hz
+
+
+1,789,773 / 44,100 = 40.584421768707486
+
+So approx every 40.6 cpu cycles, generate a sample from the APU
+just need an averaging thing
+
+like, do first one at 40 cycles
+
+then, how many cycles since last sample? 
+
+if average cycles since last sample is closer to 40.6 than the average cycles since last sample 
+including this cpu cycle, get sample
+
+then it will just naturally converge to 40.584421768707486, executing either 40 or 41 cycles 
+depending on what's going on
+
+don't make the buffer too big, or sound will get desynced
+
+if the buffer is getting too full over time because we're just slightly faster than we should be,
+just don't push a sample to the buffer that time, it's just one sample I'm sure it'll be impossible
+to notice
+
+If the buffer is getting close to being empty, like one or two samples in there, add 
+two of the same sample when pushing to the buffer
+
+This should be mostly fine honestly. If we average at 40.blahblahblah cycles, then it should pretty
+closely match the 44,100Hz sample rate. 
+
+*/
+
+
+
+
+
+
+
 
 
 
@@ -129,14 +228,51 @@ these stop the sound when the counter is 0, setting a length for the note basica
 
 */
 
-// #[derive(Copy, Clone)]
-// pub struct Apu {
+#[derive(Copy, Clone, Default)]
+pub struct Apu {
 
-//     pub duty_cycle: u8,
-//     pub volume: u8,
-//     pub period
+    // don't know why it's called the "frame sequencer"
+    // that's confusing so I'm just calling it the sequencer
+    pub sequencer_mode_select: bool,
+    pub sequencer_counter: u16,
+    pub sequencer_interrupt_inhibit: bool,
 
-// }
+    // "timers" are used to clock the channels
+    // These registers store a value (the timer's "period")
+    // Each CPU clock (I think), the value in the timer is decreased
+    // When zero is reached, the channel's associated sequencer is clocked
+    // I guess it makes sense to call them timers then, even though they're just dividers
+    // You write a value to them and after that many clock cycles has elapsed, they do something
+    // Maybe can come up with better names another time
+    
+    pub square_1_timer: u16,
+    pub square_1_length_counter: u8,
+    pub square_1_duty_cycle: u8,
+    pub square_1_constant_volume: bool,
+    pub square_1_length_counter_halt: bool,
+    pub square_1_volume_and_envelope_period: u8,
+
+    /*
+    
+    sweep can change the pitch of the pulse channels over time
+    basically, the 11 bit period value gets shifted left (so halved, pretty much)
+    then, this shifted value gets added or subtracted from the original value
+    sweep also has a counter (timer) in it that controls how often the pitch gets changed
+
+    
+
+
+    */
+    
+    pub square_1_sweep_enabled: bool,
+    pub square_1_sweep_period: u8,
+    pub square_1_sweep_down: bool,
+    pub square_1_sweep_amount: u8,
+
+
+
+
+}
 
 
 
