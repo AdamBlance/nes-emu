@@ -129,7 +129,14 @@ these stop the sound when the counter is 0, setting a length for the note basica
 
 */
 
+// #[derive(Copy, Clone)]
+// pub struct Apu {
 
+//     pub duty_cycle: u8,
+//     pub volume: u8,
+//     pub period
+
+// }
 
 
 

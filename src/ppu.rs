@@ -28,7 +28,19 @@ pub fn step_ppu(nes: &mut Nes) {
     let cycle = nes.ppu.scanline_cycle;
     let scanline = nes.ppu.scanline;
     let rendering_enabled = nes.ppu.show_bg || nes.ppu.show_sprites;
+
+    // could move this down or whatever
+    // the shift registers shift at the end(?) of the cycles 2..=257, 322..=337
+    if (cycle >= 2 && cycle <= 257) || (cycle >= 322 && cycle <= 337) {
+        nes.ppu.ptable_lsb_sr <<= 1;
+        nes.ppu.ptable_msb_sr <<= 1;
     
+        nes.ppu.attr_lsb_sr <<= 1;
+        nes.ppu.attr_msb_sr <<= 1;
+        nes.ppu.attr_lsb_sr |= nes.ppu.attr_lsb_latch as u8;
+        nes.ppu.attr_msb_sr |= nes.ppu.attr_msb_latch as u8;
+    }
+
     // If in visible area, draw pixel
     if (cycle >= 1 && cycle <= 256) && (scanline >= 0 && scanline <= 239) && rendering_enabled {
 
@@ -518,16 +530,7 @@ pub fn step_ppu(nes: &mut Nes) {
         if nes.ppu_log_toggle {println!("copied vertical bits from t to v\n");}
     }
 
-    // the shift registers shift at the end of the cycles 2..=257, 322..=337
-    if (cycle >= 2 && cycle <= 257) || (cycle >= 322 && cycle <= 337) {
-        nes.ppu.ptable_lsb_sr <<= 1;
-        nes.ppu.ptable_msb_sr <<= 1;
-    
-        nes.ppu.attr_lsb_sr <<= 1;
-        nes.ppu.attr_msb_sr <<= 1;
-        nes.ppu.attr_lsb_sr |= nes.ppu.attr_lsb_latch as u8;
-        nes.ppu.attr_msb_sr |= nes.ppu.attr_msb_latch as u8;
-    }
+
 
     // Wrap scanline cycles
     if nes.ppu.scanline_cycle < 340 {
