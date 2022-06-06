@@ -139,10 +139,8 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub fn address_resolution_cycles(self) -> u8 {
+    pub fn address_resolution_cycles(self) -> i8 {
         match self {
-            Implied     => 1,   // this isn't quite right? Wait it is? 
-            Accumulator => 1,
             Immediate   => 1,
             ZeroPage    => 1,
             ZeroPageX   => 2,
@@ -152,8 +150,7 @@ impl Mode {
             AbsoluteY   => 2,
             IndirectX   => 4,
             IndirectY   => 3,
-            AbsoluteI   => 0,
-            Relative    => 0,
+            _           => 0,
         }
     }
 }
