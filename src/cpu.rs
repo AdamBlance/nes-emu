@@ -24,7 +24,7 @@ pub fn step_cpu(nes: &mut Nes) {
     */
     if nes.cpu.nmi_interrupt && nes.cpu.instruction_cycle == 0 && !nes.cpu.nmi_internal_flag {
         nes.cpu.nmi_internal_flag = true;
-        // println!("In NMI");
+        nes.cpu.interrupt_request = false; // I think this happens
     }
 
     if nes.cpu.nmi_internal_flag {
@@ -46,6 +46,31 @@ pub fn step_cpu(nes: &mut Nes) {
         return;
     }
 
+    // not considering interrupt hijacking yet
+
+    if nes.cpu.interrupt_request && nes.cpu.instruction_cycle == 0 && !nes.cpu.irq_internal_flag
+       && !nes.cpu.p_i {
+        nes.cpu.irq_internal_flag = true;
+    }
+
+    if nes.cpu.irq_internal_flag {
+        match nes.cpu.instruction_cycle {
+            0 => DUMMY_READ_FROM_PC(nes),
+            1 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
+            2 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
+            3 => {push_p_to_stack_during_interrupt(nes); decrement_s(nes);}
+            4 => {fetch_lower_pc_from_interrupt_vector(nes);}
+            5 => {
+                fetch_upper_pc_from_interrupt_vector(nes); 
+                nes.cpu.interrupt_request = false;
+                nes.cpu.irq_internal_flag = false;
+                nes.cpu.instruction_cycle = -1;
+            }
+            _ => unreachable!(),
+        }
+        nes.cpu.instruction_cycle += 1;
+        return;
+    }
 
 
 
@@ -60,8 +85,8 @@ pub fn step_cpu(nes: &mut Nes) {
             nes.jammed = true;
         }
 
-        nes.old_cpu_state = nes.cpu;
-        nes.old_ppu_state = nes.ppu;
+        // nes.old_cpu_state = nes.cpu;
+        // nes.old_ppu_state = nes.ppu;
 
         increment_pc(nes);
 
