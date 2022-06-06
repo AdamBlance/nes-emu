@@ -20,6 +20,7 @@ mod instr_defs;
 mod instr_funcs;
 mod addressing_funcs;
 mod util;
+mod logging;
 
 struct Emulator {
     nes: Nes,
@@ -40,7 +41,7 @@ const FRAMERATE: u32 = 60;
 
 impl EventHandler for Emulator {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
-        while timer::check_update_time(ctx, FRAMERATE) {
+        if timer::check_update_time(ctx, FRAMERATE) {
             emu::run_to_vblank(&mut self.nes);
         }
         if self.frames % 100 == 0 {
@@ -57,7 +58,7 @@ impl EventHandler for Emulator {
             Rect::new(0.0, 0.0, 1024.0, 960.0), 
             Color::WHITE
         )?;
-        graphics::draw(ctx, &bg, DrawParam::default());
+        graphics::draw(ctx, &bg, DrawParam::default())?;
 
         // Draw emulator output
         let image = Image::from_rgba8(

@@ -418,7 +418,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name: UISB, mode: ZeroPage,    category: Read},
     Instruction {name:  INX, mode: Implied,     category: Register},
     Instruction {name:  SBC, mode: Immediate,   category: Read},
-    Instruction {name:  NOP, mode: Implied,     category: Read},
+    Instruction {name:  NOP, mode: Implied,     category: Control},
     Instruction {name: USBC, mode: Immediate,   category: Read},
     Instruction {name:  CPX, mode: Absolute,    category: Read},
     Instruction {name:  SBC, mode: Absolute,    category: Read},

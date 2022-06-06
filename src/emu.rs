@@ -41,9 +41,9 @@ pub fn run_to_vblank(nes: &mut Nes) {
         ppu::step_ppu(nes);
         ppu::step_ppu(nes);
 
-        if nes.cpu.cycles % 2 == 0 {
-            apu::step_apu(nes);
-        }
+        // if nes.cpu.cycles % 2 == 0 {
+        //     apu::step_apu(nes);
+        // }
 
         // So, after 3 ppu cycles, when reaching end of frame, ppu should land somewhere inside 
         // the 3 cycle range after the frame ends
