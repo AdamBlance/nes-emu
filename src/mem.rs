@@ -18,8 +18,8 @@ const PPU_WARMUP: u64 = 29658;
 
 fn mapper(addr: u16, nes: &mut Nes) -> u8 {
     // this is just nrom 
-    let prg_size = nes.cart.prg_rom.len() as u16;
-    nes.cart.prg_rom[(addr % prg_size) as usize]
+    let prg_size = nes.cartridge.prg_rom.len() as u16;
+    nes.cartridge.prg_rom[(addr % prg_size) as usize]
 }
 
 pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
@@ -103,8 +103,8 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
         OAMDMA => 0,
 
         CONTROLLER_1 => {
-            let button_bit = nes.controller_1.shift_register & 1;
-            nes.controller_1.shift_register >>= 1;
+            let button_bit = nes.controller1.shift_register & 1;
+            nes.controller1.shift_register >>= 1;
             button_bit
         }
 
@@ -198,10 +198,10 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
 
         CONTROLLER_1 => {
             // If latch was high, now low, put controller state in shift register
-            if nes.controller_1.sr_latch_pin && (val & 1) == 0 {
-                nes.controller_1.shift_register = nes.controller_1.button_state;
+            if nes.controller1.sr_latch_pin && (val & 1) == 0 {
+                nes.controller1.shift_register = nes.controller1.button_state;
             }
-            nes.controller_1.sr_latch_pin = (val & 1) == 1;
+            nes.controller1.sr_latch_pin = (val & 1) == 1;
         }
 
         _ => (),

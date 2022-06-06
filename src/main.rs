@@ -117,7 +117,7 @@ fn main() {
         panic!("No filename provided");
     }
 
-    let ines_data = std::fs::read(commandline_args[1])
+    let ines_data = std::fs::read(&commandline_args[1])
         .expect("Failed to read rom");
 
     // If the file isn't long enough to contain iNES header, quit

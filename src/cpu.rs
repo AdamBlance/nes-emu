@@ -1,10 +1,9 @@
-use crate::hw::*;
-use crate::mem::*;
 use crate::instr_defs::{INSTRUCTIONS, Mode::*, Category::*, Name::*};
 use crate::addressing_funcs::*;
-use crate::util::*;
 use crate::instr_funcs::update_p_nz;
-
+use crate::hw::Nes;
+use crate::mem::*;
+use crate::util::*;
 
 const DUMMY_READ_FROM_PC:      fn(&mut Nes) = read_from_pc;
 const DUMMY_READ_FROM_ADDRESS: fn(&mut Nes) = read_from_address;
@@ -15,13 +14,11 @@ pub fn step_cpu(nes: &mut Nes) {
     /*
         If the NMI signal has been raised by the PPU 
         AND the instruction that was running at the time it was raised has completed
-        AND the CPU is not already transferring control to the NMI handler,
-        start transferring control to the NMI handler. 
-
+        AND the CPU has not already transferred control to the NMI handler,
+        start transfer control to the NMI handler. 
         Once completed, reset all flags. 
-        The CPU doesn't actually reset the NMI signal when it's done since the PPU controls it. 
-        Not sure about the exact steps involved.
     */
+
     if nes.cpu.nmi_interrupt && nes.cpu.instruction_cycle == 0 && !nes.cpu.nmi_internal_flag {
         nes.cpu.nmi_internal_flag = true;
         nes.cpu.interrupt_request = false; // I think this happens
@@ -46,7 +43,7 @@ pub fn step_cpu(nes: &mut Nes) {
         return;
     }
 
-    // not considering interrupt hijacking yet
+    // IRQ interrupt from APU or mapper
 
     if nes.cpu.interrupt_request && nes.cpu.instruction_cycle == 0 && !nes.cpu.irq_internal_flag
        && !nes.cpu.p_i {
@@ -72,42 +69,52 @@ pub fn step_cpu(nes: &mut Nes) {
         return;
     }
 
-
+    // If on the first instruction cycle, fetch opcode and advance PC
 
     if nes.cpu.instruction_cycle == 0 {
-
         let opcode = read_mem(nes.cpu.pc, nes);
-
-        nes.cpu.trace_opcode = opcode;
         nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
-        
-        if nes.cpu.instruction.name == UJAM {
-            nes.jammed = true;
-        }
+        nes.cpu.trace_opcode = opcode;
 
-        // nes.old_cpu_state = nes.cpu;
-        // nes.old_ppu_state = nes.ppu;
+        // For logging
+        nes.old_cpu_state = nes.cpu;
+        nes.old_ppu_state = nes.ppu;
 
         increment_pc(nes);
-
         nes.cpu.cycles += 1;
         nes.cpu.instruction_cycle += 1;
-        
         return;
     }
 
-
-
     /*
-        Firstly, deal with control instructions that need special handling
-        The match below tells the CPU what to do at each instruction cycle
+        The second instruction cycle (cycle 1) is when instructions start to do things. 
+        First, deal with register instructions. 
+        These are all 1 byte in length, and (functionally) take 2 cycles to complete.
+        The match below tells the CPU what to do at each instruction cycle.
     */
 
     let i = nes.cpu.instruction;
     let c = nes.cpu.instruction_cycle;
     let cat = nes.cpu.instruction.category; 
+    let func = nes.cpu.instruction.get_associated_function();
 
-    if nes.cpu.instruction.category == C {
+    if cat == Register {
+        DUMMY_READ_FROM_PC(nes);
+        /*
+            These accumulator -> data -> accumulator steps are only relevant to register 
+            instructions that operate on the accumulator. 
+            All instructions with accumulator addressing are read-modify-write instructions. 
+            These are shift left, shift right, rotate left, rotate right.
+        */ 
+        nes.cpu.data = nes.cpu.a;
+        func(nes);
+        nes.cpu.a = nes.cpu.data;
+        end_instr(nes);
+    }
+    
+    // Next, deal with control instructions. These need special handling. 
+
+    else if cat == Control {
         match (i.name, i.mode) {
             (BRK, _) => { match c {
                 1 => {DUMMY_READ_FROM_PC(nes); increment_pc(nes);}
@@ -180,9 +187,9 @@ pub fn step_cpu(nes: &mut Nes) {
         };
     }
 
-    // Next, deal with branches, which behave differently from other instructions
+    // Next, deal with branches, which behave differently from other instructions.
 
-    else if nes.cpu.instruction.category == B {
+    else if cat == Branch {
         match c {
             1 => {
                 fetch_branch_offset_from_pc(nes); 
@@ -198,24 +205,25 @@ pub fn step_cpu(nes: &mut Nes) {
                     BMI =>  nes.cpu.p_n,
                     _   => unreachable!(),
                 };
-
-                if !nes.cpu.branching {end_instr(nes);}
+                // Continue to next instruction if branch was not taken
+                if !nes.cpu.branching {
+                    end_instr(nes);
+                }
             }
+
             2 => {
-                // DUMMY READ!
-                // Idk where it's reading from 
-                // come back to this later, should work fine for the now
                 let prev_pcl = nes.cpu.pc as u8;
                 let (new_pcl, overflow) = prev_pcl.overflowing_add_signed(nes.cpu.branch_offset as i8);
-                
-                nes.cpu.set_lower_pc(new_pcl);
-
                 nes.cpu.internal_carry_out = overflow;
-
-                if !nes.cpu.internal_carry_out {end_instr(nes);}
+                nes.cpu.set_lower_pc(new_pcl);
+                // If branch didn't cross page boundary, continue to next instruction
+                if !nes.cpu.internal_carry_out {
+                    end_instr(nes);
+                }
             }
+
             3 => {
-                // need more dummy reads here
+                // Fix upper PC if page was crossed
                 if is_neg(nes.cpu.branch_offset) {
                     nes.cpu.pc = nes.cpu.pc.wrapping_sub(1 << 8);
                 } else {
@@ -223,35 +231,23 @@ pub fn step_cpu(nes: &mut Nes) {
                 }
                 end_instr(nes);
             }
+
             _ => unreachable!(),
         }
     }
     
-
-    
     /*
-        If not a control instruction, must be a read/write/read-modify-write instruction
-        The per-cycle operation of these instructions is defined by three things:
-            - The addressing mode of the instruction (e.g. ZeroPage, IndirectX)
-            - A data operation (e.g. shift left, subtract)
-            - The instruction's category (read, write, read-modify-write)
+        Instructions that aren't control or branch instructions read from and/or write to memory. 
+        Each of these instructions has an addressing mode. This determines what location in memory
+        the instruction does stuff with. The table at the top of instr_defs.rs summarises each mode.
 
-        The first cycles of an instruction are determined by the addressing mode
-
-        Explain addressing modes? 
+        
+        
 
     */
-
-    // These category matches could be in a match? idk
-    // could have an instruction state thing, like an enum for each section of 
-
     
-    else if cat == R || cat == W || cat == RMW {
+    else if cat == Read || cat == Write || cat == ReadModifyWrite {
         match nes.cpu.instruction.mode {
-            Implied | Accumulator => { match c {
-                1 => DUMMY_READ_FROM_PC(nes),
-                _ => (),
-            }}
             Immediate => { match c {
                 1 => {fetch_immediate_from_pc(nes); increment_pc(nes);}
                 _ => (),
@@ -366,7 +362,6 @@ pub fn step_cpu(nes: &mut Nes) {
 
 
         let c = nes.cpu.instruction_cycle as i8 - nes.cpu.instruction.mode.address_resolution_cycles() as i8;
-        let func = nes.cpu.instruction.name.function();
 
         match nes.cpu.instruction.mode {
             Accumulator => { match c {
@@ -378,15 +373,15 @@ pub fn step_cpu(nes: &mut Nes) {
                 _ => unreachable!(),
             }}
             Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => { match (cat, c) {
-                (R,   1) => {read_from_address(nes); func(nes); end_instr(nes);}
-                (W,   1) => {func(nes); end_instr(nes);}
-                (RMW, 1) => read_from_address(nes),
-                (RMW, 2) => {write_to_address(nes); func(nes);}
-                (RMW, 3) => {write_to_address(nes); end_instr(nes);}
+                (Read,   1) => {read_from_address(nes); func(nes); end_instr(nes);}
+                (Write,   1) => {func(nes); end_instr(nes);}
+                (ReadModifyWrite, 1) => read_from_address(nes),
+                (ReadModifyWrite, 2) => {write_to_address(nes); func(nes);}
+                (ReadModifyWrite, 3) => {write_to_address(nes); end_instr(nes);}
                 (_,   _) => (),
             }}
             AbsoluteX | AbsoluteY | IndirectY => { match (cat, c) {
-                (R, 1)   => {
+                (Read, 1)   => {
                     read_from_address(nes); 
                     add_lower_address_carry_bit_to_upper_address(nes);
                     if !nes.cpu.internal_carry_out {
@@ -394,15 +389,15 @@ pub fn step_cpu(nes: &mut Nes) {
                         end_instr(nes);
                     }
                 }
-                (R, 2)   => {read_from_address(nes); func(nes); end_instr(nes);}
+                (Read, 2)   => {read_from_address(nes); func(nes); end_instr(nes);}
 
-                (W, 1)   => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
-                (W, 2)   => {func(nes); end_instr(nes);}
+                (Write, 1)   => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
+                (Write, 2)   => {func(nes); end_instr(nes);}
 
-                (RMW, 1) => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
-                (RMW, 2) => read_from_address(nes),
-                (RMW, 3) => {write_to_address(nes); func(nes);}
-                (RMW, 4) => {write_to_address(nes); end_instr(nes);}
+                (ReadModifyWrite, 1) => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
+                (ReadModifyWrite, 2) => read_from_address(nes),
+                (ReadModifyWrite, 3) => {write_to_address(nes); func(nes);}
+                (ReadModifyWrite, 4) => {write_to_address(nes); end_instr(nes);}
 
                 (_, _) => (),
             }}

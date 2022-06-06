@@ -32,13 +32,13 @@ pub fn step_ppu(nes: &mut Nes) {
     // could move this down or whatever
     // the shift registers shift at the end(?) of the cycles 2..=257, 322..=337
     if (cycle >= 2 && cycle <= 257) || (cycle >= 322 && cycle <= 337) {
-        nes.ppu.ptable_lsb_sr <<= 1;
-        nes.ppu.ptable_msb_sr <<= 1;
+        nes.ppu.bg_ptable_lsb_sr <<= 1;
+        nes.ppu.bg_ptable_msb_sr <<= 1;
     
-        nes.ppu.attr_lsb_sr <<= 1;
-        nes.ppu.attr_msb_sr <<= 1;
-        nes.ppu.attr_lsb_sr |= nes.ppu.attr_lsb_latch as u8;
-        nes.ppu.attr_msb_sr |= nes.ppu.attr_msb_latch as u8;
+        nes.ppu.bg_attr_lsb_sr <<= 1;
+        nes.ppu.bg_attr_msb_sr <<= 1;
+        nes.ppu.bg_attr_lsb_sr |= nes.ppu.bg_attr_lsb_latch as u8;
+        nes.ppu.bg_attr_msb_sr |= nes.ppu.bg_attr_msb_latch as u8;
     }
 
     // If in visible area, draw pixel
@@ -115,8 +115,8 @@ pub fn step_ppu(nes: &mut Nes) {
             if nes.ppu.sprite_x_counters[i] == 0 {
 
                 
-                let patt_lsb = get_bit(nes.ppu.sprite_lsb_srs[i], 7);
-                let patt_msb = get_bit(nes.ppu.sprite_msb_srs[i], 7);
+                let patt_lsb = get_bit(nes.ppu.sprite_ptable_lsb_srs[i], 7);
+                let patt_msb = get_bit(nes.ppu.sprite_ptable_msb_srs[i], 7);
 
                 // If sprite pixel is not transparent, choose this sprite to draw and break
                 // from the loop.
@@ -138,8 +138,8 @@ pub fn step_ppu(nes: &mut Nes) {
         // Next, determine background pixel
 
         // Get background pattern
-        let bg_patt_lsb = get_bit_u16(nes.ppu.ptable_lsb_sr, 15 - nes.ppu.x);
-        let bg_patt_msb = get_bit_u16(nes.ppu.ptable_msb_sr, 15 - nes.ppu.x);
+        let bg_patt_lsb = get_bit_u16(nes.ppu.bg_ptable_lsb_sr, 15 - nes.ppu.x);
+        let bg_patt_msb = get_bit_u16(nes.ppu.bg_ptable_msb_sr, 15 - nes.ppu.x);
         
 
         
@@ -150,8 +150,8 @@ pub fn step_ppu(nes: &mut Nes) {
         for i in 0..8 {
             // If a sprite's x counter has reached zero, shift pattern table registers
             if nes.ppu.sprite_x_counters[i] == 0 {
-                nes.ppu.sprite_lsb_srs[i] <<= 1;
-                nes.ppu.sprite_msb_srs[i] <<= 1;
+                nes.ppu.sprite_ptable_lsb_srs[i] <<= 1;
+                nes.ppu.sprite_ptable_msb_srs[i] <<= 1;
             }
         }
 
@@ -207,8 +207,8 @@ pub fn step_ppu(nes: &mut Nes) {
 
             else if (!bg_transparent && sprite_transparent) 
                  || (!bg_transparent && !sprite_transparent && draw_sprite_behind) {
-                let lsb_attr = get_bit(nes.ppu.attr_lsb_sr, 7 - nes.ppu.x) as u16;
-                let msb_attr = get_bit(nes.ppu.attr_msb_sr, 7 - nes.ppu.x) as u16;
+                let lsb_attr = get_bit(nes.ppu.bg_attr_lsb_sr, 7 - nes.ppu.x) as u16;
+                let msb_attr = get_bit(nes.ppu.bg_attr_msb_sr, 7 - nes.ppu.x) as u16;
 
                 0x3F00 | (msb_attr << 3) 
                        | (lsb_attr << 2) 
@@ -253,8 +253,8 @@ pub fn step_ppu(nes: &mut Nes) {
 
         if nes.ppu_log_toggle {
             println!("\nPixel drawn!");
-            println!("sprite pattern srs lsb {:04X?}", nes.ppu.sprite_lsb_srs);
-            println!("sprite pattern srs msb {:04X?}", nes.ppu.sprite_msb_srs);
+            println!("sprite pattern srs lsb {:04X?}", nes.ppu.sprite_ptable_lsb_srs);
+            println!("sprite pattern srs msb {:04X?}", nes.ppu.sprite_ptable_msb_srs);
             println!("sprite x counters {:?}", nes.ppu.sprite_x_counters);
 
             // println!(
@@ -295,8 +295,8 @@ pub fn step_ppu(nes: &mut Nes) {
 
     if shift_register_reload {
         // Reload pattern shift registers
-        nes.ppu.ptable_lsb_sr |= nes.ppu.ptable_lsb_tmp as u16;
-        nes.ppu.ptable_msb_sr |= nes.ppu.ptable_msb_tmp as u16;
+        nes.ppu.bg_ptable_lsb_sr |= nes.ppu.bg_ptable_lsb_tmp as u16;
+        nes.ppu.bg_ptable_msb_sr |= nes.ppu.bg_ptable_msb_tmp as u16;
 
         let left_num = ((nes.ppu.v & COARSE_X).wrapping_sub(1)) / 2; 
         let top_num = ((nes.ppu.v & COARSE_Y) >> 5) / 2;
@@ -304,24 +304,24 @@ pub fn step_ppu(nes: &mut Nes) {
         let is_top  = top_num % 2 == 0;
         let is_left = left_num % 2 == 0;
 
-        let attr = nes.ppu.attr_tmp;
+        let attr = nes.ppu.bg_atable_tmp;
 
         match (is_top, is_left) {
             (true, true) => {
-                nes.ppu.attr_lsb_latch = get_bit(attr, 0);
-                nes.ppu.attr_msb_latch = get_bit(attr, 1);
+                nes.ppu.bg_attr_lsb_latch = get_bit(attr, 0);
+                nes.ppu.bg_attr_msb_latch = get_bit(attr, 1);
             }
             (true, false) => {
-                nes.ppu.attr_lsb_latch = get_bit(attr, 2);
-                nes.ppu.attr_msb_latch = get_bit(attr, 3);
+                nes.ppu.bg_attr_lsb_latch = get_bit(attr, 2);
+                nes.ppu.bg_attr_msb_latch = get_bit(attr, 3);
             }
             (false, true) => {
-                nes.ppu.attr_lsb_latch = get_bit(attr, 4);
-                nes.ppu.attr_msb_latch = get_bit(attr, 5);
+                nes.ppu.bg_attr_lsb_latch = get_bit(attr, 4);
+                nes.ppu.bg_attr_msb_latch = get_bit(attr, 5);
             }
             (false, false) => {
-                nes.ppu.attr_lsb_latch = get_bit(attr, 6);
-                nes.ppu.attr_msb_latch = get_bit(attr, 7);
+                nes.ppu.bg_attr_lsb_latch = get_bit(attr, 6);
+                nes.ppu.bg_attr_msb_latch = get_bit(attr, 7);
             }
         }
 
@@ -331,7 +331,7 @@ pub fn step_ppu(nes: &mut Nes) {
             println!("left_num {} {:08b}", left_num, left_num);
             println!("top_num {} {:08b}", top_num, top_num);
             println!("is_top {}, is_left {}", is_top, is_left);
-            println!("selecting {}{}", nes.ppu.attr_msb_latch as u8, nes.ppu.attr_lsb_latch as u8);
+            println!("selecting {}{}", nes.ppu.bg_attr_msb_latch as u8, nes.ppu.bg_attr_lsb_latch as u8);
         }
     }
 
@@ -344,37 +344,37 @@ pub fn step_ppu(nes: &mut Nes) {
             
             NAMETABLE_READ => {
                 let ntable_address = 0x2000 | (nes.ppu.v & !FINE_Y);
-                nes.ppu.ntable_tmp = read_vram(ntable_address, nes);
+                nes.ppu.bg_ntable_tmp = read_vram(ntable_address, nes);
 
-                if nes.ppu_log_toggle {println!("read nametable byte {:02X} from {:016b} ({:04X})\n", nes.ppu.ntable_tmp, ntable_address, ntable_address);}
+                if nes.ppu_log_toggle {println!("read nametable byte {:02X} from {:016b} ({:04X})\n", nes.ppu.bg_ntable_tmp, ntable_address, ntable_address);}
             }
 
             ATTRIBUTE_READ => {
                 let attribute_addr = 0x23C0 | (nes.ppu.v & NAMETABLE) 
                                             | ((nes.ppu.v & 0b11100_00000) >> 4)
                                             | ((nes.ppu.v & 0b00000_11100) >> 2);
-                nes.ppu.attr_tmp = read_vram(attribute_addr, nes);
+                nes.ppu.bg_atable_tmp = read_vram(attribute_addr, nes);
 
-                if nes.ppu_log_toggle {println!("read attribute byte {:02X} from {:016b} ({:04X}\n)", nes.ppu.attr_tmp, attribute_addr, attribute_addr);}
+                if nes.ppu_log_toggle {println!("read attribute byte {:02X} from {:016b} ({:04X}\n)", nes.ppu.bg_atable_tmp, attribute_addr, attribute_addr);}
             }
 
             PATTERN_LSB_READ => {
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
-                              | ((nes.ppu.ntable_tmp as u16) << 4) 
+                              | ((nes.ppu.bg_ntable_tmp as u16) << 4) 
                               | ((nes.ppu.v & FINE_Y) >> 12);
-                nes.ppu.ptable_lsb_tmp = read_vram(tile_addr, nes);
+                nes.ppu.bg_ptable_lsb_tmp = read_vram(tile_addr, nes);
 
-                if nes.ppu_log_toggle {println!("read pattern lsb {:08b} from {:016b} ({:04X})\n", nes.ppu.ptable_lsb_tmp, tile_addr, tile_addr);}
+                if nes.ppu_log_toggle {println!("read pattern lsb {:08b} from {:016b} ({:04X})\n", nes.ppu.bg_ptable_lsb_tmp, tile_addr, tile_addr);}
             }
 
             PATTERN_MSB_READ => {
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
-                                | ((nes.ppu.ntable_tmp as u16) << 4) 
+                                | ((nes.ppu.bg_ntable_tmp as u16) << 4) 
                                 | ((nes.ppu.v & FINE_Y) >> 12)
                                 + 8; // equivalently | 0b1000, lower 3 are fine y 
-                nes.ppu.ptable_msb_tmp = read_vram(tile_addr, nes);
+                nes.ppu.bg_ptable_msb_tmp = read_vram(tile_addr, nes);
 
-                if nes.ppu_log_toggle {println!("read pattern msb {:08b} from {:016b} ({:04X})\n", nes.ppu.ptable_msb_tmp, tile_addr, tile_addr);}
+                if nes.ppu_log_toggle {println!("read pattern msb {:08b} from {:016b} ({:04X})\n", nes.ppu.bg_ptable_msb_tmp, tile_addr, tile_addr);}
             }
 
             _ => ()
@@ -467,14 +467,14 @@ pub fn step_ppu(nes: &mut Nes) {
                 let mut data = read_vram(tile_addr, nes);
                 if current_sprite >= (nes.ppu.in_range_counter as usize) {data = 0;}
                 if flip_horizontally {data = flip_byte(data);}
-                nes.ppu.sprite_lsb_srs[current_sprite as usize] = data;
+                nes.ppu.sprite_ptable_lsb_srs[current_sprite as usize] = data;
             }
 
             PATTERN_MSB_READ => {
                 let mut data = read_vram(tile_addr.wrapping_add(8), nes);
                 if current_sprite >= (nes.ppu.in_range_counter as usize) {data = 0;}
                 if flip_horizontally {data = flip_byte(data);}
-                nes.ppu.sprite_msb_srs[current_sprite as usize] = data;
+                nes.ppu.sprite_ptable_msb_srs[current_sprite as usize] = data;
             }
 
             _ => (),
@@ -597,9 +597,9 @@ fn physical_nametable_addr(addr: u16, cart: &Cartridge) -> usize {
 pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
     let a = addr as usize;
     match addr {
-        0x0000..=0x1FFF => nes.cart.chr_rom[a],
-        0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart)],
-        0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cart)],
+        0x0000..=0x1FFF => nes.cartridge.chr_rom[a],
+        0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cartridge)],
+        0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cartridge)],
         0x3F00..=0x3F0F => nes.ppu.palette_mem[a - 0x3F00],
         0x3F10..=0x3F1F => {
             let temp = a - 0x3F00;
@@ -616,8 +616,8 @@ pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
 pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
     let a = addr as usize;
     match addr {
-        0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cart)] = val,
-        0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cart)] = val,
+        0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cartridge)] = val,
+        0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cartridge)] = val,
         0x3F00..=0x3F0F => nes.ppu.palette_mem[a - 0x3F00] = val,
         0x3F10..=0x3F1F => {
             let temp = a - 0x3F00;
@@ -639,17 +639,17 @@ fn print_ppu_log(nes: &Nes) {
     println!("v: {:016b} ({:04X})", nes.ppu.v, nes.ppu.v);
     println!("t: {:016b} ({:04X}), x: {:08b}", nes.ppu.t, nes.ppu.t, nes.ppu.x);
 
-    println!("pt_lsb_sr: {:016b}", nes.ppu.ptable_lsb_sr);
-    println!("pt_msb_sr: {:016b}", nes.ppu.ptable_msb_sr);
+    println!("pt_lsb_sr: {:016b}", nes.ppu.bg_ptable_lsb_sr);
+    println!("pt_msb_sr: {:016b}", nes.ppu.bg_ptable_msb_sr);
 
-    println!("at_lsb_sr: {:08b}", nes.ppu.attr_lsb_sr);
-    println!("at_msb_sr: {:08b}", nes.ppu.attr_msb_sr);
+    println!("at_lsb_sr: {:08b}", nes.ppu.bg_attr_lsb_sr);
+    println!("at_msb_sr: {:08b}", nes.ppu.bg_attr_msb_sr);
 
-    println!("ntable_tmp: {:08b} ({:02X})", nes.ppu.ntable_tmp, nes.ppu.ntable_tmp);
-    println!("attr_tmp: {:08b} ({:02X})", nes.ppu.attr_tmp, nes.ppu.attr_tmp);
-    println!("ptable_lsb_tmp: {:08b} ({:02X})", nes.ppu.ptable_lsb_tmp, nes.ppu.ptable_lsb_tmp);
-    println!("ptable_msb_tmp: {:08b} ({:02X})", nes.ppu.ptable_msb_tmp, nes.ppu.ptable_msb_tmp);
+    println!("bg_ntable_tmp: {:08b} ({:02X})", nes.ppu.bg_ntable_tmp, nes.ppu.bg_ntable_tmp);
+    println!("bg_atable_tmp: {:08b} ({:02X})", nes.ppu.bg_atable_tmp, nes.ppu.bg_atable_tmp);
+    println!("bg_ptable_lsb_tmp: {:08b} ({:02X})", nes.ppu.bg_ptable_lsb_tmp, nes.ppu.bg_ptable_lsb_tmp);
+    println!("bg_ptable_msb_tmp: {:08b} ({:02X})", nes.ppu.bg_ptable_msb_tmp, nes.ppu.bg_ptable_msb_tmp);
 
-    println!("attr_lsb_latch: {:?}, attr_msb_latch: {:?}", nes.ppu.attr_lsb_latch, nes.ppu.attr_msb_latch);
+    println!("bg_attr_lsb_latch: {:?}, bg_attr_msb_latch: {:?}", nes.ppu.bg_attr_lsb_latch, nes.ppu.bg_attr_msb_latch);
     println!();
 }
