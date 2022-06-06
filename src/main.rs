@@ -101,8 +101,8 @@ impl EventHandler for Emulator {
             KeyCode::A        => self.nes.controller1.button_state &= !LEFT,
             KeyCode::R        => self.nes.controller1.button_state &= !DOWN,
             KeyCode::S        => self.nes.controller1.button_state &= !RIGHT,
-            KeyCode::E        => self.nes.controller1.button_state &= !B,
-            KeyCode::I        => self.nes.controller1.button_state &= !A,
+            KeyCode::N        => self.nes.controller1.button_state &= !B,
+            KeyCode::E        => self.nes.controller1.button_state &= !A,
             KeyCode::LBracket => self.nes.controller1.button_state &= !SELECT,
             KeyCode::RBracket => self.nes.controller1.button_state &= !START,
             _ => ()
