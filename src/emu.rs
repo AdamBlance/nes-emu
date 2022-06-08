@@ -41,9 +41,14 @@ pub fn run_to_vblank(nes: &mut Nes) {
         ppu::step_ppu(nes);
         ppu::step_ppu(nes);
 
-        // if nes.cpu.cycles % 2 == 0 {
-        //     apu::step_apu(nes);
-        // }
+        if nes.cpu.cycles % 2 == 0 {
+            apu::step_apu(nes);
+        }
+
+        if nes.cpu.cycles % 40 == 0 {
+            // https://github.com/RustAudio/cpal/blob/master/examples/synth_tones.rs
+            nes.apu.audio_queue.send((nes.apu.square_1_output as u32 as f32) * 10.0 * (nes.apu.square_1_volume_and_envelope_period as f32)).expect("something wrong happened when appending to audio queue");
+        }
 
         // So, after 3 ppu cycles, when reaching end of frame, ppu should land somewhere inside 
         // the 3 cycle range after the frame ends

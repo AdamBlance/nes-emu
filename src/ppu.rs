@@ -1,4 +1,6 @@
-use crate::{hw::*, util::{get_bit, get_bit_u16, flip_byte}};
+use crate::util::*;
+use crate::hw::{Nes, Cartridge};
+use crate::logging;
 
 pub static PALETTE: [(u8,u8,u8); 64] = [
     ( 84,  84,  84), (  0,  30, 116), (  8,  16, 144), ( 48,   0, 136), ( 68,   0, 100), ( 92,   0,  48), ( 84,   4,   0), ( 60,  24,   0), ( 32,  42,   0), (  8,  58,   0), (  0,  64,   0), (  0,  60,   0), (  0,  50,  60), (  0,   0,   0), (  0,   0,   0), (  0,   0,   0), 
@@ -7,9 +9,9 @@ pub static PALETTE: [(u8,u8,u8); 64] = [
     (236, 238, 236), (168, 204, 236), (188, 188, 236), (212, 178, 236), (236, 174, 236), (236, 174, 212), (236, 180, 176), (228, 196, 144), (204, 210, 120), (180, 222, 120), (168, 226, 144), (152, 226, 180), (160, 214, 228), (160, 162, 160), (  0,   0,   0), (  0,   0,   0)
 ];
 
-const NAMETABLE: u16    = 0b000_11_00000_00000;
-const NAMETABLE_MSB: u16    = 0b000_10_00000_00000;
-const NAMETABLE_LSB: u16    = 0b000_01_00000_00000;
+const NAMETABLE: u16     = 0b000_11_00000_00000;
+const NAMETABLE_MSB: u16 = 0b000_10_00000_00000;
+const NAMETABLE_LSB: u16 = 0b000_01_00000_00000;
 const COARSE_X: u16      = 0b000_00_00000_11111;
 const COARSE_Y: u16      = 0b000_00_11111_00000;
 const FINE_Y: u16        = 0b111_00_00000_00000;
@@ -22,7 +24,7 @@ const PATTERN_MSB_READ: i32 = 7;
 
 pub fn step_ppu(nes: &mut Nes) {
     
-    if nes.ppu_log_toggle {print_ppu_log(nes);}
+    if nes.ppu_log_toggle {logging::print_ppu_log(nes);}
 
     // Aliases
     let cycle = nes.ppu.scanline_cycle;
@@ -629,27 +631,4 @@ pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
         }
         _ => (),
     }
-}
-
-fn print_ppu_log(nes: &Nes) {
-    println!("Values at beginning of PPU step:");
-
-    println!("rendering: {}", nes.ppu.show_bg || nes.ppu.show_sprites);
-    println!("scanline: {}, cycle: {}", nes.ppu.scanline, nes.ppu.scanline_cycle);
-    println!("v: {:016b} ({:04X})", nes.ppu.v, nes.ppu.v);
-    println!("t: {:016b} ({:04X}), x: {:08b}", nes.ppu.t, nes.ppu.t, nes.ppu.x);
-
-    println!("pt_lsb_sr: {:016b}", nes.ppu.bg_ptable_lsb_sr);
-    println!("pt_msb_sr: {:016b}", nes.ppu.bg_ptable_msb_sr);
-
-    println!("at_lsb_sr: {:08b}", nes.ppu.bg_attr_lsb_sr);
-    println!("at_msb_sr: {:08b}", nes.ppu.bg_attr_msb_sr);
-
-    println!("bg_ntable_tmp: {:08b} ({:02X})", nes.ppu.bg_ntable_tmp, nes.ppu.bg_ntable_tmp);
-    println!("bg_atable_tmp: {:08b} ({:02X})", nes.ppu.bg_atable_tmp, nes.ppu.bg_atable_tmp);
-    println!("bg_ptable_lsb_tmp: {:08b} ({:02X})", nes.ppu.bg_ptable_lsb_tmp, nes.ppu.bg_ptable_lsb_tmp);
-    println!("bg_ptable_msb_tmp: {:08b} ({:02X})", nes.ppu.bg_ptable_msb_tmp, nes.ppu.bg_ptable_msb_tmp);
-
-    println!("bg_attr_lsb_latch: {:?}, bg_attr_msb_latch: {:?}", nes.ppu.bg_attr_lsb_latch, nes.ppu.bg_attr_msb_latch);
-    println!();
 }

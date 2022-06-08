@@ -1,8 +1,7 @@
 use crate::instr_defs::Instruction;
 use crate::util::*;
-use rodio::buffer::SamplesBuffer;
 
-
+use std::sync::mpsc::Sender;
 
 
 
@@ -18,7 +17,6 @@ pub struct Nes {
     pub controller2: Controller,
     // External
     pub frame:        Vec<u8>,
-    pub audio_buffer: SamplesBuffer<i16>,
     // Debugging
     pub ppu_log_toggle: bool,
     pub old_cpu_state:  Cpu,
@@ -26,11 +24,11 @@ pub struct Nes {
 }
 
 impl Nes {
-    pub fn new(cartridge: Cartridge) -> Nes {
+    pub fn new(cartridge: Cartridge, audio_queue: Sender<f32>) -> Nes {
         Nes { 
             cpu: Cpu::new(),
             ppu: Ppu::new(),
-            apu: Apu::new(),
+            apu: Apu::new(audio_queue),
             wram: [0; 2048],
             cartridge,
             controller1: Default::default(),
@@ -38,11 +36,6 @@ impl Nes {
 
             // RGBA image (4 channels)
             frame: vec![0u8; 256usize * 240 * 4], 
-            audio_buffer: SamplesBuffer::new(
-                1, 
-                44100, 
-                Vec::with_capacity(1000)
-            ),
 
             ppu_log_toggle: false,
             old_cpu_state: Cpu::new(),
@@ -285,7 +278,7 @@ pub struct Apu {
     pub square_1_sequencer_stage: u8,
     pub square_1_duty_cycle: u8,
 
-    pub square_1_length_counter: u8,
+    pub square_1_length_counter: i16,
     pub square_1_constant_volume: bool,
     pub square_1_length_counter_halt: bool,
     pub square_1_volume_and_envelope_period: u8,
@@ -301,12 +294,12 @@ pub struct Apu {
     pub square_1_envelope_starting_volume: u8,
     pub square_1_current_volume: u8,
     pub square_1_envelope_divider: u8,
-    
-    pub audio_buffer: SamplesBuffer<i16>,
+
+    pub audio_queue: Sender<f32>,
 }
 
 impl Apu {
-    fn new() -> Apu {
+    fn new(audio_queue: Sender<f32>) -> Apu {
         Apu {
             frame_sequencer_mode_select: false,
             frame_sequencer_counter: 0,
@@ -329,11 +322,8 @@ impl Apu {
             square_1_current_volume: 0,
             square_1_envelope_divider: 0,
 
-            audio_buffer: SamplesBuffer::new(
-                1, 
-                44100, 
-                Vec::with_capacity(1000)
-            ),
+            audio_queue
+
         }
     }
 }

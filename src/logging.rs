@@ -140,3 +140,26 @@ pub fn log(nes: &Nes) -> String {
 
     log_str
 }
+
+pub fn print_ppu_log(nes: &Nes) {
+    println!("Values at beginning of PPU step:");
+
+    println!("rendering: {}", nes.ppu.show_bg || nes.ppu.show_sprites);
+    println!("scanline: {}, cycle: {}", nes.ppu.scanline, nes.ppu.scanline_cycle);
+    println!("v: {:016b} ({:04X})", nes.ppu.v, nes.ppu.v);
+    println!("t: {:016b} ({:04X}), x: {:08b}", nes.ppu.t, nes.ppu.t, nes.ppu.x);
+
+    println!("pt_lsb_sr: {:016b}", nes.ppu.bg_ptable_lsb_sr);
+    println!("pt_msb_sr: {:016b}", nes.ppu.bg_ptable_msb_sr);
+
+    println!("at_lsb_sr: {:08b}", nes.ppu.bg_attr_lsb_sr);
+    println!("at_msb_sr: {:08b}", nes.ppu.bg_attr_msb_sr);
+
+    println!("bg_ntable_tmp: {:08b} ({:02X})", nes.ppu.bg_ntable_tmp, nes.ppu.bg_ntable_tmp);
+    println!("bg_atable_tmp: {:08b} ({:02X})", nes.ppu.bg_atable_tmp, nes.ppu.bg_atable_tmp);
+    println!("bg_ptable_lsb_tmp: {:08b} ({:02X})", nes.ppu.bg_ptable_lsb_tmp, nes.ppu.bg_ptable_lsb_tmp);
+    println!("bg_ptable_msb_tmp: {:08b} ({:02X})", nes.ppu.bg_ptable_msb_tmp, nes.ppu.bg_ptable_msb_tmp);
+
+    println!("bg_attr_lsb_latch: {:?}, bg_attr_msb_latch: {:?}", nes.ppu.bg_attr_lsb_latch, nes.ppu.bg_attr_msb_latch);
+    println!();
+}

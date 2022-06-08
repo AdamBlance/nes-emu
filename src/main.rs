@@ -4,11 +4,18 @@
 use crate::hw::Nes;
 use crate::hw::Cartridge;
 
+use std::thread;
+
+use std::sync::mpsc::{self, Receiver, TryIter};
+
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{Data, Sample, SampleFormat};
+
 use ggez::{Context, ContextBuilder, GameResult, timer};
 use ggez::event::{self, EventHandler, KeyCode, KeyMods};
-use ggez::conf::WindowMode;
-use ggez::graphics::{self, Rect, Mesh, DrawMode, DrawParam, Color, Image};
-use ggez::mint::{Vector2, Point2};
+use ggez::conf::{WindowMode, WindowSetup};
+use ggez::graphics::{self, DrawParam, Image};
+use ggez::mint::Vector2;
 
 mod emu;
 mod hw;
@@ -37,6 +44,7 @@ const B:      u8 = 0b0000_0010;
 const A:      u8 = 0b0000_0001;
 
 const FRAMERATE: u32 = 60;
+const SCALING:   f32 = 3.0;
 
 
 impl EventHandler for Emulator {
@@ -51,15 +59,6 @@ impl EventHandler for Emulator {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        // Draw background
-        let bg = Mesh::new_rectangle(
-            ctx, 
-            DrawMode::fill(), 
-            Rect::new(0.0, 0.0, 1024.0, 960.0), 
-            Color::WHITE
-        )?;
-        graphics::draw(ctx, &bg, DrawParam::default())?;
-
         // Draw emulator output
         let image = Image::from_rgba8(
             ctx, 
@@ -67,10 +66,7 @@ impl EventHandler for Emulator {
             240, 
             &self.nes.frame
         )?;
-        let dp = DrawParam::new()
-            .scale(Vector2{x: 3.0, y: 3.0})
-            .dest(Point2{x: 50.0, y: 50.0});
-
+        let dp = DrawParam::default().scale(Vector2{x: SCALING, y: SCALING});
         graphics::draw(ctx, &image, dp)?;
 
         // Push image to screen
@@ -131,17 +127,144 @@ fn main() {
         panic!("Not a valid iNES file");
     }
     
+
+    // Queue used to send values from the APU to the audio thread
+    // Although this is a multiple producer single consumer queue, there is only one producer
+    // (the APU)
+    let (audio_queue_producer, audio_queue_consumer) = mpsc::channel::<f32>();
+
+    let mut prev_sample = 0.0;
+
+    // This is WASAPI
+    let host = cpal::default_host();
+    
+    let device = host.default_output_device().unwrap();
+
+    let config = device.default_output_config().unwrap().config();
+
+    let penis = device.build_output_stream(
+        &config,
+        move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            // For each left and right sample in the sample list
+            for frame in data.chunks_mut(2) {
+
+                let queue_sample = audio_queue_consumer.try_recv();
+                
+                let new_sample = if queue_sample.is_ok() {
+                    let new = queue_sample.unwrap();
+                    prev_sample = new;
+                    new
+                } else {
+                    prev_sample
+                };
+
+                let cpal_sample = cpal::Sample::from::<f32>(&new_sample);
+
+                for sample in frame.iter_mut() {
+                    *sample = cpal_sample;
+                }
+
+
+            }
+        },
+        |_err| {
+            panic!();
+        },
+     ).expect("Problem creating the stream");
+
+     penis.play().unwrap();
+
+    // thread::spawn(move || {
     let cartridge = Cartridge::new(ines_data);
-    let nes       = Nes::new(cartridge);
+    let nes       = Nes::new(cartridge, audio_queue_producer);
     let emulator  = Emulator {nes, frames: 0};
-        
+
     let cb = ContextBuilder::new("nes-emu", "Adam Blance")
-        .window_mode(WindowMode::default().dimensions(1024.0, 960.0));
+        .window_mode(WindowMode::default().dimensions(256.0*SCALING, 240.0*SCALING))
+        .window_setup(WindowSetup::default().title("R-nemUST"));
 
     let (mut ctx, event_loop) = cb.build().unwrap();
 
     // Nearest neighbor will prevent the frame from becoming blurry when scaling
     graphics::set_default_filter(&mut ctx, graphics::FilterMode::Nearest);
-    
+
     event::run(ctx, event_loop, emulator);
+    // });
+
+    // // This implements Source, so can be used by Rodio to read audio samples from the queue
+    // let apu_audio_source = ApuSource::new(audio_queue_consumer);
+    
+    // // Get output stream to play sound to speakers
+    // let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+
+    // // start sound playback on separate thread
+    // stream_handle.play_raw(apu_audio_source);
+        
+
+    // https://rustrepo.com/repo/geom3trik-tuix_audio_synth
+
+    // The chunks_mut in the callback is because the audio channels alternate in the output array
+
+
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// struct ApuSource<'a> {
+//     pub prev_value: f32,
+//     pub receiver_iterator: TryIter<'a, f32>,
+// }
+
+
+// impl<'a> ApuSource<'a> {
+//     fn new(mpsc_receiver: Receiver<f32>) -> ApuSource<'a> {
+//         ApuSource {
+//             prev_value: 0.0, 
+//             receiver_iterator: mpsc_receiver.try_iter()
+//         }
+//     }
+// }
+
+
+// impl<'a> Iterator for ApuSource<'a> {
+//     type Item = f32;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let val = self.receiver_iterator.next();
+//         if val.is_some() {
+//             self.prev_value = val.unwrap();
+//             return val;
+//         } else {
+//             return Some(self.prev_value);
+//         }
+//     }
+// }
+
+
+
+// impl<'a> Source for ApuSource<'a> {
+//     fn current_frame_len(&self) -> Option<usize> {
+//         None
+//     }
+//     fn channels(&self) -> u16 {
+//         1
+//     }
+//     fn sample_rate(&self) -> u32 {
+//         44100
+//     }
+//     fn total_duration(&self) -> Option<std::time::Duration> {
+//         None
+//     }
+// }
+

@@ -838,7 +838,7 @@ dependencies = [
  "lyon",
  "mint",
  "old_school_gfx_glutin_ext",
- "rodio 0.14.0",
+ "rodio",
  "serde",
  "serde_derive",
  "skeptic",
@@ -1507,9 +1507,9 @@ dependencies = [
 name = "nes-emu"
 version = "0.1.0"
 dependencies = [
+ "cpal",
  "ggez",
  "once_cell",
- "rodio 0.15.0",
 ]
 
 [[package]]
@@ -2006,19 +2006,6 @@ name = "rodio"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d98f5e557b61525057e2bc142c8cd7f0e70d75dc32852309bec440e6e046bf9"
-dependencies = [
- "claxon",
- "cpal",
- "hound",
- "lewton",
- "minimp3",
-]
-
-[[package]]
-name = "rodio"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec0939e9f626e6c6f1989adb6226a039c855ca483053f0ee7c98b90e41cf731e"
 dependencies = [
  "claxon",
  "cpal",
