@@ -1,4 +1,5 @@
 use crate::apu::length_table;
+use crate::emu;
 use crate::util::*;
 use crate::hw::*;
 use crate::ppu;
@@ -218,19 +219,28 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
         0x4003 => {
             nes.apu.square_1_timer &= 0b000_11111111;
             nes.apu.square_1_timer |= (((val & 0b00000111) as u16) as i16) << 8;
-            
-            println!("Length counter before {}", nes.apu.square_1_length_counter);
 
-            let temp = (val & 0b11111_000) >> 3;
 
-            println!("new length val raw {}", temp);
-
-            let new_val = length_table(temp) as u16 as i16;
-
+            let new_val = length_table((val & 0b11111_000) >> 3) as u16 as i16;
             nes.apu.square_1_length_counter = new_val;
+        }
 
-            println!("Square 1 timer value {}", nes.apu.square_1_timer);
-            println!("Square 1 length value {}", nes.apu.square_1_length_counter);
+        0x4004 => {
+            nes.apu.square_2_duty_cycle = val >> 6;
+            nes.apu.square_2_volume_and_envelope_period = val & 0b0000_1111;
+        }
+
+        0x4006 => {
+            nes.apu.square_2_timer &= 0b111_00000000;
+            nes.apu.square_2_timer |= (val as u16) as i16;
+
+        }
+        0x4007 => {
+            nes.apu.square_2_timer &= 0b000_11111111;
+            nes.apu.square_2_timer |= (((val & 0b00000111) as u16) as i16) << 8;
+
+            let new_val = length_table((val & 0b11111_000) >> 3) as u16 as i16;
+            nes.apu.square_2_length_counter = new_val;
         }
 
         _ => (),

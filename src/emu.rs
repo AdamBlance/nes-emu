@@ -1,4 +1,6 @@
+use core::time;
 use std::io;
+use std::time::Duration;
 
 use crate::apu;
 use crate::hw::*;
@@ -6,6 +8,16 @@ use crate::cpu;
 use crate::mem::read_mem;
 use crate::ppu;
 use crate::util::concat_u8;
+
+use std::thread;
+
+const CPU_HZ:   f64 = 1_789_773.0;
+const SAMPLE_HZ: f64 = 44_100.0;
+
+pub const TARGET_CYCLES_PER_SAMPLE: f64 = CPU_HZ / SAMPLE_HZ;
+
+const TARGET_CYCLES_PER_SAMPLE_FLOOR: u64 = TARGET_CYCLES_PER_SAMPLE as u64;
+const TARGET_CYCLES_PER_SAMPLE_CEIL:  u64 = (TARGET_CYCLES_PER_SAMPLE + 1.0) as u64;
 
 
 pub fn run_to_vblank(nes: &mut Nes) {
@@ -45,10 +57,27 @@ pub fn run_to_vblank(nes: &mut Nes) {
             apu::step_apu(nes);
         }
 
-        if nes.cpu.cycles % 40 == 0 {
-            // https://github.com/RustAudio/cpal/blob/master/examples/synth_tones.rs
-            nes.apu.audio_queue.send((nes.apu.square_1_output as u32 as f32) * 10.0 * (nes.apu.square_1_volume_and_envelope_period as f32)).expect("something wrong happened when appending to audio queue");
+        if nes.cpu.cycles % 1000000 == 0 {
+            println!("Actual {:.20} Target {:.20}", nes.apu.average_cycles_per_sample, TARGET_CYCLES_PER_SAMPLE);
         }
+
+        // Not entirely sure about this averaging
+
+        // At cycle mod 40
+        if nes.apu.cycles_since_last_sample == TARGET_CYCLES_PER_SAMPLE_FLOOR {
+            // If the number of cycles between samples is too large on average,
+            // sample on the 40th cycle
+            if nes.apu.average_cycles_per_sample >= TARGET_CYCLES_PER_SAMPLE {
+                do_sample(nes);
+            }
+        }
+        else if nes.apu.cycles_since_last_sample == TARGET_CYCLES_PER_SAMPLE_CEIL {
+            if nes.apu.average_cycles_per_sample < TARGET_CYCLES_PER_SAMPLE {
+                do_sample(nes);
+            }
+        }
+
+
 
         // So, after 3 ppu cycles, when reaching end of frame, ppu should land somewhere inside 
         // the 3 cycle range after the frame ends
@@ -56,6 +85,8 @@ pub fn run_to_vblank(nes: &mut Nes) {
         // This way, we don't need a bit to say that we've just entered vblank or whatever
         // and we shouldn't skip any frames
         
+        nes.apu.cycles_since_last_sample += 1;
+
         if nes.ppu.scanline == 239 && (nes.ppu.scanline_cycle >= 257 && nes.ppu.scanline_cycle <= 259) {break;}
 
         // if nes.cpu.instruction_count == target {break;}
@@ -63,5 +94,44 @@ pub fn run_to_vblank(nes: &mut Nes) {
 
 
 
+}
 
+fn do_sample(nes: &mut Nes) {
+
+    // I think the averaging is maybe wrong here, it's hard to tell
+    // Either way, over many cycles it seems to converge to the right number so it doesn't 
+    // really matter
+
+
+    // thread::sleep(Duration::from_micros(500));
+
+    // println!("Target sample rate {:.50}", TARGET_CYCLES_PER_SAMPLE);
+
+
+    /*
+    
+    
+
+    Basically want to do weighted average
+    So it'll be
+    
+    ((average so far * number_of_samples) + cycles since last sample [either 40 or 41]) 
+    -----------------------------------------------------------------------------------
+    number_of_samples + 1
+    
+    
+    */
+    
+    let numerator = (nes.apu.average_cycles_per_sample * (nes.apu.total_sample_count as f64)) + (nes.apu.cycles_since_last_sample as f64);
+    let denominator = (nes.apu.total_sample_count + 1) as f64;
+    
+    nes.apu.average_cycles_per_sample = numerator / denominator;
+
+    nes.apu.total_sample_count += 1;
+    nes.apu.cycles_since_last_sample = 0;
+
+    let sq1_output = (nes.apu.square_1_output as u32 as f32) * 0.1 * (nes.apu.square_1_volume_and_envelope_period as f32 / 256.0);
+    let sq2_output = (nes.apu.square_2_output as u32 as f32) * 0.1 * (nes.apu.square_2_volume_and_envelope_period as f32 / 256.0);
+    let output_val = sq1_output + sq2_output;
+    nes.apu.audio_queue.send(output_val).expect("something wrong happened when appending to audio queue");
 }

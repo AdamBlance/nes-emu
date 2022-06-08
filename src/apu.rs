@@ -44,13 +44,22 @@ fn clock_pulse_timer(nes: &mut Nes) {
 
     */
 
+    if nes.apu.square_2_timer_value == 0 {
+        nes.apu.square_2_timer_value = nes.apu.square_2_timer;
+        nes.apu.square_2_sequencer_stage += 1;
+        nes.apu.square_2_sequencer_stage %= 8;
+        clock_pulse_2_sequencer(nes);
+        
+    } else {
+        nes.apu.square_2_timer_value -= 1;
+    }
 
 
     if nes.apu.square_1_timer_value == 0 {
         nes.apu.square_1_timer_value = nes.apu.square_1_timer;
         nes.apu.square_1_sequencer_stage += 1;
         nes.apu.square_1_sequencer_stage %= 8;
-        clock_pulse_sequencer(nes);
+        clock_pulse_1_sequencer(nes);
         
     } else {
         nes.apu.square_1_timer_value -= 1;
@@ -60,10 +69,23 @@ fn clock_pulse_timer(nes: &mut Nes) {
 
 
 
-fn clock_pulse_sequencer(nes: &mut Nes) {
+fn clock_pulse_1_sequencer(nes: &mut Nes) {
     let bit_select = 7 - nes.apu.square_1_sequencer_stage;
     if nes.apu.square_1_length_counter != -1 {
         nes.apu.square_1_output = match nes.apu.square_1_duty_cycle {
+            0 => get_bit(0b_0_1_0_0_0_0_0_0, bit_select),
+            1 => get_bit(0b_0_1_1_0_0_0_0_0, bit_select),
+            2 => get_bit(0b_0_1_1_1_1_0_0_0, bit_select),
+            3 => get_bit(0b_1_0_0_1_1_1_1_1, bit_select),
+            _ => unreachable!(),
+        }
+    }
+}
+
+fn clock_pulse_2_sequencer(nes: &mut Nes) {
+    let bit_select = 7 - nes.apu.square_2_sequencer_stage;
+    if nes.apu.square_2_length_counter != -1 {
+        nes.apu.square_2_output = match nes.apu.square_2_duty_cycle {
             0 => get_bit(0b_0_1_0_0_0_0_0_0, bit_select),
             1 => get_bit(0b_0_1_1_0_0_0_0_0, bit_select),
             2 => get_bit(0b_0_1_1_1_1_0_0_0, bit_select),
@@ -88,6 +110,11 @@ fn clock_envelope_and_triangle_counter(nes: &mut Nes) {
 fn clock_sweep_and_length_counter(nes: &mut Nes) {
 
     // println!("LC {}", nes.apu.square_1_length_counter);
+
+    if nes.apu.square_2_length_counter >= 0 {
+        nes.apu.square_2_length_counter -= 1;
+    }
+
     if nes.apu.square_1_length_counter >= 0 {
         nes.apu.square_1_length_counter -= 1;
     }
