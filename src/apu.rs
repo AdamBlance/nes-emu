@@ -29,10 +29,19 @@ pub static LENGTH_TABLE: [u8; 32] = [
 
 
 
+// I could totally make some linear counter object
+// dividers, counters, sequencers are so common here that an "abstract" implementation might be nice
+
+
 pub fn step_apu(nes: &mut Nes) {
-    clock_frame_sequencer(nes);
-    clock_pulse_timer(&mut nes.apu.square1);  // why is this possible? 
-    clock_pulse_timer(&mut nes.apu.square2);
+    if nes.cpu.cycles % 2 == 0 {
+        clock_frame_sequencer(nes);
+        clock_pulse_timer(&mut nes.apu.square1);  // why is this possible? 
+        clock_pulse_timer(&mut nes.apu.square2);
+    }
+
+    clock_triangle_timer(&mut nes.apu.triangle);
+
 
 }
 
@@ -85,16 +94,70 @@ fn clock_pulse_timer(sq_wave: &mut SquareWave) {
 }
 
 
+fn clock_triangle_timer(tri: &mut TriangleWave) {
+    if tri.timer_curr_value == 0 {
+        // Clock triangle sequencer
+        tri.timer_curr_value = tri.timer_init_value;
+        
+        // this is just a rule apparently
+        if tri.linear_counter_curr_value > 0 && tri.length_counter > 0 {
+            tri.sequencer_stage = (tri.sequencer_stage + 1) % 32;
+        }
+        
+        
+        tri.sequencer_output = TRIANGLE_SEQUENCE[tri.sequencer_stage as usize];
+    } else {
+        tri.timer_curr_value -= 1;
+    }
+}
+
 
 fn clock_envelope_and_triangle_counters(nes: &mut Nes) {
 
     clock_square_envelope(&mut nes.apu.square1);
     clock_square_envelope(&mut nes.apu.square2);
 
+    clock_triangle_linear_counter(&mut nes.apu.triangle);
+
 }
 
 
+fn clock_triangle_linear_counter(tri: &mut TriangleWave) {
+    
+    if tri.linear_counter_reload_flag {
+        tri.linear_counter_curr_value = tri.linear_counter_init_value;
+    } else {
+        if tri.linear_counter_curr_value > 0 {
+            tri.linear_counter_curr_value -= 1;
+        }
+    }
 
+    // counter reload flag is actually not cleared on clock unconditionally
+    // only if the control flag is also clear
+
+    if !tri.length_counter_halt_and_linear_counter_control {
+        tri.linear_counter_reload_flag = false;
+    }
+
+    tri.linear_counter_mute_signal = tri.linear_counter_curr_value == 0;
+    // println!("tri linear counter mute {}", tri.length_counter_mute_signal);
+    // println!("lin counter {} reload flag {} length halt {}", tri.linear_counter_curr_value, tri.linear_counter_reload_flag, tri.length_counter_halt_and_linear_counter_control);
+
+
+}
+
+
+// This is prime Trait territory, can refactor using them once I have the thing working first
+
+fn clock_triangle_length_counter(tri: &mut TriangleWave) {
+    if !tri.length_counter_halt_and_linear_counter_control {
+        tri.length_counter = tri.length_counter.saturating_sub(1);
+    }
+    
+    tri.length_counter_mute_signal = tri.length_counter == 0;
+    // println!("tri length counter mute {}", tri.length_counter_mute_signal);
+    // println!("Tri length counter {}", tri.length_counter);
+}
 
 /*
 
@@ -157,6 +220,8 @@ fn clock_sweep_and_length_counters(nes: &mut Nes) {
 
     clock_square_sweep_counter(&mut nes.apu.square1, false);
     clock_square_sweep_counter(&mut nes.apu.square2, true);
+
+    clock_triangle_length_counter(&mut nes.apu.triangle);
 }
 
 fn clock_square_sweep_counter(sq_wave: &mut SquareWave, twos_compliment: bool) {
@@ -204,4 +269,11 @@ pub fn square_channel_output(sqw: &SquareWave) -> f32 {
     }
 }
 
+pub fn triangle_channel_output(tri: &TriangleWave) -> f32 {
+    if !tri.linear_counter_mute_signal && !tri.length_counter_mute_signal && tri.enabled {
+        tri.sequencer_output as f32
+    } else {
+        0.0
+    }
+}
 

@@ -277,6 +277,8 @@ pub struct Apu {
     pub square1: SquareWave,
     pub square2: SquareWave,
 
+    pub triangle: TriangleWave,
+
     pub audio_queue: Sender<f32>,
 
     pub cycles_since_last_sample: u64,
@@ -294,6 +296,8 @@ impl Apu {
 
             square1: Default::default(),
             square2: Default::default(),
+
+            triangle: Default::default(),
 
             audio_queue,
 
@@ -331,6 +335,8 @@ pub struct SquareWave {
     pub sequencer_output: bool,
 }
 
+
+
 impl SquareWave {
     pub fn set_reg1_from_byte(&mut self, byte: u8) {
         self.duty_cycle = byte >> 6;
@@ -353,6 +359,72 @@ impl SquareWave {
         self.timer_init_value |= ((byte as u16) & 0b111) << 8;
         self.length_counter = apu::LENGTH_TABLE[((byte & 0b11111_000) >> 3) as usize];
         self.envelope_start_flag = true;
+    }
+}
+
+
+
+
+
+
+/*
+
+    Triangle channel!
+
+    Has a timer, just like all the channels
+    
+    Has a linear counter, which is like the length conuter, but doesn't use a lookup table
+    instead, just uses a provided value to count down from
+
+    Length counter
+
+    Sequencer with the triangle wave in it
+
+
+
+
+*/
+
+
+#[derive(Copy, Clone, Default)]
+pub struct TriangleWave {
+    pub enabled: bool,
+    
+    pub sequencer_stage: u8,
+
+    pub sequencer_output: u8,
+
+    pub timer_init_value: u16,
+    pub timer_curr_value: u16,
+
+    pub length_counter: u8,
+
+    pub length_counter_halt_and_linear_counter_control: bool,
+    pub length_counter_mute_signal: bool,
+
+    pub linear_counter_reload_flag: bool,
+    pub linear_counter_init_value: u8,
+    pub linear_counter_curr_value: u8,
+
+    pub linear_counter_mute_signal: bool,
+
+}
+
+
+impl TriangleWave {
+    pub fn set_reg1_from_byte(&mut self, byte: u8) {
+        self.length_counter_halt_and_linear_counter_control = (byte & 0b1000_0000) > 0;
+        self.linear_counter_init_value = byte & 0b0111_1111;
+    }
+    pub fn set_reg2_from_byte(&mut self, byte: u8) {
+        self.timer_init_value &= 0b111_0000_0000;
+        self.timer_init_value |= byte as u16;
+    }
+    pub fn set_reg3_from_byte(&mut self, byte: u8) {
+        self.timer_init_value &= 0b000_1111_1111;
+        self.timer_init_value |= ((byte as u16) & 0b111) << 8;
+        self.length_counter = apu::LENGTH_TABLE[((byte & 0b11111_000) >> 3) as usize];
+        self.linear_counter_reload_flag = true;
     }
 }
 

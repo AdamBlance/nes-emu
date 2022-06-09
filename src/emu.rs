@@ -49,16 +49,16 @@ pub fn run_to_vblank(nes: &mut Nes) {
 
     loop {
         cpu::step_cpu(nes);
-        ppu::step_ppu(nes);
-        ppu::step_ppu(nes);
-        ppu::step_ppu(nes);
 
-        if nes.cpu.cycles % 2 == 0 {
-            apu::step_apu(nes);
-        }
+        ppu::step_ppu(nes);
+        ppu::step_ppu(nes);
+        ppu::step_ppu(nes);
+        
+        apu::step_apu(nes);
+
 
         if nes.cpu.cycles % 1000000 == 0 {
-            println!("Actual {:.20} Target {:.20}", nes.apu.average_cycles_per_sample, TARGET_CYCLES_PER_SAMPLE);
+            // println!("Actual {:.20} Target {:.20}", nes.apu.average_cycles_per_sample, TARGET_CYCLES_PER_SAMPLE);
         }
 
         // Not entirely sure about this averaging
@@ -121,8 +121,9 @@ fn do_sample(nes: &mut Nes) {
     // These will be between 0.0 and 15.0
     let sq1_output = apu::square_channel_output(&nes.apu.square1);
     let sq2_output = apu::square_channel_output(&nes.apu.square2);
+    let tri_output = apu::triangle_channel_output(&nes.apu.triangle);
 
-    let output_val = (sq1_output + sq2_output) / 150.0;
+    let output_val = (sq1_output + sq2_output + tri_output) / 150.0;
     
     
     
