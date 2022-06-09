@@ -15,7 +15,7 @@ static SQUARE_SEQUENCES: [[bool; 8]; 4] = [
     [H, L, L, H, H, H, H, H],  // 75.0% duty
 ];
 
-static LENGTH_TABLE: [u8; 32] = [
+pub static LENGTH_TABLE: [u8; 32] = [
     0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06, 
     0xA0, 0x08, 0x3C, 0x0A, 0x0E, 0x0C, 0x1A, 0x0E, 
     0x0C, 0x10, 0x18, 0x12, 0x30, 0x14, 0x60, 0x16, 
@@ -86,16 +86,11 @@ fn clock_envelope_and_triangle_counter(nes: &mut Nes) {}
 
 
 fn clock_sweep_and_length_counters(nes: &mut Nes) {
-
     clock_square_length_counters(&mut nes.apu.square1);
     clock_square_length_counters(&mut nes.apu.square2);
 
-    
     clock_square_sweep_counter(&mut nes.apu.square1, false);
     clock_square_sweep_counter(&mut nes.apu.square2, true);
-
-
-
 }
 
 fn clock_square_sweep_counter(sq_wave: &mut SquareWave, twos_compliment: bool) {
@@ -128,7 +123,7 @@ fn clock_square_sweep_counter(sq_wave: &mut SquareWave, twos_compliment: bool) {
 }
 
 fn clock_square_length_counters(sq_wave: &mut SquareWave) {
-    if !sq_wave.length_counter_halt {
+    if !sq_wave.envelope_loop_and_length_counter_halt {
         sq_wave.length_counter = sq_wave.length_counter.saturating_sub(1);
     }
     if sq_wave.length_counter == 0 {

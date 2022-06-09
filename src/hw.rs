@@ -1,5 +1,6 @@
 use crate::instr_defs::Instruction;
-use crate::{util::*, emu};
+use crate::util::*;
+use crate::apu;
 
 use std::sync::mpsc::Sender;
 
@@ -311,9 +312,9 @@ pub struct SquareWave {
     pub timer_init_value: u16,
     pub timer_curr_value: u16,
     pub duty_cycle: u8,
-    pub length_counter: u16,
+    pub length_counter: u8,
     pub constant_volume: bool,
-    pub length_counter_halt: bool,
+    pub envelope_loop_and_length_counter_halt: bool,
     pub volume_and_envelope_period: u8,
     pub sweep_enabled: bool,
     pub sweep_counter_init_value: u8,
@@ -325,7 +326,29 @@ pub struct SquareWave {
     pub output: bool,
 }
 
-
+impl SquareWave {
+    pub fn set_reg1_from_byte(&mut self, byte: u8) {
+        self.duty_cycle = byte >> 6;
+        self.envelope_loop_and_length_counter_halt = (byte & 0b0010_0000) > 0;
+        self.constant_volume = (byte & 0b0001_0000) > 0;
+        self.volume_and_envelope_period = byte & 0b0000_1111;
+    }
+    pub fn set_reg2_from_byte(&mut self, byte: u8) {
+        self.sweep_enabled = (byte & 0b1000_0000) > 0;
+        self.sweep_counter_init_value = (byte & 0b0111_0000) >> 4;
+        self.sweep_negate = (byte & 0b0000_1000) > 0;
+        self.sweep_shift_amount = byte & 0b0000_0111;
+    }
+    pub fn set_reg3_from_byte(&mut self, byte: u8) {
+        self.timer_init_value &= 0b111_0000_0000;
+        self.timer_init_value |= byte as u16;
+    }
+    pub fn set_reg4_from_byte(&mut self, byte: u8) {
+        self.timer_init_value &= 0b000_1111_1111;
+        self.timer_init_value |= ((byte as u16) & 0b111) << 8;
+        self.length_counter = apu::LENGTH_TABLE[((byte & 0b11111_000) >> 3) as usize];
+    }
+}
 
 
 pub struct Cartridge {

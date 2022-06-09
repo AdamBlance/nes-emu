@@ -1,5 +1,3 @@
-use crate::apu::length_table;
-use crate::emu;
 use crate::util::*;
 use crate::hw::*;
 use crate::ppu;
@@ -12,9 +10,22 @@ const OAMDATA: u16   = 0x2004;
 const PPUSCROLL: u16 = 0x2005;
 const PPUADDR: u16   = 0x2006;
 const PPUDATA: u16   = 0x2007;
+
+const PULSE_1_REG_1: u16 = 0x4000;
+const PULSE_1_REG_2: u16 = 0x4001;
+const PULSE_1_REG_3: u16 = 0x4002;
+const PULSE_1_REG_4: u16 = 0x4003;
+
+const PULSE_2_REG_1: u16 = 0x4004;
+const PULSE_2_REG_2: u16 = 0x4005;
+const PULSE_2_REG_3: u16 = 0x4006;
+const PULSE_2_REG_4: u16 = 0x4007;
+
 const OAMDMA: u16    = 0x4014;
+
 const CONTROLLER_1: u16 = 0x4016;
 const CONTROLLER_2: u16 = 0x4017;
+
 
 const PPU_WARMUP: u64 = 29658;
 
@@ -206,42 +217,15 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
             nes.controller1.sr_latch_pin = (val & 1) == 1;
         }
 
-        0x4000 => {
-            nes.apu.square_1_duty_cycle = val >> 6;
-            nes.apu.square_1_volume_and_envelope_period = val & 0b0000_1111;
-        }
+        PULSE_1_REG_1 => nes.apu.square1.set_reg1_from_byte(val),
+        PULSE_1_REG_2 => nes.apu.square1.set_reg2_from_byte(val),
+        PULSE_1_REG_3 => nes.apu.square1.set_reg3_from_byte(val),
+        PULSE_1_REG_4 => nes.apu.square1.set_reg4_from_byte(val),
 
-        0x4002 => {
-            nes.apu.square_1_timer &= 0b111_00000000;
-            nes.apu.square_1_timer |= (val as u16) as i16;
-
-        }
-        0x4003 => {
-            nes.apu.square_1_timer &= 0b000_11111111;
-            nes.apu.square_1_timer |= (((val & 0b00000111) as u16) as i16) << 8;
-
-
-            let new_val = length_table((val & 0b11111_000) >> 3) as u16 as i16;
-            nes.apu.square_1_length_counter = new_val;
-        }
-
-        0x4004 => {
-            nes.apu.square_2_duty_cycle = val >> 6;
-            nes.apu.square_2_volume_and_envelope_period = val & 0b0000_1111;
-        }
-
-        0x4006 => {
-            nes.apu.square_2_timer &= 0b111_00000000;
-            nes.apu.square_2_timer |= (val as u16) as i16;
-
-        }
-        0x4007 => {
-            nes.apu.square_2_timer &= 0b000_11111111;
-            nes.apu.square_2_timer |= (((val & 0b00000111) as u16) as i16) << 8;
-
-            let new_val = length_table((val & 0b11111_000) >> 3) as u16 as i16;
-            nes.apu.square_2_length_counter = new_val;
-        }
+        PULSE_2_REG_1 => nes.apu.square2.set_reg1_from_byte(val),
+        PULSE_2_REG_2 => nes.apu.square2.set_reg2_from_byte(val),
+        PULSE_2_REG_3 => nes.apu.square2.set_reg3_from_byte(val),
+        PULSE_2_REG_4 => nes.apu.square2.set_reg4_from_byte(val),
 
         _ => (),
     };
