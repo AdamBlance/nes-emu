@@ -268,46 +268,13 @@ impl Ppu {
 
 
 pub struct Apu {
+
     pub frame_sequencer_mode_select: bool,
-    pub frame_sequencer_counter: i16,
+    pub frame_sequencer_counter: u16,
     pub frame_sequencer_interrupt_inhibit: bool,
 
-    pub square_1_timer: i16,
-    pub square_2_timer: i16,
-
-    pub square_1_timer_value: i16,
-    pub square_2_timer_value: i16,
-
-    pub square_1_sequencer_stage: u8,
-    pub square_2_sequencer_stage: u8,
-
-    pub square_1_duty_cycle: u8,
-    pub square_2_duty_cycle: u8,
-
-    pub square_1_length_counter: i16,
-    pub square_2_length_counter: i16,
-
-    pub square_1_constant_volume: bool,
-    pub square_2_constant_volume: bool,
-    
-    pub square_1_length_counter_halt: bool,
-    pub square_2_length_counter_halt: bool,
-
-    pub square_1_volume_and_envelope_period: u8,
-    pub square_2_volume_and_envelope_period: u8,
-
-    pub square_1_sweep_enabled: bool,
-    pub square_1_sweep_period: u8,
-    pub square_1_sweep_down: bool,
-    pub square_1_sweep_amount: u8,
-
-    pub square_1_output: bool,
-    pub square_2_output: bool,
-
-    pub square_1_envelope_start: bool,
-    pub square_1_envelope_starting_volume: u8,
-    pub square_1_current_volume: u8,
-    pub square_1_envelope_divider: u8,
+    pub square1: SquareWave,
+    pub square2: SquareWave,
 
     pub audio_queue: Sender<f32>,
 
@@ -324,54 +291,39 @@ impl Apu {
             frame_sequencer_counter: 0,
             frame_sequencer_interrupt_inhibit: false,
 
-            square_1_timer: 0,
-            square_2_timer: 0,
-
-            square_1_timer_value: 0,
-            square_2_timer_value: 0,
-
-            square_1_sequencer_stage: 0,
-            square_2_sequencer_stage: 0,
-
-            square_1_duty_cycle: 0,
-            square_2_duty_cycle: 0,
-
-            square_1_length_counter: 0,
-            square_2_length_counter: 0,
-
-            square_1_constant_volume: false,
-            square_2_constant_volume: false,
-
-            square_1_length_counter_halt: false,
-            square_2_length_counter_halt: false,
-
-            square_1_volume_and_envelope_period: 0,
-            square_2_volume_and_envelope_period: 0,
-            
-            square_1_sweep_enabled: false,
-            square_1_sweep_period: 0,
-            square_1_sweep_down: false,
-            square_1_sweep_amount: 0,
-
-            square_1_output: false,
-            square_2_output: false,
-
-            square_1_envelope_start: false,
-            square_1_envelope_starting_volume: 0,
-            square_1_current_volume: 0,
-            square_1_envelope_divider: 0,
+            square1: Default::default(),
+            square2: Default::default(),
 
             audio_queue,
 
             cycles_since_last_sample: 0,
-            average_cycles_per_sample: 1.0,  // initial value doesn't matter
+            average_cycles_per_sample: 0.0,
             total_sample_count: 0,
-
         }
     }
 }
 
 
+#[derive(Copy, Clone, Default)]
+pub struct SquareWave {
+    pub mute: bool,
+    pub sequencer_stage: u8,
+    pub timer_init_value: u16,
+    pub timer_curr_value: u16,
+    pub duty_cycle: u8,
+    pub length_counter: u16,
+    pub constant_volume: bool,
+    pub length_counter_halt: bool,
+    pub volume_and_envelope_period: u8,
+    pub sweep_enabled: bool,
+    pub sweep_counter_init_value: u8,
+    pub sweep_counter_curr_value: u8,
+    pub sweep_mute_signal: bool,
+    pub sweep_negate: bool,
+    pub sweep_shift_amount: u8,
+    pub sweep_reload_flag: bool,
+    pub output: bool,
+}
 
 
 

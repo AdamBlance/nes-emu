@@ -98,27 +98,14 @@ pub fn run_to_vblank(nes: &mut Nes) {
 
 fn do_sample(nes: &mut Nes) {
 
-    // I think the averaging is maybe wrong here, it's hard to tell
-    // Either way, over many cycles it seems to converge to the right number so it doesn't 
-    // really matter
-
-
-    // thread::sleep(Duration::from_micros(500));
-
-    // println!("Target sample rate {:.50}", TARGET_CYCLES_PER_SAMPLE);
-
-
     /*
     
-    
-
     Basically want to do weighted average
     So it'll be
     
     ((average so far * number_of_samples) + cycles since last sample [either 40 or 41]) 
     -----------------------------------------------------------------------------------
-    number_of_samples + 1
-    
+                                   number_of_samples + 1
     
     */
     
@@ -130,8 +117,8 @@ fn do_sample(nes: &mut Nes) {
     nes.apu.total_sample_count += 1;
     nes.apu.cycles_since_last_sample = 0;
 
-    let sq1_output = (nes.apu.square_1_output as u32 as f32) * 0.1 * (nes.apu.square_1_volume_and_envelope_period as f32 / 256.0);
-    let sq2_output = (nes.apu.square_2_output as u32 as f32) * 0.1 * (nes.apu.square_2_volume_and_envelope_period as f32 / 256.0);
+    let sq1_output = (nes.apu.square1.output as u32 as f32) * 0.1 * (nes.apu.square1.volume_and_envelope_period as f32 / 256.0);
+    let sq2_output = (nes.apu.square2.output as u32 as f32) * 0.1 * (nes.apu.square2.volume_and_envelope_period as f32 / 256.0);
     let output_val = sq1_output + sq2_output;
     nes.apu.audio_queue.send(output_val).expect("something wrong happened when appending to audio queue");
 }
