@@ -12,7 +12,7 @@ use crate::util::concat_u8;
 use std::thread;
 
 const CPU_HZ:   f64 = 1_789_773.0;
-const SAMPLE_HZ: f64 = 44_100.0;
+const SAMPLE_HZ: f64 = 44_100.5;
 
 pub const TARGET_CYCLES_PER_SAMPLE: f64 = CPU_HZ / SAMPLE_HZ;
 
@@ -117,8 +117,15 @@ fn do_sample(nes: &mut Nes) {
     nes.apu.total_sample_count += 1;
     nes.apu.cycles_since_last_sample = 0;
 
-    let sq1_output = (nes.apu.square1.output as u32 as f32) * 0.1 * (nes.apu.square1.volume_and_envelope_period as f32 / 256.0);
-    let sq2_output = (nes.apu.square2.output as u32 as f32) * 0.1 * (nes.apu.square2.volume_and_envelope_period as f32 / 256.0);
-    let output_val = sq1_output + sq2_output;
+
+    // These will be between 0.0 and 15.0
+    let sq1_output = apu::square_channel_output(&nes.apu.square1);
+    let sq2_output = apu::square_channel_output(&nes.apu.square2);
+
+    let output_val = (sq1_output + sq2_output) / 150.0;
+    
+    
+    
     nes.apu.audio_queue.send(output_val).expect("something wrong happened when appending to audio queue");
 }
+

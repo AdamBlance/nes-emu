@@ -53,7 +53,7 @@ impl EventHandler for Emulator {
             emu::run_to_vblank(&mut self.nes);
         }
         if self.frames % 100 == 0 {
-            println!("FPS = {}", timer::fps(ctx));
+            // println!("FPS = {}", timer::fps(ctx));
         }
         Ok(())
     }
@@ -142,7 +142,7 @@ fn main() {
 
     let config = device.default_output_config().unwrap().config();
 
-    let penis = device.build_output_stream(
+    let stream = device.build_output_stream(
         &config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             // For each left and right sample in the sample list
@@ -155,6 +155,7 @@ fn main() {
                     prev_sample = new;
                     new
                 } else {
+                    println!("NOT FED");
                     prev_sample
                 };
 
@@ -172,9 +173,6 @@ fn main() {
         },
      ).expect("Problem creating the stream");
 
-     penis.play().unwrap();
-
-    // thread::spawn(move || {
     let cartridge = Cartridge::new(ines_data);
     let nes       = Nes::new(cartridge, audio_queue_producer);
     let emulator  = Emulator {nes, frames: 0};
@@ -188,83 +186,8 @@ fn main() {
     // Nearest neighbor will prevent the frame from becoming blurry when scaling
     graphics::set_default_filter(&mut ctx, graphics::FilterMode::Nearest);
 
+    stream.play().unwrap();
+
     event::run(ctx, event_loop, emulator);
-    // });
-
-    // // This implements Source, so can be used by Rodio to read audio samples from the queue
-    // let apu_audio_source = ApuSource::new(audio_queue_consumer);
-    
-    // // Get output stream to play sound to speakers
-    // let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-
-    // // start sound playback on separate thread
-    // stream_handle.play_raw(apu_audio_source);
-        
-
-    // https://rustrepo.com/repo/geom3trik-tuix_audio_synth
-
-    // The chunks_mut in the callback is because the audio channels alternate in the output array
-
-
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// struct ApuSource<'a> {
-//     pub prev_value: f32,
-//     pub receiver_iterator: TryIter<'a, f32>,
-// }
-
-
-// impl<'a> ApuSource<'a> {
-//     fn new(mpsc_receiver: Receiver<f32>) -> ApuSource<'a> {
-//         ApuSource {
-//             prev_value: 0.0, 
-//             receiver_iterator: mpsc_receiver.try_iter()
-//         }
-//     }
-// }
-
-
-// impl<'a> Iterator for ApuSource<'a> {
-//     type Item = f32;
-//     fn next(&mut self) -> Option<Self::Item> {
-//         let val = self.receiver_iterator.next();
-//         if val.is_some() {
-//             self.prev_value = val.unwrap();
-//             return val;
-//         } else {
-//             return Some(self.prev_value);
-//         }
-//     }
-// }
-
-
-
-// impl<'a> Source for ApuSource<'a> {
-//     fn current_frame_len(&self) -> Option<usize> {
-//         None
-//     }
-//     fn channels(&self) -> u16 {
-//         1
-//     }
-//     fn sample_rate(&self) -> u32 {
-//         44100
-//     }
-//     fn total_duration(&self) -> Option<std::time::Duration> {
-//         None
-//     }
-// }
-

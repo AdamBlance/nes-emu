@@ -307,7 +307,7 @@ impl Apu {
 
 #[derive(Copy, Clone, Default)]
 pub struct SquareWave {
-    pub mute: bool,
+    pub length_counter_mute_signal: bool,
     pub sequencer_stage: u8,
     pub timer_init_value: u16,
     pub timer_curr_value: u16,
@@ -315,7 +315,11 @@ pub struct SquareWave {
     pub length_counter: u8,
     pub constant_volume: bool,
     pub envelope_loop_and_length_counter_halt: bool,
+    pub envelope_start_flag: bool,
     pub volume_and_envelope_period: u8,
+    pub envelope_counter_curr_value: u8,
+    pub envelope_decay_level: u8,
+    pub envelope_output: u8,
     pub sweep_enabled: bool,
     pub sweep_counter_init_value: u8,
     pub sweep_counter_curr_value: u8,
@@ -323,7 +327,7 @@ pub struct SquareWave {
     pub sweep_negate: bool,
     pub sweep_shift_amount: u8,
     pub sweep_reload_flag: bool,
-    pub output: bool,
+    pub sequencer_output: bool,
 }
 
 impl SquareWave {
@@ -347,6 +351,7 @@ impl SquareWave {
         self.timer_init_value &= 0b000_1111_1111;
         self.timer_init_value |= ((byte as u16) & 0b111) << 8;
         self.length_counter = apu::LENGTH_TABLE[((byte & 0b11111_000) >> 3) as usize];
+        self.envelope_start_flag = true;
     }
 }
 

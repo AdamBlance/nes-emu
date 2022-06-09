@@ -15,6 +15,11 @@ static SQUARE_SEQUENCES: [[bool; 8]; 4] = [
     [H, L, L, H, H, H, H, H],  // 75.0% duty
 ];
 
+static TRIANGLE_SEQUENCE: [u8; 32] = [
+    0xF, 0xE, 0xD, 0xC, 0xB, 0xA, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0,
+    0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF,
+];
+
 pub static LENGTH_TABLE: [u8; 32] = [
     0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06, 
     0xA0, 0x08, 0x3C, 0x0A, 0x0E, 0x0C, 0x1A, 0x0E, 
@@ -36,18 +41,18 @@ pub fn step_apu(nes: &mut Nes) {
 pub fn clock_frame_sequencer(nes: &mut Nes) {
     match nes.apu.frame_sequencer_counter {
         STEP_1 => {
-            clock_envelope_and_triangle_counter(nes);
+            clock_envelope_and_triangle_counters(nes);
         }
         STEP_2 => {
-            clock_envelope_and_triangle_counter(nes); 
+            clock_envelope_and_triangle_counters(nes); 
             clock_sweep_and_length_counters(nes);
         }
         STEP_3 => {
-            clock_envelope_and_triangle_counter(nes);
+            clock_envelope_and_triangle_counters(nes);
         }
         STEP_4 => {
             if nes.apu.frame_sequencer_mode_select == false {
-                clock_envelope_and_triangle_counter(nes);
+                clock_envelope_and_triangle_counters(nes);
                 clock_sweep_and_length_counters(nes);
                 if !nes.apu.frame_sequencer_interrupt_inhibit {
                     nes.cpu.interrupt_request = true;
@@ -56,7 +61,7 @@ pub fn clock_frame_sequencer(nes: &mut Nes) {
             }
         }
         STEP_5 => {
-            clock_envelope_and_triangle_counter(nes);
+            clock_envelope_and_triangle_counters(nes);
             clock_sweep_and_length_counters(nes);
             nes.apu.frame_sequencer_counter = 0;
         }
@@ -73,7 +78,7 @@ fn clock_pulse_timer(sq_wave: &mut SquareWave) {
         sq_wave.sequencer_stage = (sq_wave.sequencer_stage + 1) % 8;
         let duty = sq_wave.duty_cycle as usize;
         let stage = sq_wave.sequencer_stage as usize;
-        sq_wave.output = SQUARE_SEQUENCES[duty][stage];
+        sq_wave.sequencer_output = SQUARE_SEQUENCES[duty][stage];
     } else {
         sq_wave.timer_curr_value -= 1;
     }
@@ -81,8 +86,69 @@ fn clock_pulse_timer(sq_wave: &mut SquareWave) {
 
 
 
-fn clock_envelope_and_triangle_counter(nes: &mut Nes) {}
+fn clock_envelope_and_triangle_counters(nes: &mut Nes) {
 
+    clock_square_envelope(&mut nes.apu.square1);
+    clock_square_envelope(&mut nes.apu.square2);
+
+}
+
+
+
+
+/*
+
+Need to make sure I understand this 
+
+There is a start flag that's set when you finish setting the period of the note (write to 0x4003)
+
+There's a divider which is set by the volume bits in 0x4000 (0-15)
+
+There's a decay counter which is a volume value from 0-15. It starts at 15 and gets decremented
+when it's clocked by the divider
+
+
+
+
+
+
+
+
+
+
+*/
+
+
+
+
+fn clock_square_envelope(sqw: &mut SquareWave) {
+    
+    if sqw.envelope_start_flag {
+        sqw.envelope_start_flag = false;
+        sqw.envelope_decay_level = 15;
+        sqw.envelope_counter_curr_value = sqw.volume_and_envelope_period;
+    } else {
+        if sqw.envelope_counter_curr_value == 0 {
+            // clock decay counter
+            sqw.envelope_counter_curr_value = sqw.volume_and_envelope_period;
+            // restart the count from 15 if loop is true
+            if sqw.envelope_decay_level == 0 && sqw.envelope_loop_and_length_counter_halt {
+                sqw.envelope_decay_level = 15;
+            } else {
+                sqw.envelope_decay_level = sqw.envelope_decay_level.saturating_sub(1);
+            }
+        } else {
+            sqw.envelope_counter_curr_value -= 1;
+        }
+    }
+
+    sqw.envelope_output = if sqw.constant_volume {
+        sqw.volume_and_envelope_period
+    } else {
+        sqw.envelope_decay_level
+    };
+
+}
 
 
 fn clock_sweep_and_length_counters(nes: &mut Nes) {
@@ -109,7 +175,7 @@ fn clock_square_sweep_counter(sq_wave: &mut SquareWave, twos_compliment: bool) {
                 change -= 1;
             }
         }
-        sq_wave.timer_init_value = target;
+        sq_wave.timer_init_value = sq_wave.timer_init_value.wrapping_add_signed(change);  // duplicate
     }
 
     sq_wave.sweep_mute_signal |= sq_wave.timer_init_value < 8;
@@ -126,11 +192,16 @@ fn clock_square_length_counters(sq_wave: &mut SquareWave) {
     if !sq_wave.envelope_loop_and_length_counter_halt {
         sq_wave.length_counter = sq_wave.length_counter.saturating_sub(1);
     }
-    if sq_wave.length_counter == 0 {
-        sq_wave.mute = true;
-    }
+    
+    sq_wave.length_counter_mute_signal = sq_wave.length_counter == 0;
 }
 
-
+pub fn square_channel_output(sqw: &SquareWave) -> f32 {
+    if !sqw.sweep_mute_signal && sqw.sequencer_output && !sqw.length_counter_mute_signal {
+        sqw.envelope_output as f32
+    } else {
+        0.0
+    }
+}
 
 
