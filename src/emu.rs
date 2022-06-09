@@ -122,8 +122,10 @@ fn do_sample(nes: &mut Nes) {
     let sq1_output = apu::square_channel_output(&nes.apu.square1);
     let sq2_output = apu::square_channel_output(&nes.apu.square2);
     let tri_output = apu::triangle_channel_output(&nes.apu.triangle);
+    let noise = apu::noise_channel_output(&nes.apu.noise);
 
-    let output_val = (sq1_output + sq2_output + tri_output) / 150.0;
+    let output_val = (sq1_output + sq2_output + tri_output + noise) / 150.0;
+    // let output_val = (noise) / 150.0;
     
     
     

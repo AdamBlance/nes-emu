@@ -27,6 +27,10 @@ pub static LENGTH_TABLE: [u8; 32] = [
     0xC0, 0x18, 0x48, 0x1A, 0x10, 0x1C, 0x20, 0x1E,
 ];
 
+pub static NOISE_PERIOD_TABLE: [u16; 16] = [
+    0x004, 0x008, 0x010, 0x020, 0x040, 0x060, 0x080, 0x0A0, 
+    0x0CA, 0x0FE, 0x17C, 0x1FC, 0x2FA, 0x3F8, 0x7F2, 0xFE4,
+];
 
 
 // I could totally make some linear counter object
@@ -38,6 +42,7 @@ pub fn step_apu(nes: &mut Nes) {
         clock_frame_sequencer(nes);
         clock_pulse_timer(&mut nes.apu.square1);  // why is this possible? 
         clock_pulse_timer(&mut nes.apu.square2);
+        clock_noise_timer(&mut nes.apu.noise);
     }
 
     clock_triangle_timer(&mut nes.apu.triangle);
@@ -116,6 +121,8 @@ fn clock_envelope_and_triangle_counters(nes: &mut Nes) {
 
     clock_square_envelope(&mut nes.apu.square1);
     clock_square_envelope(&mut nes.apu.square2);
+
+    clock_noise_envelope(&mut nes.apu.noise);
 
     clock_triangle_linear_counter(&mut nes.apu.triangle);
 
@@ -214,6 +221,71 @@ fn clock_square_envelope(sqw: &mut SquareWave) {
 }
 
 
+
+
+
+
+fn clock_noise_envelope(noise: &mut Noise) {
+    
+    if noise.envelope_start_flag {
+        noise.envelope_start_flag = false;
+        noise.envelope_decay_level = 15;
+        noise.envelope_counter_curr_value = noise.volume_and_envelope_period;
+    } else {
+        if noise.envelope_counter_curr_value == 0 {
+            // clock decay counter
+            noise.envelope_counter_curr_value = noise.volume_and_envelope_period;
+            // restart the count from 15 if loop is true
+            if noise.envelope_decay_level == 0 && noise.envelope_loop_and_length_counter_halt {
+                noise.envelope_decay_level = 15;
+            } else {
+                noise.envelope_decay_level = noise.envelope_decay_level.saturating_sub(1);
+            }
+
+
+            // ????????          Something is wrong with the decay level? 
+            // I think it's not decaying fast enougH? 
+        } else {
+            noise.envelope_counter_curr_value -= 1;
+        }
+    }
+
+    noise.envelope_output = if noise.constant_volume {
+        noise.volume_and_envelope_period
+        
+    } else {
+        // noise.envelope_decay_level
+        0
+    };
+
+    // println!("decaylevel {}", noise.envelope_decay_level);
+
+
+}
+
+
+
+fn clock_noise_timer(noise: &mut Noise) {
+    if noise.timer_curr_value == 0 {
+        // Clock pulse sequencer
+        noise.timer_curr_value = noise.timer_init_value;
+        noise.sequencer_output = fastrand::bool();
+    } else {
+        noise.timer_curr_value -= 1;
+    }
+}
+
+fn clock_noise_length_counters(noise: &mut Noise) {
+    if !noise.envelope_loop_and_length_counter_halt {
+        noise.length_counter = noise.length_counter.saturating_sub(1);
+    }
+    
+    noise.length_counter_mute_signal = noise.length_counter == 0;
+}
+
+
+
+
 fn clock_sweep_and_length_counters(nes: &mut Nes) {
     clock_square_length_counters(&mut nes.apu.square1);
     clock_square_length_counters(&mut nes.apu.square2);
@@ -222,6 +294,8 @@ fn clock_sweep_and_length_counters(nes: &mut Nes) {
     clock_square_sweep_counter(&mut nes.apu.square2, true);
 
     clock_triangle_length_counter(&mut nes.apu.triangle);
+
+    clock_noise_length_counters(&mut nes.apu.noise);
 }
 
 fn clock_square_sweep_counter(sq_wave: &mut SquareWave, twos_compliment: bool) {
@@ -277,3 +351,10 @@ pub fn triangle_channel_output(tri: &TriangleWave) -> f32 {
     }
 }
 
+pub fn noise_channel_output(noise: &Noise) -> f32 {
+    if noise.sequencer_output && !noise.length_counter_mute_signal && noise.enabled {
+        noise.envelope_output as f32
+    } else {
+        0.0
+    }
+}

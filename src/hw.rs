@@ -279,6 +279,8 @@ pub struct Apu {
 
     pub triangle: TriangleWave,
 
+    pub noise: Noise,
+
     pub audio_queue: Sender<f32>,
 
     pub cycles_since_last_sample: u64,
@@ -298,6 +300,8 @@ impl Apu {
             square2: Default::default(),
 
             triangle: Default::default(),
+
+            noise: Default::default(),
 
             audio_queue,
 
@@ -363,6 +367,49 @@ impl SquareWave {
 }
 
 
+
+#[derive(Copy, Clone, Default)]
+pub struct Noise {
+    pub enabled: bool,
+    
+    pub envelope_loop_and_length_counter_halt: bool,
+    pub constant_volume: bool,
+
+    pub length_counter: u8,
+    pub length_counter_mute_signal: bool,
+
+    pub envelope_start_flag: bool,
+    pub envelope_decay_level: u8,
+    pub envelope_counter_curr_value: u8,
+    pub volume_and_envelope_period: u8,
+
+    pub sequencer_output: bool, // this is just a random number generator
+
+    pub envelope_output: u8,
+
+    pub mode: bool,
+    pub timer_init_value: u16,
+    pub timer_curr_value: u16,    
+
+    
+}
+
+impl Noise {
+    pub fn set_reg1_from_byte(&mut self, byte: u8) {
+        self.envelope_loop_and_length_counter_halt = (byte & 0b0010_0000) > 0;
+        self.constant_volume = (byte & 0b0001_000) > 0;
+        self.volume_and_envelope_period = byte & 0b0000_1111;
+    }
+    pub fn set_reg2_from_byte(&mut self, byte: u8) {
+        // This will go unused. I'm not convinced that it does anything substantial
+        self.mode = (byte & 0b1000_0000) > 0;
+        self.timer_init_value = apu::NOISE_PERIOD_TABLE[(byte & 0b0000_1111) as usize];
+    }
+    pub fn set_reg3_from_byte(&mut self, byte: u8) {
+        self.length_counter = apu::LENGTH_TABLE[((byte & 0b11111_000) >> 3) as usize];
+        self.envelope_start_flag = true;
+    }
+}
 
 
 
