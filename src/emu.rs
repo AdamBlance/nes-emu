@@ -12,7 +12,7 @@ use crate::util::concat_u8;
 use std::thread;
 
 const CPU_HZ:   f64 = 1_789_773.0;
-const SAMPLE_HZ: f64 = 44_100.5;
+const SAMPLE_HZ: f64 = 44_110.0;
 
 pub const TARGET_CYCLES_PER_SAMPLE: f64 = CPU_HZ / SAMPLE_HZ;
 

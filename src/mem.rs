@@ -21,6 +21,8 @@ const PULSE_2_REG_2: u16 = 0x4005;
 const PULSE_2_REG_3: u16 = 0x4006;
 const PULSE_2_REG_4: u16 = 0x4007;
 
+const APU_STATUS_REG: u16 = 0x4015;
+
 const OAMDMA: u16    = 0x4014;
 
 const CONTROLLER_1: u16 = 0x4016;
@@ -226,6 +228,18 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
         PULSE_2_REG_2 => nes.apu.square2.set_reg2_from_byte(val),
         PULSE_2_REG_3 => nes.apu.square2.set_reg3_from_byte(val),
         PULSE_2_REG_4 => nes.apu.square2.set_reg4_from_byte(val),
+
+        APU_STATUS_REG => {
+            let sq1_enabled = (val & 0b01) > 0;
+            let sq2_enabled = (val & 0b10) > 0;
+
+            nes.apu.square1.enabled = sq1_enabled;
+            nes.apu.square2.enabled = sq2_enabled;
+
+            if !sq1_enabled {nes.apu.square1.length_counter = 0;}
+            if !sq2_enabled {nes.apu.square2.length_counter = 0;}
+
+        }
 
         _ => (),
     };

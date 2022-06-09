@@ -197,7 +197,7 @@ fn clock_square_length_counters(sq_wave: &mut SquareWave) {
 }
 
 pub fn square_channel_output(sqw: &SquareWave) -> f32 {
-    if !sqw.sweep_mute_signal && sqw.sequencer_output && !sqw.length_counter_mute_signal {
+    if !sqw.sweep_mute_signal && sqw.sequencer_output && !sqw.length_counter_mute_signal && sqw.enabled {
         sqw.envelope_output as f32
     } else {
         0.0

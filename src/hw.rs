@@ -307,6 +307,7 @@ impl Apu {
 
 #[derive(Copy, Clone, Default)]
 pub struct SquareWave {
+    pub enabled: bool,
     pub length_counter_mute_signal: bool,
     pub sequencer_stage: u8,
     pub timer_init_value: u16,
