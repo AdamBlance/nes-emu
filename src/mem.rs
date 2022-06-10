@@ -262,7 +262,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
 
         }
         0x8000..=0xFFFF => {
-            nes.cartridge.mapper.update_state(addr, val);
+            nes.cartridge.mapper.write(addr, val, nes);
         }
         _ => (),
     };

@@ -599,7 +599,7 @@ fn physical_nametable_addr(addr: u16, cart: &Cartridge) -> usize {
 pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
     let a = addr as usize;
     match addr {
-        0x0000..=0x1FFF => nes.cartridge.chr_rom[a],
+        0x0000..=0x1FFF => nes.cartridge.chr_rom[nes.cartridge.mapper.get_raw_chr_address(addr)],
         0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cartridge)],
         0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cartridge)],
         0x3F00..=0x3F0F => nes.ppu.palette_mem[a - 0x3F00],
@@ -618,7 +618,9 @@ pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
 pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
     let a = addr as usize;
     match addr {
-        0x0000..=0x1FFF => if nes.cartridge.chr_rom_is_ram {nes.cartridge.chr_rom[a] = val;}
+        0x0000..=0x1FFF => if nes.cartridge.chr_rom_is_ram {
+            nes.cartridge.chr_rom[nes.cartridge.mapper.get_raw_chr_address(addr)] = val;
+        }
         0x2000..=0x2FFF => nes.ppu.vram[physical_nametable_addr(addr, &nes.cartridge)] = val,
         0x3000..=0x3EFF => nes.ppu.vram[physical_nametable_addr(addr - 0x1000, &nes.cartridge)] = val,
         0x3F00..=0x3F0F => nes.ppu.palette_mem[a - 0x3F00] = val,

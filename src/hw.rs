@@ -497,11 +497,10 @@ impl Cartridge {
 
         // This is 0 when chr ram is used
         let chr_blocks = ines_data[5];
-
         let chr_end = prg_end + (chr_blocks as usize) * 0x2000;
 
         let mapper_id = (ines_data[7] & 0xF0) | (ines_data[6] >> 4);
-        let prg_size = prg_end - prg_start;
+        let prg_size = prg_end - prg_start;  // get rid of this, this is just 
 
         let mapper: Box<dyn Mapper> = match mapper_id {
             0 => Box::new(Mapper0 {prg_size}),

@@ -48,6 +48,10 @@ const FRAMERATE: u32 = 60;
 const SCALING:   f32 = 4.0;
 
 
+
+
+
+
 impl EventHandler for Emulator {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         if timer::check_update_time(ctx, FRAMERATE) {
@@ -108,6 +112,11 @@ impl EventHandler for Emulator {
 }
 
 
+
+
+
+
+
 fn main() {
     let commandline_args: Vec<String> = std::env::args().collect();
 
@@ -132,6 +141,9 @@ fn main() {
     // Queue used to send values from the APU to the audio thread
     // Although this is a multiple producer single consumer queue, there is only one producer
     // (the APU)
+
+    // Would be good to swap this out at somepoint for something that lets me query the 
+    // queue length to deal with popping and buffer size and stuff
     let (audio_queue_producer, audio_queue_consumer) = mpsc::channel::<f32>();
 
     let mut prev_sample = 0.0;
@@ -174,6 +186,10 @@ fn main() {
         },
      ).expect("Problem creating the stream");
 
+
+
+
+     
     let cartridge = Cartridge::new(ines_data);
     let nes       = Nes::new(cartridge, audio_queue_producer);
     let emulator  = Emulator {nes, frames: 0};
