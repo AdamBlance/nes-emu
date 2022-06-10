@@ -28,6 +28,7 @@ mod instr_funcs;
 mod addressing_funcs;
 mod util;
 mod logging;
+mod mappers;
 
 struct Emulator {
     nes: Nes,
@@ -44,7 +45,7 @@ const B:      u8 = 0b0000_0010;
 const A:      u8 = 0b0000_0001;
 
 const FRAMERATE: u32 = 60;
-const SCALING:   f32 = 3.0;
+const SCALING:   f32 = 4.0;
 
 
 impl EventHandler for Emulator {
@@ -53,7 +54,7 @@ impl EventHandler for Emulator {
             emu::run_to_vblank(&mut self.nes);
         }
         if self.frames % 100 == 0 {
-            // println!("FPS = {}", timer::fps(ctx));
+            println!("FPS = {}", timer::fps(ctx));
         }
         Ok(())
     }
@@ -155,7 +156,7 @@ fn main() {
                     prev_sample = new;
                     new
                 } else {
-                    println!("NOT FED");
+                    // println!("NOT FED");
                     prev_sample
                 };
 

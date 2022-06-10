@@ -39,11 +39,6 @@ const CONTROLLER_2: u16 = 0x4017;
 
 const PPU_WARMUP: u64 = 29658;
 
-fn mapper(addr: u16, nes: &mut Nes) -> u8 {
-    // this is just nrom 
-    let prg_size = nes.cartridge.prg_rom.len() as u16;
-    nes.cartridge.prg_rom[(addr % prg_size) as usize]
-}
 
 pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
     match addr {
@@ -133,7 +128,10 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
 
         0x4000..=0x4017 => 0,
         0x4018..=0x401F => 0,
-        0x8000..=0xFFFF => mapper(addr, nes),
+        0x8000..=0xFFFF => {
+            let prg_rom_addr = nes.cartridge.mapper.get_raw_prg_address(addr);
+            nes.cartridge.prg_rom[prg_rom_addr as usize]
+        }
         _ => 0,
     }
 }
@@ -244,7 +242,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
         NOISE_REG_1 => nes.apu.noise.set_reg1_from_byte(val),
         NOISE_REG_2 => nes.apu.noise.set_reg2_from_byte(val),
         NOISE_REG_3 => {
-            println!("noise enabled {} length counter {} constant volume {} envelope output {}", nes.apu.noise.enabled, nes.apu.noise.length_counter, nes.apu.noise.constant_volume, nes.apu.noise.envelope_output );
+            // println!("noise enabled {} length counter {} constant volume {} envelope output {}", nes.apu.noise.enabled, nes.apu.noise.length_counter, nes.apu.noise.constant_volume, nes.apu.noise.envelope_output );
             nes.apu.noise.set_reg3_from_byte(val);
         }
 
@@ -263,7 +261,9 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
             // println!("Triangle enabled {}", nes.apu.triangle.enabled);
 
         }
-
+        0x8000..=0xFFFF => {
+            nes.cartridge.mapper.update_state(addr, val);
+        }
         _ => (),
     };
 }

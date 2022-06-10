@@ -1,4 +1,5 @@
 use crate::instr_defs::Instruction;
+use crate::mappers::*;
 use crate::util::*;
 use crate::apu;
 
@@ -479,8 +480,9 @@ impl TriangleWave {
 pub struct Cartridge {
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
-    pub mapper: u8,
+    pub mapper: Box<dyn Mapper>,
     pub v_mirroring: bool,
+    pub chr_rom_is_ram: bool,
 }
 
 impl Cartridge {
@@ -492,13 +494,35 @@ impl Cartridge {
 
         // Character ROM (sprites, graphics) begins immediately after program ROM
         // Sixth header byte defines size of character ROM in 8kB chunks
-        let chr_end = prg_end + (ines_data[5] as usize) * 0x2000;
+
+        // This is 0 when chr ram is used
+        let chr_blocks = ines_data[5];
+
+        let chr_end = prg_end + (chr_blocks as usize) * 0x2000;
+
+        let mapper_id = (ines_data[7] & 0xF0) | (ines_data[6] >> 4);
+        let prg_size = prg_end - prg_start;
+
+        let mapper: Box<dyn Mapper> = match mapper_id {
+            0 => Box::new(Mapper0 {prg_size}),
+            2 => Box::new(Mapper2 {prg_size, bank_select: 0}),
+            _ => panic!(),
+        };
+
+        let chr_rom_is_ram = chr_blocks == 0;
+
+        let chr_rom = if !chr_rom_is_ram {
+            ines_data[prg_end..chr_end].to_vec()
+        } else {
+            [0u8; 0x2000].to_vec()
+        };
 
         Cartridge {
             prg_rom: ines_data[prg_start..prg_end].to_vec(),
-            chr_rom: ines_data[prg_end..chr_end].to_vec(),
-            mapper: (ines_data[7] & 0xF0) | (ines_data[6] >> 4),
+            chr_rom,
+            mapper,
             v_mirroring: (ines_data[6] & 1) > 0,
+            chr_rom_is_ram,
         }
     }
 }

@@ -2,6 +2,7 @@ use crate::instr_defs::{INSTRUCTIONS, Mode::*, Category::*, Name::*};
 use crate::addressing_funcs::*;
 use crate::instr_funcs::update_p_nz;
 use crate::hw::Nes;
+use crate::logging::log;
 use crate::mem::*;
 use crate::util::*;
 
@@ -391,6 +392,7 @@ pub fn step_cpu(nes: &mut Nes) {
 
 fn end_instr(nes: &mut Nes) {
     // let log_str = log(nes);
+    // println!("{}", log_str);
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
