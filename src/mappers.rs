@@ -1,6 +1,3 @@
-
-use crate::hw::Nes;
-
 /*
 
     A mapper maps arbitrary ROM data into the fixed address space of the NES
@@ -15,28 +12,37 @@ use crate::hw::Nes;
 
 pub trait Mapper {
     fn get_raw_prg_address(&mut self, addr: u16) -> usize;
+    fn get_raw_chr_address(&mut self, addr: u16) -> usize;
 
-    fn get_raw_chr_address(&mut self, addr: u16) -> usize {
-        addr as usize
-    }
-    /* 
-        Reference to NES is inclucded here because mapper 1 needs to know the CPU cycle count
-        so that it can ignore writes on consecutive CPU cycles. 
-        I imagine that more mappers will need to interrogate the state of the system.
-    */
-    fn prg_write(&mut self, addr: u16, byte_written: u8, nes: &Nes) {}
-    fn chr_write(&mut self, addr: u16, byte_written: u8, nes: &Nes) {}
+    // CPU cycle is included so that mappers can check for writes on consecutive CPU cycles
+    // This is done because of the dummy writes done by RMW instructions
+    // Mapper 1 does this
+
+    fn prg_write(&mut self, addr: u16, byte_written: u8, cpu_cycle: u64) {}
+    fn chr_write(&mut self, addr: u16, byte_written: u8, cpu_cycle: u64) {}
+
+    fn get_physical_ntable_addr(&self, addr: u16) -> u16;
+
 }
 
 
 pub struct Mapper0 {
     pub prg_size: usize
+    pub vertical_mirroring: bool,
 }
 
 impl Mapper for Mapper0 {
     fn get_raw_prg_address(&mut self, addr: u16) -> usize {
         addr as usize % self.prg_size
     }
+    fn get_raw_chr_address(&mut self, addr: u16) -> usize {
+        addr as usize
+    }
+    fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
+        
+    }
+    
+
 }
 
 
@@ -49,7 +55,23 @@ pub struct Mapper1 {
 }
 
 impl Mapper for Mapper1 {
-    fn get_raw_prg_address(&mut self, )
+    fn prg_write(&mut self, addr: u16, byte_written: u8, cpu_cycle: u64) {
+        if (byte_written & 0b1000_0000) > 0 {
+            self.shift_register = 0;
+            self.write_counter = 0;
+        } else {
+            if cpu_cycle - self.last_write_cycle != 1 {
+                self.shift_register <<= 1;
+                self.shift_register |= byte_written & 1;
+                self.write_counter += 1;
+            }
+            if self.write_counter == 5 {
+
+            }
+            
+        }
+        self.last_write_cycle = cpu_cycle;
+    }
 }
 
 
@@ -69,7 +91,13 @@ impl Mapper for Mapper2 {
             _ => unreachable!(),
         }
     }
-    fn write(&mut self, _addr: u16, byte_written: u8, _nes: &Nes) {
+
+    fn get_raw_chr_address(&mut self, addr: u16) -> usize {
+        addr as usize
+    }
+
+    fn prg_write(&mut self, addr: u16, byte_written: u8, cpu_cycle: u64) {
         self.bank_select = byte_written as usize;
     }
+
 }

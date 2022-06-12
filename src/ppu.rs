@@ -9,12 +9,12 @@ pub static PALETTE: [(u8,u8,u8); 64] = [
     (236, 238, 236), (168, 204, 236), (188, 188, 236), (212, 178, 236), (236, 174, 236), (236, 174, 212), (236, 180, 176), (228, 196, 144), (204, 210, 120), (180, 222, 120), (168, 226, 144), (152, 226, 180), (160, 214, 228), (160, 162, 160), (  0,   0,   0), (  0,   0,   0)
 ];
 
-const NAMETABLE: u16     = 0b000_11_00000_00000;
-const NAMETABLE_MSB: u16 = 0b000_10_00000_00000;
-const NAMETABLE_LSB: u16 = 0b000_01_00000_00000;
-const COARSE_X: u16      = 0b000_00_00000_11111;
-const COARSE_Y: u16      = 0b000_00_11111_00000;
-const FINE_Y: u16        = 0b111_00_00000_00000;
+pub const NAMETABLE: u16     = 0b000_11_00000_00000;
+pub const NAMETABLE_MSB: u16 = 0b000_10_00000_00000;
+pub const NAMETABLE_LSB: u16 = 0b000_01_00000_00000;
+pub const COARSE_X: u16      = 0b000_00_00000_11111;
+pub const COARSE_Y: u16      = 0b000_00_11111_00000;
+pub const FINE_Y: u16        = 0b111_00_00000_00000;
 
 const NAMETABLE_READ:   i32 = 1;
 const ATTRIBUTE_READ:   i32 = 3;
@@ -634,4 +634,9 @@ pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
         }
         _ => (),
     }
+}
+
+pub fn increment_v_after_ppudata_access(nes: &mut Nes) {
+    let increment = if nes.ppu.increment_select == false {1} else {32};
+    nes.ppu.v = nes.ppu.v.wrapping_add(increment);
 }

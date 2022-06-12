@@ -262,8 +262,34 @@ impl Ppu {
             cycles: 0,
         }
     }
-}
 
+    pub fn set_ppuctrl_from_byte(&mut self, byte: u8) {
+        self.nmi_enable           = get_bit(byte, 7);
+        self.master_slave         = get_bit(byte, 6);
+        self.tall_sprites         = get_bit(byte, 5);
+        self.bg_ptable_select     = get_bit(byte, 4);
+        self.sprite_ptable_select = get_bit(byte, 3);
+        self.increment_select     = get_bit(byte, 2);
+        self.ntable_select        = byte & 0b0000_0011;
+    }
+
+    pub fn set_ppumask_from_byte(&mut self, byte: u8) {
+        self.blue_emphasis         = get_bit(byte, 7);
+        self.green_emphasis        = get_bit(byte, 6);
+        self.red_emphasis          = get_bit(byte, 5);
+        self.show_sprites          = get_bit(byte, 4);
+        self.show_bg               = get_bit(byte, 3);
+        self.show_leftmost_sprites = get_bit(byte, 2);
+        self.show_leftmost_bg      = get_bit(byte, 1);
+        self.greyscale             = get_bit(byte, 0);
+    }
+
+    pub fn get_ppustatus_byte(&self) -> u8 {
+        (self.in_vblank as u8)       << 7 | 
+        (self.sprite_zero_hit as u8) << 6 |
+        (self.sprite_overflow as u8) << 3
+    }
+}
 
 
 
@@ -504,6 +530,8 @@ impl Cartridge {
 
         let mapper: Box<dyn Mapper> = match mapper_id {
             0 => Box::new(Mapper0 {prg_size}),
+            // initialising to 10 means you can write on the second CPU cycle without 
+            // it counting at a consecutive write
             2 => Box::new(Mapper2 {prg_size, bank_select: 0}),
             _ => panic!(),
         };
@@ -536,4 +564,20 @@ pub struct Controller {
     pub button_state: u8,
     pub shift_register: u8,    
     pub sr_latch_pin: bool,
+}
+
+impl Controller {
+    pub fn shift_out_button_state(&mut self) -> u8 {
+        let button_state = self.shift_register & 1;
+        self.shift_register >>= 1;
+        button_state
+    }
+    pub fn write_to_data_latch(&mut self, val: u8) {
+        // If latch was high and first bit of written byte is low,
+        // copy controller state into shift register.
+        if self.sr_latch_pin && (val & 1) == 0 {
+            self.shift_register = self.button_state;
+        }
+        self.sr_latch_pin = (val & 1) == 1;
+    }
 }
