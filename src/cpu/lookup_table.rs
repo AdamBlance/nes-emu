@@ -34,6 +34,7 @@ pub struct Instruction {
 
 impl Instruction {
     pub fn get_associated_function(&self) -> fn(&mut Nes) {
+        // All of these instructions are R/W/RMW
         match self.name {
             LDA => instr_funcs::load_a,
             LDX => instr_funcs::load_x,

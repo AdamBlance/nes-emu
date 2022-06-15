@@ -1,6 +1,6 @@
 
-use crate::mem::*;
-use crate::hw::*;
+use crate::nes::Nes;
+use crate::mem::{read_mem, write_mem};
 
 /*
 

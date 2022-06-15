@@ -1,4 +1,5 @@
-use crate::hw::*;
+
+use crate::nes::Nes;
 use crate::ppu;
 
 const PPUCTRL: u16   = 0x2000;
@@ -61,7 +62,7 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
                     // Read what was already in the buffer
                     let prev_data_in_buffer = nes.ppu.ppudata_buffer;
                     // Fill the buffer with the value read from VRAM
-                    nes.ppu.ppudata_buffer = ppu::read_vram(nes.ppu.v, nes);;
+                    nes.ppu.ppudata_buffer = ppu::read_vram(nes.ppu.v, nes);
                     ppu::increment_v_after_ppudata_access(nes);
                     // Return what was in the buffer before memory read
                     prev_data_in_buffer

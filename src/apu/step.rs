@@ -1,4 +1,5 @@
-use crate::hw::*;
+use crate::nes::Nes;
+use super::*;
 
 const STEP_1: u16 = 3729;
 const STEP_2: u16 = 7457;
@@ -6,31 +7,7 @@ const STEP_3: u16 = 11186;
 const STEP_4: u16 = 14915;
 const STEP_5: u16 = 18641;
 
-const H: bool = true;
-const L: bool = false;
-static SQUARE_SEQUENCES: [[bool; 8]; 4] = [
-    [L, H, L, L, L, L, L, L],  // 12.5% duty
-    [L, H, H, L, L, L, L, L],  // 25.0% duty
-    [L, H, H, H, H, L, L, L],  // 50.0% duty
-    [H, L, L, H, H, H, H, H],  // 75.0% duty
-];
 
-static TRIANGLE_SEQUENCE: [u8; 32] = [
-    0xF, 0xE, 0xD, 0xC, 0xB, 0xA, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0,
-    0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF,
-];
-
-pub static LENGTH_TABLE: [u8; 32] = [
-    0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06, 
-    0xA0, 0x08, 0x3C, 0x0A, 0x0E, 0x0C, 0x1A, 0x0E, 
-    0x0C, 0x10, 0x18, 0x12, 0x30, 0x14, 0x60, 0x16, 
-    0xC0, 0x18, 0x48, 0x1A, 0x10, 0x1C, 0x20, 0x1E,
-];
-
-pub static NOISE_PERIOD_TABLE: [u16; 16] = [
-    0x004, 0x008, 0x010, 0x020, 0x040, 0x060, 0x080, 0x0A0, 
-    0x0CA, 0x0FE, 0x17C, 0x1FC, 0x2FA, 0x3F8, 0x7F2, 0xFE4,
-];
 
 
 // I could totally make some linear counter object
@@ -85,7 +62,7 @@ pub fn clock_frame_sequencer(nes: &mut Nes) {
 }
 
 
-fn clock_pulse_timer(sq_wave: &mut SquareWave) {
+fn clock_pulse_timer(sq_wave: &mut Square) {
     if sq_wave.timer_curr_value == 0 {
         // Clock pulse sequencer
         sq_wave.timer_curr_value = sq_wave.timer_init_value;
@@ -99,7 +76,7 @@ fn clock_pulse_timer(sq_wave: &mut SquareWave) {
 }
 
 
-fn clock_triangle_timer(tri: &mut TriangleWave) {
+fn clock_triangle_timer(tri: &mut Triangle) {
     if tri.timer_curr_value == 0 {
         // Clock triangle sequencer
         tri.timer_curr_value = tri.timer_init_value;
@@ -129,7 +106,7 @@ fn clock_envelope_and_triangle_counters(nes: &mut Nes) {
 }
 
 
-fn clock_triangle_linear_counter(tri: &mut TriangleWave) {
+fn clock_triangle_linear_counter(tri: &mut Triangle) {
     
     if tri.linear_counter_reload_flag {
         tri.linear_counter_curr_value = tri.linear_counter_init_value;
@@ -147,51 +124,22 @@ fn clock_triangle_linear_counter(tri: &mut TriangleWave) {
     }
 
     tri.linear_counter_mute_signal = tri.linear_counter_curr_value == 0;
-    // println!("tri linear counter mute {}", tri.length_counter_mute_signal);
-    // println!("lin counter {} reload flag {} length halt {}", tri.linear_counter_curr_value, tri.linear_counter_reload_flag, tri.length_counter_halt_and_linear_counter_control);
 
 
 }
 
 
-// This is prime Trait territory, can refactor using them once I have the thing working first
 
-fn clock_triangle_length_counter(tri: &mut TriangleWave) {
+fn clock_triangle_length_counter(tri: &mut Triangle) {
     if !tri.length_counter_halt_and_linear_counter_control {
         tri.length_counter = tri.length_counter.saturating_sub(1);
     }
     
     tri.length_counter_mute_signal = tri.length_counter == 0;
-    // println!("tri length counter mute {}", tri.length_counter_mute_signal);
-    // println!("Tri length counter {}", tri.length_counter);
 }
 
-/*
 
-Need to make sure I understand this 
-
-There is a start flag that's set when you finish setting the period of the note (write to 0x4003)
-
-There's a divider which is set by the volume bits in 0x4000 (0-15)
-
-There's a decay counter which is a volume value from 0-15. It starts at 15 and gets decremented
-when it's clocked by the divider
-
-
-
-
-
-
-
-
-
-
-*/
-
-
-
-
-fn clock_square_envelope(sqw: &mut SquareWave) {
+fn clock_square_envelope(sqw: &mut Square) {
     
     if sqw.envelope_start_flag {
         sqw.envelope_start_flag = false;
@@ -243,8 +191,6 @@ fn clock_noise_envelope(noise: &mut Noise) {
             }
 
 
-            // ????????          Something is wrong with the decay level? 
-            // I think it's not decaying fast enougH? 
         } else {
             noise.envelope_counter_curr_value -= 1;
         }
@@ -258,7 +204,6 @@ fn clock_noise_envelope(noise: &mut Noise) {
         0
     };
 
-    // println!("decaylevel {}", noise.envelope_decay_level);
 
 
 }
@@ -298,7 +243,7 @@ fn clock_sweep_and_length_counters(nes: &mut Nes) {
     clock_noise_length_counters(&mut nes.apu.noise);
 }
 
-fn clock_square_sweep_counter(sq_wave: &mut SquareWave, twos_compliment: bool) {
+fn clock_square_sweep_counter(sq_wave: &mut Square, twos_compliment: bool) {
 
     let mut change = (sq_wave.timer_init_value >> sq_wave.sweep_shift_amount) as i16;
     let target = sq_wave.timer_init_value.wrapping_add_signed(change);
@@ -327,7 +272,7 @@ fn clock_square_sweep_counter(sq_wave: &mut SquareWave, twos_compliment: bool) {
     }
 }
 
-fn clock_square_length_counters(sq_wave: &mut SquareWave) {
+fn clock_square_length_counters(sq_wave: &mut Square) {
     if !sq_wave.envelope_loop_and_length_counter_halt {
         sq_wave.length_counter = sq_wave.length_counter.saturating_sub(1);
     }
@@ -335,7 +280,7 @@ fn clock_square_length_counters(sq_wave: &mut SquareWave) {
     sq_wave.length_counter_mute_signal = sq_wave.length_counter == 0;
 }
 
-pub fn square_channel_output(sqw: &SquareWave) -> f32 {
+pub fn square_channel_output(sqw: &Square) -> f32 {
     if !sqw.sweep_mute_signal && sqw.sequencer_output && !sqw.length_counter_mute_signal && sqw.enabled {
         sqw.envelope_output as f32
     } else {
@@ -343,7 +288,7 @@ pub fn square_channel_output(sqw: &SquareWave) -> f32 {
     }
 }
 
-pub fn triangle_channel_output(tri: &TriangleWave) -> f32 {
+pub fn triangle_channel_output(tri: &Triangle) -> f32 {
     if !tri.linear_counter_mute_signal && !tri.length_counter_mute_signal && tri.enabled {
         tri.sequencer_output as f32
     } else {

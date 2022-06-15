@@ -1,15 +1,7 @@
 #![feature(bigint_helper_methods)]
 #![feature(mixed_integer_ops)]
 
-use crate::hw::Nes;
-use crate::hw::Cartridge;
-
-use std::thread;
-
-use std::sync::mpsc::{self, Receiver, TryIter};
-
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{Data, Sample, SampleFormat};
 
 use ggez::{Context, ContextBuilder, GameResult, timer};
 use ggez::event::{self, EventHandler, KeyCode, KeyMods};
@@ -17,18 +9,20 @@ use ggez::conf::{WindowMode, WindowSetup};
 use ggez::graphics::{self, DrawParam, Image};
 use ggez::mint::Vector2;
 
-mod emu;
-mod hw;
+use std::sync::mpsc;
+
+mod nes;
+mod controller;
 mod cpu; 
 mod ppu;
 mod apu;
 mod mem;
-mod instr_defs;
-mod instr_funcs;
-mod addressing_funcs;
+mod cartridge;
+mod emulator;
 mod util;
-mod logging;
-mod mappers;
+
+use nes::Nes;
+
 
 struct Emulator {
     nes: Nes,
@@ -55,7 +49,7 @@ const SCALING:   f32 = 4.0;
 impl EventHandler for Emulator {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         if timer::check_update_time(ctx, FRAMERATE) {
-            emu::run_to_vblank(&mut self.nes);
+            emulator::run_to_vblank(&mut self.nes);
         }
         if self.frames % 100 == 0 {
             println!("FPS = {}", timer::fps(ctx));
