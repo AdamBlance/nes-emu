@@ -1,3 +1,6 @@
+use crate::util::{concat_u8, get_bit};
+use super::lookup_table::Instruction;
+
 #[derive(Copy, Clone, Default)]
 pub struct Cpu {
     // Registers
@@ -31,11 +34,6 @@ pub struct Cpu {
     pub cycles:             u64,
     // Debugging
     pub instruction_count: u64,
-    pub trace_opcode: u8,
-    pub trace_byte2: u8,
-    pub trace_byte3: u8,
-    pub trace_imm: u8,
-    pub trace_stored_val: u8,
 }
 
 impl Cpu {

@@ -1,5 +1,6 @@
 use crate::nes::Nes;
-use super::*;
+use super::channels::*;
+
 
 const STEP_1: u16 = 3729;
 const STEP_2: u16 = 7457;

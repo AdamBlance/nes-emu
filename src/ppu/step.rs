@@ -1,6 +1,6 @@
 use crate::util::*;
-use crate::hw::{Nes, Cartridge};
-use crate::logging;
+use super::mem::read_vram;
+use crate::nes::Nes;
 
 pub static PALETTE: [(u8,u8,u8); 64] = [
     ( 84,  84,  84), (  0,  30, 116), (  8,  16, 144), ( 48,   0, 136), ( 68,   0, 100), ( 92,   0,  48), ( 84,   4,   0), ( 60,  24,   0), ( 32,  42,   0), (  8,  58,   0), (  0,  64,   0), (  0,  60,   0), (  0,  50,  60), (  0,   0,   0), (  0,   0,   0), (  0,   0,   0), 
@@ -24,8 +24,6 @@ const PATTERN_MSB_READ: i32 = 7;
 
 pub fn step_ppu(nes: &mut Nes) {
     
-    if nes.ppu_log_toggle {logging::print_ppu_log(nes);}
-
     // Aliases
     let cycle = nes.ppu.scanline_cycle;
     let scanline = nes.ppu.scanline;
@@ -75,15 +73,6 @@ pub fn step_ppu(nes: &mut Nes) {
                 // move n to next sprite in oam 
                 n += 4;
             }
-
-
-
-            if nes.ppu_log_toggle {
-                println!("primary oam {:02X?}", nes.ppu.oam);
-                println!("secondary oam {:02X?}", nes.ppu.s_oam);
-            }
-
-
 
         }
 
@@ -246,34 +235,6 @@ pub fn step_ppu(nes: &mut Nes) {
             nes.ppu.sprite_zero_in_latches = false;
         }
 
-        // if (frame_index / 4) % 8 == 0 {
-        //     nes.frame[frame_index] = nes.frame[frame_index].wrapping_add(150);
-        // }
-        // if ((frame_index / 4) / 256) % 8 == 0 {
-        //     nes.frame[frame_index+1] = nes.frame[frame_index+1].wrapping_add(150);
-        // }
-
-        if nes.ppu_log_toggle {
-            println!("\nPixel drawn!");
-            println!("sprite pattern srs lsb {:04X?}", nes.ppu.sprite_ptable_lsb_srs);
-            println!("sprite pattern srs msb {:04X?}", nes.ppu.sprite_ptable_msb_srs);
-            println!("sprite x counters {:?}", nes.ppu.sprite_x_counters);
-
-            // println!(
-                // "lsb attr = {}, msb attr = {}, lsb ptable = {}, msb ptable = {}",
-                // lsb_attr, 
-                // msb_attr,
-                // lsb_ptable,
-                // msb_ptable,
-            // );
-            // println!("palette index = {:016b} ({:04X})", palette_index, palette_index);
-            // println!("frame index = {}", frame_index);
-            // println!("raw colour byte from palette = {:02X}", pixel_hue_value);
-            // println!("as tuple {:?}", pixel_rgb);
-            println!();
-        }
-    
-
     }
 
     // At (1, 241), set PPUSTATUS in_vblank bit and raise NMI if enabled
@@ -326,15 +287,6 @@ pub fn step_ppu(nes: &mut Nes) {
                 nes.ppu.bg_attr_msb_latch = get_bit(attr, 7);
             }
         }
-
-        if nes.ppu_log_toggle {    
-            println!("Temp values copied to shift register\n");
-            println!("So, attribute byte is {:08b} ({:02X})", attr, attr);
-            println!("left_num {} {:08b}", left_num, left_num);
-            println!("top_num {} {:08b}", top_num, top_num);
-            println!("is_top {}, is_left {}", is_top, is_left);
-            println!("selecting {}{}", nes.ppu.bg_attr_msb_latch as u8, nes.ppu.bg_attr_lsb_latch as u8);
-        }
     }
 
     let in_bg_fetch_cycle = ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336))
@@ -348,7 +300,6 @@ pub fn step_ppu(nes: &mut Nes) {
                 let ntable_address = 0x2000 | (nes.ppu.v & !FINE_Y);
                 nes.ppu.bg_ntable_tmp = read_vram(ntable_address, nes);
 
-                if nes.ppu_log_toggle {println!("read nametable byte {:02X} from {:016b} ({:04X})\n", nes.ppu.bg_ntable_tmp, ntable_address, ntable_address);}
             }
 
             ATTRIBUTE_READ => {
@@ -356,8 +307,6 @@ pub fn step_ppu(nes: &mut Nes) {
                                             | ((nes.ppu.v & 0b11100_00000) >> 4)
                                             | ((nes.ppu.v & 0b00000_11100) >> 2);
                 nes.ppu.bg_atable_tmp = read_vram(attribute_addr, nes);
-
-                if nes.ppu_log_toggle {println!("read attribute byte {:02X} from {:016b} ({:04X}\n)", nes.ppu.bg_atable_tmp, attribute_addr, attribute_addr);}
             }
 
             PATTERN_LSB_READ => {
@@ -365,8 +314,6 @@ pub fn step_ppu(nes: &mut Nes) {
                               | ((nes.ppu.bg_ntable_tmp as u16) << 4) 
                               | ((nes.ppu.v & FINE_Y) >> 12);
                 nes.ppu.bg_ptable_lsb_tmp = read_vram(tile_addr, nes);
-
-                if nes.ppu_log_toggle {println!("read pattern lsb {:08b} from {:016b} ({:04X})\n", nes.ppu.bg_ptable_lsb_tmp, tile_addr, tile_addr);}
             }
 
             PATTERN_MSB_READ => {
@@ -375,8 +322,6 @@ pub fn step_ppu(nes: &mut Nes) {
                                 | ((nes.ppu.v & FINE_Y) >> 12)
                                 + 8; // equivalently | 0b1000, lower 3 are fine y 
                 nes.ppu.bg_ptable_msb_tmp = read_vram(tile_addr, nes);
-
-                if nes.ppu_log_toggle {println!("read pattern msb {:08b} from {:016b} ({:04X})\n", nes.ppu.bg_ptable_msb_tmp, tile_addr, tile_addr);}
             }
 
             _ => ()
@@ -490,12 +435,10 @@ pub fn step_ppu(nes: &mut Nes) {
     let horizontal_v_increment = (((cycle % 8 == 0) && (cycle >= 8 && cycle <= 256)) || (cycle == 328 || cycle == 336)) && scanline <= 239;
 
     if horizontal_v_increment && rendering_enabled {
-        if nes.ppu_log_toggle {println!("v incremented horizontally\n");}
         inc_v_horizontal(nes);
     }
 
     if cycle == 256 && scanline <= 239 && rendering_enabled {
-        if nes.ppu_log_toggle {println!("v incremented vertically\n");}
         inc_v_vertical(nes);
     }
 
@@ -520,7 +463,6 @@ pub fn step_ppu(nes: &mut Nes) {
         nes.ppu.v &= !HORIZONTAL_BITMASK; // clear horizontal bits
         nes.ppu.v |= nes.ppu.t & HORIZONTAL_BITMASK;
 
-        if nes.ppu_log_toggle {println!("copied horizontal bits from t to v\n");}
     }
 
     if (cycle >= 280 && cycle <= 304) && scanline == -1 && rendering_enabled {
@@ -529,7 +471,6 @@ pub fn step_ppu(nes: &mut Nes) {
         nes.ppu.v &= !VERTICAL_BITMASK;
         nes.ppu.v |= nes.ppu.t & VERTICAL_BITMASK;
 
-        if nes.ppu_log_toggle {println!("copied vertical bits from t to v\n");}
     }
 
 

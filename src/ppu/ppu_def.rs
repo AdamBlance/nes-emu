@@ -1,3 +1,5 @@
+use crate::util::get_bit;
+
 #[derive(Copy, Clone)]
 pub struct Ppu {
     // PPUCTRL register
@@ -63,7 +65,7 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    fn new() -> Ppu {
+    pub fn new() -> Ppu {
         Ppu {
             nmi_enable: false,
             master_slave: false,

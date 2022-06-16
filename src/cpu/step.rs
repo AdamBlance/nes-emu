@@ -1,10 +1,15 @@
-use crate::instr_defs::{INSTRUCTIONS, Mode::*, Category::*, Name::*};
-use crate::addressing_funcs::*;
-use crate::instr_funcs::update_p_nz;
-use crate::hw::Nes;
-use crate::logging::log;
-use crate::mem::*;
-use crate::util::*;
+
+use crate::nes::Nes;
+use super::addressing::*;
+use crate::mem::read_mem;
+use super::lookup_table::{
+    INSTRUCTIONS,
+    Mode::*,
+    Category::*,
+    Name::*,
+};
+use super::operation_funcs::update_p_nz;
+use crate::util::is_neg;
 
 /*
     Because of the way the CPU is designed, it often reads data from memory when it isn't needed. 
@@ -84,11 +89,6 @@ pub fn step_cpu(nes: &mut Nes) {
     if nes.cpu.instruction_cycle == 0 {
         let opcode = read_mem(nes.cpu.pc, nes);
         nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
-        nes.cpu.trace_opcode = opcode;
-
-        // For logging
-        nes.old_cpu_state = nes.cpu;
-        nes.old_ppu_state = nes.ppu;
 
         increment_pc(nes);
         nes.cpu.cycles += 1;

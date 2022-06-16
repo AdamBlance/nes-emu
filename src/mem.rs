@@ -86,10 +86,10 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
         CONTROLLER_2 => nes.controller2.shift_out_button_state(),
 
         // Cartridge space
-        0x4020..=0xFFFF => {
-            let prg_rom_addr = nes.cartridge.mapper.get_raw_prg_address(addr);
-            nes.cartridge.prg_rom[prg_rom_addr]
-        }
+
+        0x6000..=0x7FFF => nes.cartridge.read_prg_ram(addr),
+
+        0x8000..=0xFFFF => nes.cartridge.read_prg_rom(addr),
 
         _ => 0,
     }
@@ -197,9 +197,13 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
             if !nes.apu.triangle.enabled {nes.apu.triangle.length_counter = 0;}
             if !nes.apu.noise.enabled {nes.apu.noise.length_counter = 0;}
         }
-        0x4020..=0xFFFF => {
-            nes.cartridge.mapper.prg_write(addr, val, nes.cpu.cycles);
-        }
+
+        // Cartridge space
+
+        0x6000..=0x7FFF => nes.cartridge.write_prg_ram(addr, val),
+
+        0x8000..=0xFFFF => nes.cartridge.write_prg_rom(addr, val, nes.cpu.cycles),
+
         _ => (),
     };
 }

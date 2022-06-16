@@ -1,5 +1,4 @@
-use super::*;
-
+use super::channels::*;
 use std::sync::mpsc::Sender;
 
 pub struct Apu {
@@ -24,7 +23,7 @@ pub struct Apu {
 }
 
 impl Apu {
-    fn new(audio_queue: Sender<f32>) -> Apu {
+    pub fn new(audio_queue: Sender<f32>) -> Apu {
         Apu {
             frame_sequencer_mode_select: false,
             frame_sequencer_counter: 0,

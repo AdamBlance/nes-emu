@@ -21,8 +21,8 @@ mod cartridge;
 mod emulator;
 mod util;
 
-use nes::Nes;
-
+use crate::nes::Nes;
+use crate::cartridge::*;
 
 struct Emulator {
     nes: Nes,
@@ -111,6 +111,12 @@ impl EventHandler for Emulator {
 
 
 
+
+
+
+
+
+
 fn main() {
     let commandline_args: Vec<String> = std::env::args().collect();
 
@@ -183,8 +189,12 @@ fn main() {
 
 
 
+
+
+
+
      
-    let cartridge = Cartridge::new(ines_data);
+    let cartridge = new_cartridge(ines_data);
     let nes       = Nes::new(cartridge, audio_queue_producer);
     let emulator  = Emulator {nes, frames: 0};
 
@@ -200,5 +210,49 @@ fn main() {
     stream.play().unwrap();
 
     event::run(ctx, event_loop, emulator);
+
+}
+
+fn new_cartridge(ines_data: Vec<u8>) -> Box<dyn Cartridge> {
+    
+    // Information extracted from iNES header
+    let num_prg_16kb_chunks   = ines_data[4] as usize;
+    let num_chr_8kb_chunks    = ines_data[5] as usize;
+    let has_prg_ram           = (ines_data[6] & 0b0010) > 0;
+
+    let v_or_h_mirroring    = if (ines_data[6] & 0b0001) > 0 {Mirroring::Vertical} else {Mirroring::Horizontal};
+    let four_screen_mirroring = (ines_data[6] & 0b1000) > 0;
+    
+    let mapper_id             = (ines_data[6] >> 4) 
+                                | (ines_data[7] & 0b1111_0000);
+
+    let chr_rom_is_ram = num_chr_8kb_chunks == 0;
+
+    // Program ROM begins immediately after 16 byte header
+    let prg_end = 16 + (num_prg_16kb_chunks * 0x4000);
+    let chr_end = prg_end + (num_chr_8kb_chunks * 0x2000);
+
+    let chr_rom_is_ram = prg_end == chr_end;
+
+    let prg_rom = ines_data[16..prg_end].to_vec();
+
+    let chr_rom = if !chr_rom_is_ram {
+        ines_data[prg_end..chr_end].to_vec()
+    } else {
+        [0u8; 0x2000].to_vec()
+    };
+
+
+
+
+
+    match mapper_id {
+        0 => Box::new(CartridgeM0::new(prg_rom, chr_rom, v_or_h_mirroring)),
+        1 => Box::new(CartridgeM1::new(prg_rom, chr_rom, chr_rom_is_ram)),
+        2 => Box::new(CartridgeM2::new(prg_rom, chr_rom, chr_rom_is_ram, v_or_h_mirroring)),
+        _ => unimplemented!(),
+    }
+
+
 
 }

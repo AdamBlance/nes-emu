@@ -18,12 +18,12 @@
 +------+-------------------+---+--------------------------------------------------------------+
 */
 
-use crate::hw::*;
-use crate::instr_funcs;
 use Mode::*;
 use Category::*;
 use Name::*;
 
+use super::operation_funcs;
+use crate::nes::Nes;
 
 #[derive(Copy, Clone, Default)]
 pub struct Instruction { 
@@ -36,57 +36,57 @@ impl Instruction {
     pub fn get_associated_function(&self) -> fn(&mut Nes) {
         // All of these instructions are R/W/RMW
         match self.name {
-            LDA => instr_funcs::load_a,
-            LDX => instr_funcs::load_x,
-            LDY => instr_funcs::load_y,
+            LDA => operation_funcs::load_a,
+            LDX => operation_funcs::load_x,
+            LDY => operation_funcs::load_y,
 
-            STA => instr_funcs::store_a,
-            STX => instr_funcs::store_x,
-            STY => instr_funcs::store_y,
+            STA => operation_funcs::store_a,
+            STX => operation_funcs::store_x,
+            STY => operation_funcs::store_y,
             
-            TAX => instr_funcs::transfer_a_to_x,
-            TAY => instr_funcs::transfer_a_to_y,
-            TSX => instr_funcs::transfer_s_to_x,
-            TXA => instr_funcs::transfer_x_to_a,
-            TXS => instr_funcs::transfer_x_to_s,
-            TYA => instr_funcs::transfer_y_to_a,
+            TAX => operation_funcs::transfer_a_to_x,
+            TAY => operation_funcs::transfer_a_to_y,
+            TSX => operation_funcs::transfer_s_to_x,
+            TXA => operation_funcs::transfer_x_to_a,
+            TXS => operation_funcs::transfer_x_to_s,
+            TYA => operation_funcs::transfer_y_to_a,
             
-            ASL => instr_funcs::arithmetic_shift_left,
-            LSR => instr_funcs::logical_shift_right,
-            ROL => instr_funcs::rotate_left,
-            ROR => instr_funcs::rotate_right,
+            ASL => operation_funcs::arithmetic_shift_left,
+            LSR => operation_funcs::logical_shift_right,
+            ROL => operation_funcs::rotate_left,
+            ROR => operation_funcs::rotate_right,
             
-            AND => instr_funcs::and,
-            BIT => instr_funcs::bit,
-            EOR => instr_funcs::xor,
-            ORA => instr_funcs::or,
+            AND => operation_funcs::and,
+            BIT => operation_funcs::bit,
+            EOR => operation_funcs::xor,
+            ORA => operation_funcs::or,
             
-            ADC => instr_funcs::add_with_carry,
-            SBC => instr_funcs::subtract_with_carry,
+            ADC => operation_funcs::add_with_carry,
+            SBC => operation_funcs::subtract_with_carry,
             
-            DEC => instr_funcs::decrement_memory,
-            DEX => instr_funcs::decrement_x,
-            DEY => instr_funcs::decrement_y,
+            DEC => operation_funcs::decrement_memory,
+            DEX => operation_funcs::decrement_x,
+            DEY => operation_funcs::decrement_y,
             
-            INC => instr_funcs::increment_memory,
-            INX => instr_funcs::increment_x,
-            INY => instr_funcs::increment_y,
+            INC => operation_funcs::increment_memory,
+            INX => operation_funcs::increment_x,
+            INY => operation_funcs::increment_y,
             
-            CMP => instr_funcs::compare_memory_with_a,
-            CPX => instr_funcs::compare_memory_with_x,
-            CPY => instr_funcs::compare_memory_with_y,
+            CMP => operation_funcs::compare_memory_with_a,
+            CPX => operation_funcs::compare_memory_with_x,
+            CPY => operation_funcs::compare_memory_with_y,
 
-            CLC => instr_funcs::clear_carry_flag,
-            CLD => instr_funcs::clear_decimal_flag,
-            CLI => instr_funcs::clear_interrupt_flag,
-            CLV => instr_funcs::clear_overflow_flag,
+            CLC => operation_funcs::clear_carry_flag,
+            CLD => operation_funcs::clear_decimal_flag,
+            CLI => operation_funcs::clear_interrupt_flag,
+            CLV => operation_funcs::clear_overflow_flag,
             
-            SEC => instr_funcs::set_carry_flag,
-            SED => instr_funcs::set_decimal_flag,
-            SEI => instr_funcs::set_interrupt_flag,
+            SEC => operation_funcs::set_carry_flag,
+            SED => operation_funcs::set_decimal_flag,
+            SEI => operation_funcs::set_interrupt_flag,
             
-            NOP => instr_funcs::nop,
-            _   => instr_funcs::nop,
+            NOP => operation_funcs::nop,
+            _   => operation_funcs::nop,
         }
     }
 }
