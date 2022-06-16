@@ -425,6 +425,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  SBC, mode: Absolute,    category: Read},
     Instruction {name:  INC, mode: Absolute,    category: ReadModifyWrite},
     Instruction {name: UISB, mode: Absolute,    category: Read},
+
     Instruction {name:  BEQ, mode: Relative,    category: Branch},
     Instruction {name:  SBC, mode: IndirectY,   category: Read},
     Instruction {name: UJAM, mode: Implied,     category: Read},

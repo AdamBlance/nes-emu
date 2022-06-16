@@ -281,6 +281,8 @@ fn clock_square_length_counters(sq_wave: &mut Square) {
     sq_wave.length_counter_mute_signal = sq_wave.length_counter == 0;
 }
 
+
+
 pub fn square_channel_output(sqw: &Square) -> f32 {
     if !sqw.sweep_mute_signal && sqw.sequencer_output && !sqw.length_counter_mute_signal && sqw.enabled {
         sqw.envelope_output as f32
@@ -290,7 +292,7 @@ pub fn square_channel_output(sqw: &Square) -> f32 {
 }
 
 pub fn triangle_channel_output(tri: &Triangle) -> f32 {
-    if !tri.linear_counter_mute_signal && !tri.length_counter_mute_signal && tri.enabled {
+    if !tri.linear_counter_mute_signal && !tri.length_counter_mute_signal && tri.enabled && (tri.timer_curr_value > 2) {
         tri.sequencer_output as f32
     } else {
         0.0

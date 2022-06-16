@@ -12,14 +12,14 @@ const KB: usize = 0x400;
 
 // All cartridges must implement this
 pub trait Cartridge {
-    fn read_prg_ram(&mut self, addr: u16) -> u8 {0}
-    fn write_prg_ram(&mut self, addr: u16, byte: u8) {}
+    fn read_prg_ram(&mut self, _addr: u16) -> u8 {0}
+    fn write_prg_ram(&mut self, _addr: u16, _byte: u8) {}
 
     fn read_prg_rom(&mut self, addr: u16) -> u8;
-    fn write_prg_rom(&mut self, addr: u16, byte: u8, cpu_cycle: u64) {}
+    fn write_prg_rom(&mut self, _addr: u16, _byte: u8, _cpu_cycle: u64) {}
 
     fn read_chr(&mut self, addr: u16) -> u8;
-    fn write_chr(&mut self, addr: u16, byte: u8) {}
+    fn write_chr(&mut self, _addr: u16, _byte: u8) {}
 
     fn get_physical_ntable_addr(&self, addr: u16) -> u16;
 }
@@ -96,7 +96,7 @@ impl CartridgeM1 {
             write_counter: 0,
             last_write_cycle: u64::MAX,
             mirroring: Mirroring::Vertical,
-            prg_bank_mode: 0,
+            prg_bank_mode: 3,
             chr_bank_mode: 0,
             chr_bank_0: 0,
             chr_bank_1: 0,
@@ -132,6 +132,7 @@ impl Cartridge for CartridgeM1 {
     }
 
     fn read_prg_rom(&mut self, addr: u16) -> u8 {
+        // println!("Bank {}", self.prg_bank);
         let addru = addr as usize;
         match self.prg_bank_mode { // Use KB const for readability
             0 | 1 => self.prg_rom[(self.prg_bank & 0b11110) * 32*KB + (addru - 0x8000)],
@@ -141,8 +142,14 @@ impl Cartridge for CartridgeM1 {
                 _ => unreachable!(),
             }}
             3 => { match addr {
-                0x8000..=0xBFFF => self.prg_rom[(self.prg_bank * 16*KB) + (addru - 0x8000)],
-                0xC000..=0xFFFF => self.prg_rom[(self.prg_rom.len() - 16*KB) + (addru - 0xC000)],
+                0x8000..=0xBFFF => {
+                    // println!("First bank read {:04X}", addr);
+                    self.prg_rom[(self.prg_bank * 16*KB) + (addru - 0x8000)]
+                }
+                0xC000..=0xFFFF => {
+                    // println!("Second bank read {:04X}", addr);
+                    self.prg_rom[(self.prg_rom.len() - 16*KB) + (addru - 0xC000)]
+                }
                 _ => unreachable!(),
             }}
             _ => unreachable!(),
@@ -150,9 +157,13 @@ impl Cartridge for CartridgeM1 {
         }
     }
     fn write_prg_rom(&mut self, addr: u16, byte: u8, cpu_cycle: u64) {
+
+        // println!("ROM write - data {:08b}, addr {:04X}, cpu cycle {}", byte, addr, cpu_cycle);
+
         if (byte & 0b1000_0000) > 0 {
             self.shift_register = 0;
             self.write_counter = 0;
+            self.prg_bank_mode = 3;
         } 
         // Ignore consecutive writes
         else if (cpu_cycle - self.last_write_cycle) != 1 {
@@ -243,7 +254,7 @@ impl Cartridge for CartridgeM2 {
             _ => unreachable!(),
         }
     }
-    fn write_prg_rom(&mut self, addr: u16, byte: u8, cpu_cycle: u64) {
+    fn write_prg_rom(&mut self, _addr: u16, byte: u8, _cpu_cycle: u64) {
         self.bank_select = byte as usize;   
     }
 
@@ -275,7 +286,7 @@ impl Cartridge for CartridgeM2 {
 
 fn basic_nametable_mirrroring(addr: u16, mirroring: Mirroring) -> u16 {
     // The physical nametables sit at 0x2000..=0x23FF and 0x2400..=0x27FF
-    match mirroring {
+    let vram_addr = match mirroring {
         Mirroring::Vertical => match addr {
             0x2000..=0x23FF => addr,
             0x2400..=0x27FF => addr,
@@ -304,5 +315,6 @@ fn basic_nametable_mirrroring(addr: u16, mirroring: Mirroring) -> u16 {
             0x2C00..=0x2FFF => addr - 0x800,
             _ => unreachable!(),
         }
-    }
+    };
+    vram_addr - 0x2000
 }

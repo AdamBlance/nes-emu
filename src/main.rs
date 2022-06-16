@@ -27,6 +27,7 @@ use crate::cartridge::*;
 struct Emulator {
     nes: Nes,
     frames: u64,
+    scaling: f32,
 }
 
 const RIGHT:  u8 = 0b1000_0000;
@@ -39,9 +40,6 @@ const B:      u8 = 0b0000_0010;
 const A:      u8 = 0b0000_0001;
 
 const FRAMERATE: u32 = 60;
-const SCALING:   f32 = 4.0;
-
-
 
 
 
@@ -65,7 +63,7 @@ impl EventHandler for Emulator {
             240, 
             &self.nes.frame
         )?;
-        let dp = DrawParam::default().scale(Vector2{x: SCALING, y: SCALING});
+        let dp = DrawParam::default().scale(Vector2{x: self.scaling, y: self.scaling});
         graphics::draw(ctx, &image, dp)?;
 
         // Push image to screen
@@ -136,7 +134,8 @@ fn main() {
     if &ines_data[0..4] != b"NES\x1A" {
         panic!("Not a valid iNES file");
     }
-    
+
+    let scaling = (&commandline_args[2]).parse::<f32>().expect("Invalid scaling value");
 
     // Queue used to send values from the APU to the audio thread
     // Although this is a multiple producer single consumer queue, there is only one producer
@@ -196,10 +195,10 @@ fn main() {
      
     let cartridge = new_cartridge(ines_data);
     let nes       = Nes::new(cartridge, audio_queue_producer);
-    let emulator  = Emulator {nes, frames: 0};
+    let emulator  = Emulator {nes, frames: 0, scaling};
 
     let cb = ContextBuilder::new("nes-emu", "Adam Blance")
-        .window_mode(WindowMode::default().dimensions(256.0*SCALING, 240.0*SCALING))
+        .window_mode(WindowMode::default().dimensions(256.0*scaling, 240.0*scaling))
         .window_setup(WindowSetup::default().title("R-nemUST"));
 
     let (mut ctx, event_loop) = cb.build().unwrap();

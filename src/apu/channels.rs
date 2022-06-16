@@ -25,6 +25,11 @@ pub static NOISE_PERIOD_TABLE: [u16; 16] = [
     0x0CA, 0x0FE, 0x17C, 0x1FC, 0x2FA, 0x3F8, 0x7F2, 0xFE4,
 ];
 
+pub static SAMPLE_RATE_TABLE: [u16; 16] = [
+    428, 380, 340, 320, 286, 254, 226, 214, 
+    190, 160, 142, 128, 106,  84,  72,  54,
+];
+
 #[derive(Copy, Clone, Default)]
 pub struct Square {
     pub enabled: bool,
@@ -145,4 +150,11 @@ impl Noise {
         self.length_counter = LENGTH_TABLE[((byte & 0b11111_000) >> 3) as usize];
         self.envelope_start_flag = true;
     }
+}
+
+pub struct Sample {
+    pub irq_enabled: bool,
+    pub loop_sample: bool,
+    pub sample_buffer: u8,
+
 }

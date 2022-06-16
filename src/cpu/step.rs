@@ -93,6 +93,11 @@ pub fn step_cpu(nes: &mut Nes) {
         increment_pc(nes);
         nes.cpu.cycles += 1;
         nes.cpu.instruction_cycle += 1;
+
+        // println!("Instruction {:?}, opcode {:02X},  PC {:04X}", nes.cpu.instruction.name, opcode, nes.cpu.pc);
+        // let mut line = String::new();
+        // std::io::stdin().read_line(&mut line);
+
         return;
     }
 
