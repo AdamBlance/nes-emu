@@ -132,7 +132,6 @@ impl Cartridge for CartridgeM1 {
     }
 
     fn read_prg_rom(&mut self, addr: u16) -> u8 {
-        // println!("Bank {}", self.prg_bank);
         let addru = addr as usize;
         match self.prg_bank_mode { // Use KB const for readability
             0 | 1 => self.prg_rom[(self.prg_bank & 0b11110) * 32*KB + (addru - 0x8000)],
@@ -166,7 +165,7 @@ impl Cartridge for CartridgeM1 {
             self.prg_bank_mode = 3;
         } 
         // Ignore consecutive writes
-        else if (cpu_cycle - self.last_write_cycle) != 1 {
+        else if cpu_cycle - 1 != self.last_write_cycle {
             self.last_write_cycle = cpu_cycle;
 
             self.shift_register >>= 1;
@@ -190,7 +189,7 @@ impl Cartridge for CartridgeM1 {
                     }
                     0xA000..=0xBFFF => self.chr_bank_0 = self.shift_register as usize,
                     0xC000..=0xDFFF => self.chr_bank_1 = self.shift_register as usize,
-                    0xE000..=0xFFFF => self.prg_bank = self.shift_register as usize,
+                    0xE000..=0xFFFF => self.prg_bank = (self.shift_register & 0b01111) as usize,
                     _ => unreachable!(),
                 }
                 self.shift_register = 0;

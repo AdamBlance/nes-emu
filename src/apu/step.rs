@@ -349,9 +349,10 @@ pub fn noise_channel_output(noise: &Noise) -> f32 {
 }
 
 pub fn sample_channel_output(sample: &Sample) -> f32 {
-    if sample.enabled {
-        sample.output as f32
-    } else {
-        0.0
-    }
+    // if sample.enabled {
+        // sample.output as f32
+    // } else {
+        // 0.0
+    // }
+    sample.output as f32
 }

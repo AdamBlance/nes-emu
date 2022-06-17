@@ -187,6 +187,7 @@ impl Sample {
         self.init_timer_value = SAMPLE_RATE_TABLE[(byte & 0b0000_1111) as usize];
     }
     pub fn set_reg2_from_byte(&mut self, byte: u8) {
+        // println!("Written {:08b} enabled {}", byte, self.enabled);
         self.output = byte & 0b0111_1111;
     }
     pub fn set_reg3_from_byte(&mut self, byte: u8) {

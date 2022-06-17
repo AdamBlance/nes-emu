@@ -243,7 +243,8 @@ fn new_cartridge(ines_data: Vec<u8>) -> Box<dyn Cartridge> {
 
 
 
-
+    // println!("Mapper ID {}", mapper_id);
+    // panic!();
 
     match mapper_id {
         0 => Box::new(CartridgeM0::new(prg_rom, chr_rom, v_or_h_mirroring)),

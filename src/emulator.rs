@@ -104,6 +104,8 @@ fn do_sample(nes: &mut Nes) {
     let noise = apu::noise_channel_output(&nes.apu.noise);
     let sample = apu::sample_channel_output(&nes.apu.sample);
 
+    
+
     let output_val = (sq1_output + sq2_output + tri_output + noise + sample) / 150.0;
     // let output_val = (sample) / 150.0;
     
