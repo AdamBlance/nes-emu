@@ -152,9 +152,47 @@ impl Noise {
     }
 }
 
+#[derive(Copy, Clone, Default)]
 pub struct Sample {
+    pub enabled: bool,
+    // 0x4010
     pub irq_enabled: bool,
     pub loop_sample: bool,
-    pub sample_buffer: u8,
+    pub init_timer_value: u16,
+    pub curr_timer_value: u16,
 
+    // 0x4011 - Writes directly to sample channel output
+    // Used to playback PCM audio with full 7 bit samples
+
+    // 0x4012 - Sample address
+    // C000 + (addr * 64)
+
+    // 0x4013 - Sample length in bytes
+    // (length * 16) + 1 bytes
+
+    pub sample_buffer: u8,
+    pub buffer_bits_remaining: u8,
+    pub sample_length: u16,
+    pub remaining_sample_bytes: u16,
+    pub init_sample_addr: u16,
+    pub curr_sample_addr: u16,
+
+    pub mute_signal: bool,
+    pub output: u8,
+}
+impl Sample {
+    pub fn set_reg1_from_byte(&mut self, byte: u8) {
+        self.irq_enabled      = (byte & 0b1000_0000) > 0;
+        self.loop_sample      = (byte & 0b0100_0000) > 0;
+        self.init_timer_value = SAMPLE_RATE_TABLE[(byte & 0b0000_1111) as usize];
+    }
+    pub fn set_reg2_from_byte(&mut self, byte: u8) {
+        self.output = byte & 0b0111_1111;
+    }
+    pub fn set_reg3_from_byte(&mut self, byte: u8) {
+        self.init_sample_addr = 0xC000 + (byte as u16 * 64) as u16;
+    }
+    pub fn set_reg4_from_byte(&mut self, byte: u8) {
+        self.sample_length = (byte as u16 * 16) + 1;
+    }
 }

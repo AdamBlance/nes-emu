@@ -1,4 +1,5 @@
 use crate::nes::Nes;
+use crate::mem::read_mem;
 use super::channels::*;
 
 
@@ -24,7 +25,7 @@ pub fn step_apu(nes: &mut Nes) {
     }
 
     clock_triangle_timer(&mut nes.apu.triangle);
-
+    clock_sample_timer(nes);
 
 }
 
@@ -60,6 +61,46 @@ pub fn clock_frame_sequencer(nes: &mut Nes) {
         _ => (),
     }
     nes.apu.frame_sequencer_counter += 1;
+}
+
+
+// I have to figure out how to make this less verbose, probably methods
+fn clock_sample_timer(nes: &mut Nes) {
+    if nes.apu.sample.curr_timer_value == 0 {
+        nes.apu.sample.curr_timer_value = nes.apu.sample.init_timer_value;
+        
+        // println!("Bytes remaining {}", nes.apu.sample.remaining_sample_bytes);
+
+        if nes.apu.sample.buffer_bits_remaining == 0 && nes.apu.sample.remaining_sample_bytes > 0 && nes.apu.sample.enabled {
+            
+            let new_sample_data = read_mem(nes.apu.sample.curr_sample_addr, nes);
+            // println!("Sample curr addr {:04X}", nes.apu.sample.curr_sample_addr);
+            // std::thread::sleep(std::time::Duration::from_millis(5));
+            nes.apu.sample.sample_buffer = new_sample_data;
+            nes.apu.sample.buffer_bits_remaining = 8;
+            // Wrap around 0xC000-0xFFFF
+            nes.apu.sample.curr_sample_addr = nes.apu.sample.curr_sample_addr.wrapping_add(1);
+            if nes.apu.sample.curr_sample_addr == 0 {nes.apu.sample.curr_sample_addr = 0xC000}
+            
+            nes.apu.sample.remaining_sample_bytes -= 1;
+            if nes.apu.sample.remaining_sample_bytes == 0 {
+                if nes.apu.sample.loop_sample {
+                    nes.apu.sample.curr_sample_addr = nes.apu.sample.init_sample_addr;
+                    nes.apu.sample.remaining_sample_bytes = nes.apu.sample.sample_length;
+                } else if nes.apu.sample.irq_enabled {
+                    nes.cpu.interrupt_request = true;
+                }
+            }
+        }
+
+        let delta: i8 = if (nes.apu.sample.sample_buffer & 1) == 1 {2} else {-2}; 
+        nes.apu.sample.output = nes.apu.sample.output.saturating_add_signed(delta).clamp(0, 0x7F);
+        nes.apu.sample.sample_buffer >>= 1;
+        if nes.apu.sample.buffer_bits_remaining > 0 {nes.apu.sample.buffer_bits_remaining -= 1;}
+        
+    } else {
+        nes.apu.sample.curr_timer_value -= 1;
+    }
 }
 
 
@@ -302,6 +343,14 @@ pub fn triangle_channel_output(tri: &Triangle) -> f32 {
 pub fn noise_channel_output(noise: &Noise) -> f32 {
     if noise.sequencer_output && !noise.length_counter_mute_signal && noise.enabled {
         noise.envelope_output as f32
+    } else {
+        0.0
+    }
+}
+
+pub fn sample_channel_output(sample: &Sample) -> f32 {
+    if sample.enabled {
+        sample.output as f32
     } else {
         0.0
     }

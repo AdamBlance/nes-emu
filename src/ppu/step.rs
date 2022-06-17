@@ -23,7 +23,7 @@ const PATTERN_MSB_READ: i32 = 7;
 
 
 pub fn step_ppu(nes: &mut Nes) {
-    
+
     // Aliases
     let cycle = nes.ppu.scanline_cycle;
     let scanline = nes.ppu.scanline;
@@ -473,10 +473,13 @@ pub fn step_ppu(nes: &mut Nes) {
 
     }
 
-
-
+    // Skip last pre-render cycle on odd frames
+    if nes.ppu.odd_frame && nes.ppu.scanline_cycle == 339 && nes.ppu.scanline == -1 {
+        nes.ppu.scanline_cycle = 0;
+        nes.ppu.scanline = 0;
+    }
     // Wrap scanline cycles
-    if nes.ppu.scanline_cycle < 340 {
+    else if nes.ppu.scanline_cycle < 340 {
         nes.ppu.scanline_cycle += 1;
     } else {
         nes.ppu.scanline_cycle = 0;
@@ -486,6 +489,7 @@ pub fn step_ppu(nes: &mut Nes) {
         } else {
             // Pre-render scanline is -1 instead of 261 for convenience
             nes.ppu.scanline = -1;
+            nes.ppu.odd_frame = !nes.ppu.odd_frame;
         }
     }
 

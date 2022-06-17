@@ -29,6 +29,12 @@ const NOISE_REG_1: u16 = 0x400C;
 const NOISE_REG_2: u16 = 0x400E;
 const NOISE_REG_3: u16 = 0x400F;
 
+const SAMPLE_REG_1: u16 = 0x4010;
+const SAMPLE_REG_2: u16 = 0x4011;
+const SAMPLE_REG_3: u16 = 0x4012;
+const SAMPLE_REG_4: u16 = 0x4013;
+
+
 const APU_STATUS_REG: u16 = 0x4015;
 
 const OAMDMA: u16    = 0x4014;
@@ -186,16 +192,28 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
         NOISE_REG_2 => nes.apu.noise.set_reg2_from_byte(val),
         NOISE_REG_3 => nes.apu.noise.set_reg3_from_byte(val),
         
+        SAMPLE_REG_1 => nes.apu.sample.set_reg1_from_byte(val),
+        SAMPLE_REG_2 => nes.apu.sample.set_reg2_from_byte(val),
+        SAMPLE_REG_3 => nes.apu.sample.set_reg3_from_byte(val),
+        SAMPLE_REG_4 => nes.apu.sample.set_reg4_from_byte(val),
+
         APU_STATUS_REG => {
             nes.apu.square1.enabled = (val & 0b01) > 0;
             nes.apu.square2.enabled = (val & 0b10) > 0;
             nes.apu.triangle.enabled = (val & 0b100) > 0;
             nes.apu.noise.enabled = (val & 0b1000) > 0;
+            nes.apu.sample.enabled = (val & 0b10000) > 0;
 
             if !nes.apu.square1.enabled {nes.apu.square1.length_counter = 0;}
             if !nes.apu.square2.enabled {nes.apu.square2.length_counter = 0;}
             if !nes.apu.triangle.enabled {nes.apu.triangle.length_counter = 0;}
             if !nes.apu.noise.enabled {nes.apu.noise.length_counter = 0;}
+            if !nes.apu.sample.enabled {nes.apu.sample.remaining_sample_bytes = 0;
+            } else {
+                nes.apu.sample.remaining_sample_bytes = nes.apu.sample.sample_length;
+                nes.apu.sample.curr_sample_addr = nes.apu.sample.init_sample_addr;
+            } // fix this, add silence flag like other channels
+
         }
 
         // Cartridge space

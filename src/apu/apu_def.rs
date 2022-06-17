@@ -14,6 +14,8 @@ pub struct Apu {
 
     pub noise: Noise,
 
+    pub sample: Sample,
+
     pub audio_queue: Sender<f32>,
 
     pub cycles_since_last_sample: u64,
@@ -35,6 +37,8 @@ impl Apu {
             triangle: Default::default(),
 
             noise: Default::default(),
+
+            sample: Default::default(),
 
             audio_queue,
 

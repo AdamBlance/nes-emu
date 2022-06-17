@@ -1,0 +1,14 @@
+High priority:
+    - Implement most common mappers
+        + MMC3
+    - Refactor APU
+        + Fix noise envelope
+        + Fix mixing
+        + Break APU down into units
+    - Run instruction timing tests and make them pass
+    - Get correct NMI, interrupt behaviour working
+
+Low priority: 
+    - Implement all unofficial instructions
+    - Make APU and OAM DMA suspend CPU for correct number of cycles
+
