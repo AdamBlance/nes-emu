@@ -286,8 +286,134 @@ impl Cartridge for CartridgeM2 {
 
 
 
+pub struct CartridgeM4 {
+    pub prg_ram: Vec<u8>,
+    pub prg_rom: Vec<u8>,
+    pub chr_rom: Vec<u8>,
+    
+    pub bank_index: u8,
 
-// MMC3 goes here, will take some time to do
+    pub prg_bank_0_or_2: usize,
+    pub prg_bank_1: usize,
+    
+    pub chr_2kb_bank_0: usize,
+    pub chr_2kb_bank_1: usize,
+    
+    pub chr_1kb_bank_0: usize,
+    pub chr_1kb_bank_1: usize,
+    pub chr_1kb_bank_2: usize,
+    pub chr_1kb_bank_3: usize,
+    
+    pub prg_fixed_bank_select: bool,
+    pub chr_bank_size_select: bool,
+    
+    pub mirroring: Mirroring,
+
+    pub scanline_counter_init: u8,
+    pub scanline_counter_curr: u8,
+
+    pub scanline_counter_reset_flag: bool,
+
+    pub irq_enable: bool,
+}
+
+impl CartridgeM4 {
+    fn calc_prg_rom_addr(&self, addr: u16) -> usize {
+        let base_bank_addr = match (addr, self.prg_fixed_bank_select) {
+            (0xA000..=0xBFFF, _) => self.prg_bank_1 * 8*KB,
+            (0xE000..=0xFFFF, _) => self.prg_rom.len() - 8*KB,
+
+            (0x8000..=0x9FFF, false) | (0xC000..=0xDFFF, true) => self.prg_bank_0_or_2 * 8*KB,
+            (0x8000..=0x9FFF, true) | (0xC000..=0xDFFF, false) => self.prg_rom.len() - 16*KB,
+            
+            _ => unreachable!(),
+        };
+        let offset_into_bank = (addr as usize / 0x1000) * 0x1000;
+        base_bank_addr + offset_into_bank
+    }
+}
+
+impl Cartridge for CartridgeM4 {
+
+    // MMC3 can optionally have PRG RAM
+    fn read_prg_ram(&mut self, addr: u16) -> u8 {
+        if !self.prg_ram.is_empty() {
+            self.prg_ram[(addr - 0x6000) as usize]
+        } else {
+            0
+        }
+    }
+    fn write_prg_ram(&mut self, addr: u16, byte: u8) {
+        if !self.prg_ram.is_empty() {
+            self.prg_ram[(addr - 0x6000) as usize] = byte;
+        }
+    }
+
+
+
+    fn read_prg_rom(&mut self, addr: u16) -> u8 {
+        self.prg_rom[self.calc_prg_rom_addr(addr)]
+    }
+    fn write_prg_rom(&mut self, addr: u16, byte: u8, cpu_cycle: u64) {
+        let even = byte % 2 == 0;
+        
+        let ubyte = byte as usize;
+
+        match (addr, even) {
+            (0x8000..=0x9FFF, true) => {
+                self.bank_index = byte & 0b0000_0111;
+                self.prg_fixed_bank_select = (byte & 0b0100_0000) > 0;
+                self.chr_bank_size_select = (byte & 0b1000_0000) > 0;
+            }
+            (0x8000..=0x9FFF, false) => {
+                match self.bank_index {
+                    0b000 => self.chr_2kb_bank_0 = ubyte,
+                    0b001 => self.chr_2kb_bank_1 = ubyte,
+
+                    0b010 => self.chr_1kb_bank_0 = ubyte,
+                    0b011 => self.chr_1kb_bank_1 = ubyte,
+                    0b100 => self.chr_1kb_bank_2 = ubyte,
+                    0b101 => self.chr_1kb_bank_3 = ubyte,
+
+                    0b110 => self.prg_bank_0_or_2 = ubyte,
+                    0b111 => self.prg_bank_1 = ubyte,
+                    _ => unreachable!(),
+                }
+            }
+            (0xA000..=0xBFFF, true) => {
+                self.mirroring = if byte & 1 == 0 {
+                    Mirroring::Vertical
+                } else {
+                    Mirroring::Horizontal
+                }
+            }
+            (0xA000..=0xBFFF, false) => {
+                // PRG RAM write protect, omitted for now
+            }
+            (0xC000..=0xDFFF, true) => {
+                self.scanline_counter_init = byte;
+            }
+            (0xC000..=0xDFFF, false) => {
+                self.scanline_counter_reset_flag = true;
+            }
+            (0xE000..=0xFFFF, true) => {
+                self.irq_enable = false;
+            }
+            (0xE000..=0xFFFF, false) => {
+                self.irq_enable = true;
+            }
+
+    }
+
+    fn read_chr(&mut self, addr: u16) -> u8 {
+        todo!()
+    }
+
+    fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
+        todo!()
+    }
+}
+
 
 /*
 
@@ -377,15 +503,6 @@ impl Cartridge for CartridgeM2 {
     ODD
 
     enables interrupts
-
-
-
-    
-
-
-
-
-
 
 */
 
