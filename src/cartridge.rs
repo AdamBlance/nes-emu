@@ -283,6 +283,138 @@ impl Cartridge for CartridgeM2 {
 
 
 
+
+
+
+
+// MMC3 goes here, will take some time to do
+
+/*
+
+    notes:
+    
+    6000-7FFF = optional ram
+    8000-9FFF = 8KB PRG ROM bank
+    A000-BFFF = 8KB PRG ROM bank, always switchable
+    C000-DFFF = 8KB PRG ROM bank
+    E000-FFFF = 8KB PRG ROM, always fixed to the last bank
+
+    0000-07FF = 2KB CHR ROM bank
+    0800-0FFF = 2KB CHR ROM bank
+    1000-13FF = 1KB CHR ROM bank
+    1400-17FF = 1KB CHR ROM bank
+    1800-1BFF = 1KB CHR ROM bank
+    1C00-1FFF = 1KB CHR ROM bank
+
+    
+
+
+
+    8000-9FFF -> mapping 
+
+    EVEN
+    
+    bits 2,1,0 select a bank to configure
+
+    bits 5,4,3 are unused
+
+    bit 6 chooses which PRG bank is fixed and which is swappable
+    when 0, 8000-9FFF is switchable, C000-DFFF fixed to second last bank
+    when 1, 8000-9FFF is fixed to second last bank, C000-DFFF is switchable 
+
+    bit 7 chooses whether CHR ROM is made up of 
+    2*2KB + 4*1KB banks, or 4*1KB banks + 2*2KB banks
+
+    ODD 
+
+    the byte written selects the bank number of the bank selected by the even write
+
+
+    A000-BFFF -> mirroring
+
+    EVEN
+
+    only bit 0 is considered, 0 for vertical mirroring, 1 for horizontal
+    this bit is ignored if 4 screen mirroring is used
+
+    ODD
+
+    Write protection for ram, although doesn't really matter, can just leave it out for now
+
+
+
+
+    scanline counter!
+
+    so CHR rom is made up of two pattern tables, 0000-0FFF and 1000-1FFF
+    
+    if all background tiles are fetched from the 0000-0FFF and all sprite tiles are 
+    fetched from 1000-1FFF, bit 12 of the address line will flip once every scanline,
+    when sprite fetches begin.
+    This can be used to count the scanline that is currently being rendered
+
+
+
+    C000-DFFF -> irq stuff
+
+    EVEN
+
+    written byte specifies the reset value for the scanline counter
+    the counter is initialised to this value when it reaches 0 or is reset
+
+
+    ODD
+
+    writing any value reloads the IRQ counter at the next rising edge of PPU addr bit 12
+
+
+    E000-FFFF -> irq stuff 
+
+    EVEN
+    
+    prevents future interrupts from being raised, but will allow any pending interrupt to complete
+
+    ODD
+
+    enables interrupts
+
+
+
+    
+
+
+
+
+
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 fn basic_nametable_mirrroring(addr: u16, mirroring: Mirroring) -> u16 {
     // The physical nametables sit at 0x2000..=0x23FF and 0x2400..=0x27FF
     let vram_addr = match mirroring {

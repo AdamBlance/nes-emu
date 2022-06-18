@@ -106,7 +106,7 @@ fn do_sample(nes: &mut Nes) {
 
     
 
-    let output_val = (sq1_output + sq2_output + tri_output + noise + sample) / 150.0;
+    let output_val = (sq1_output + sq2_output + tri_output + noise + (sample / 2.3)) / 150.0;
     // let output_val = (sample) / 150.0;
     
     
