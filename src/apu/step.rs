@@ -123,8 +123,12 @@ fn clock_triangle_timer(tri: &mut Triangle) {
         // Clock triangle sequencer
         tri.timer_curr_value = tri.timer_init_value;
         
-        // this is just a rule apparently
-        if tri.linear_counter_curr_value > 0 && tri.length_counter > 0 {
+        // When the period is so small that it creates a piercing sound, which is used to silence
+        // the triangle channel on real hardware in many games (silver surfer, megaman), 
+        // we need to maintain the output but not clock the sequencer to avoid popping 
+        // If we output 0 instead of maintaing the output, if the sequencer is at its highest output
+        // level (0xF), the sound jumps from 0 to F instantly, creating a popping sound
+        if tri.linear_counter_curr_value > 0 && tri.length_counter > 0 && (tri.timer_init_value > 2) {
             tri.sequencer_stage = (tri.sequencer_stage + 1) % 32;
         }
         
@@ -333,7 +337,7 @@ pub fn square_channel_output(sqw: &Square) -> f32 {
 }
 
 pub fn triangle_channel_output(tri: &Triangle) -> f32 {
-    if !tri.linear_counter_mute_signal && !tri.length_counter_mute_signal && tri.enabled && (tri.timer_init_value > 2) {
+    if tri.enabled {
         tri.sequencer_output as f32
     } else {
         0.0
