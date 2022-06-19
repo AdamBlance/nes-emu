@@ -6,7 +6,7 @@ use crate::cpu;
 use crate::apu::{self, };
 
 const CPU_HZ:   f64 = 1_789_773.0;
-const SAMPLE_HZ: f64 = 48_000.0;
+const SAMPLE_HZ: f64 = 44_100.0;
 
 pub const TARGET_CYCLES_PER_SAMPLE: f64 = CPU_HZ / SAMPLE_HZ;
 
@@ -99,15 +99,15 @@ fn do_sample(nes: &mut Nes) {
 
 
     // These will be between 0.0 and 15.0
-    let sq1_output = apu::square_channel_output(&nes.apu.square1);
-    let sq2_output = apu::square_channel_output(&nes.apu.square2);
-    let tri_output = apu::triangle_channel_output(&nes.apu.triangle);
-    let noise = apu::noise_channel_output(&nes.apu.noise);
+    let sq1_output = apu::square_channel_output(&nes.apu.square1) * 0.0;
+    let sq2_output = apu::square_channel_output(&nes.apu.square2) * 0.0;
+    let tri_output = apu::triangle_channel_output(&nes.apu.triangle) * 1.0;
+    let noise = apu::noise_channel_output(&nes.apu.noise) * 0.0;
     // let sample = apu::sample_channel_output(&nes.apu.sample);
 
     
     // sample channel sounds like shit, will fix later
-    let output_val = (sq1_output + sq2_output + tri_output + noise) / 150.0;
+    let output_val = (sq1_output + sq2_output + tri_output * 1.5 + noise) / 150.0;
     // let output_val = (sample) / 150.0;
     
     

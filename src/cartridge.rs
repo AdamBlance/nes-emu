@@ -399,7 +399,7 @@ impl Cartridge for CartridgeM4 {
         let bank1 = self.prg_bank_1;
         let mode = self.prg_fixed_bank_select;
         let bank_select = self.bank_index;
-        println!("Prg write addr before {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
+        // println!("Prg write addr before {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
 
 
 
@@ -412,7 +412,7 @@ impl Cartridge for CartridgeM4 {
                 // println!("Even write!");
                 self.bank_index = byte & 0b0000_0111;
                 self.prg_fixed_bank_select = (byte & 0b0100_0000) > 0;
-                self.chr_bank_size_select = (byte & 0b1000_0000) > 0;
+                self.chr_bank_size_select  = (byte & 0b1000_0000) > 0;
             }
             (0x8000..=0x9FFF, false) => {
                 // println!("Odd write!");
@@ -426,7 +426,7 @@ impl Cartridge for CartridgeM4 {
                     0b101 => self.chr_1kb_bank_3 = ubyte,
 
                     0b110 => self.prg_bank_0_or_2 = ubyte & 0b0011_1111,
-                    0b111 => self.prg_bank_1 = ubyte & 0b0011_1111,
+                    0b111 => self.prg_bank_1      = ubyte & 0b0011_1111,
                     _ => unreachable!(),
                 }
             }
@@ -459,7 +459,7 @@ impl Cartridge for CartridgeM4 {
         let bank1 = self.prg_bank_1;
         let mode = self.prg_fixed_bank_select;
         let bank_select = self.bank_index;
-        println!("Prg write addr after {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
+        // println!("Prg write addr after {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
 
     }
 
@@ -508,11 +508,6 @@ impl Cartridge for CartridgeM4 {
             }
         }
 
-        let len = self.chr_rom.len();
-
-        if chr_addr >= self.chr_rom.len() {
-            println!("Bigger than chr rom! addr is {chr_addr:04X}, rom is {len:04X} banks {} {} {} {} {} {}", self.chr_2kb_bank_0, self.chr_2kb_bank_1, self.chr_1kb_bank_0, self.chr_1kb_bank_1, self.chr_1kb_bank_2, self.chr_1kb_bank_3);
-        }
 
         self.last_a12_value = new_a12_value;
 

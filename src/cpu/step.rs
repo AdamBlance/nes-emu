@@ -1,4 +1,47 @@
 
+/*
+
+    Figured out what's breaking!
+
+    NMI signal activates, PC is pushed to the stack and NMI code starts executing
+    
+    NMI code runs SEI instruction to prevent IRQs from interrupting while it's doing
+    per-frame updates and stuff
+
+    Before calling RTI, it calls CLI to allow interupts to work again
+
+    Before it can call RTI, the IRQs that have been waiting to interrupt, interrupt
+
+    
+    Interrupt notes
+    
+    When the NMI signal goes from HIGH to LOW between cycles, an internal flag is raised
+    and is only cleared once the NMI has been handled
+
+    When the IRQ signal is LOW, an internal flag is set, which is cleared when the IRQ 
+    signal goes LOW again
+
+    These internal flags are polled at certain times during an instruction to detect
+    pending interrupts
+
+    If the poll detects that an interrupt has been asserted, the next "instruction"
+    executed is the interrupt sequence
+
+    If NMI and IRQ are pending at the end of an instruction, NMI is handled
+    IRQ is forgotten (?)
+
+    The interrupt sequences (jumps to vectors) don't perform interrupt polling
+
+
+    okay, so an irq can happen during non maskable interrupt! 
+
+    basically, the routine 
+
+
+
+*/
+
+
 use crate::nes::Nes;
 use super::addressing::*;
 use crate::mem::read_mem;
@@ -26,33 +69,48 @@ const DUMMY_READ_FROM_POINTER: fn(&mut Nes) = read_from_pointer;
 
 pub fn step_cpu(nes: &mut Nes) {
 
-    /*
-        If the NMI signal has been raised by the PPU 
-        AND the instruction that was running at the time it was raised has completed
-        AND the CPU has not already transferred control to the NMI handler,
-        start transfer control to the NMI handler. 
-        Once completed, reset all flags. 
-    */
+    // don't worry about SEI irq, I don't think that would be possible? 
+
+    // like, NMI and irq are pending, IRQ is discarded? 
+
+    // anyway the problem is that CLI doesn't inhibit irq at the end of the NMI handler, 
+    // that should be easy to fix
+
+    
+
+    // anyway the only reason that I decided to write the APU as a bunch of functions instead
+    // of methods is because I thought it would need to modify the system state through irqs
+
+    // instead, the CPU can just use a method to check whether the apu is trying to do an irq
+    // that would be good to change for readability
+
+
+
+    // intepput checking is happening during interrupt transfer lol, like checking can ONLY 
+    // happen at the last cycle of instructions, and it doesn't happen during the transfer of 
+    // control , i'm checking at the first instruction cycle which isn't correct
 
     if nes.cpu.nmi_interrupt && nes.cpu.instruction_cycle == 0 && !nes.cpu.nmi_internal_flag {
         nes.cpu.nmi_internal_flag = true;
         nes.cpu.interrupt_request = false; // I think this happens
-        println!("Entering NMI");
+        // println!("Entering NMI");
     }
 
     if nes.cpu.nmi_internal_flag {
+
         match nes.cpu.instruction_cycle {
             0 => DUMMY_READ_FROM_PC(nes),
-            1 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
-            2 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
-            3 => {push_p_to_stack_during_interrupt(nes); decrement_s(nes);}
-            4 => {fetch_lower_pc_from_nmi_vector(nes);}
-            5 => {
+            1 => DUMMY_READ_FROM_PC(nes),
+            2 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
+            3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
+            4 => {push_p_to_stack_during_interrupt(nes); decrement_s(nes);}
+            5 => {fetch_lower_pc_from_nmi_vector(nes);}
+            6 => {
                 fetch_upper_pc_from_nmi_vector(nes); 
                 nes.cpu.nmi_interrupt = false;
                 nes.cpu.nmi_internal_flag = false;
                 nes.cpu.instruction_cycle = -1;
-                println!("Leaving NMI");
+                // println!("Leaving NMI");
 
             }
             _ => unreachable!(),
@@ -70,17 +128,18 @@ pub fn step_cpu(nes: &mut Nes) {
     if !nes.cpu.interrupt_request {
         nes.cpu.interrupt_request = nes.cartridge.get_irq_status();
         if nes.cpu.interrupt_request {
-            println!("Cartridge asserting interrupt");
+            // println!("Cartridge asserting interrupt");
         }
     }
 
-    if nes.cpu.interrupt_request && nes.cpu.instruction_cycle == 0 && !nes.cpu.irq_internal_flag
-       && !nes.cpu.p_i {
+    if nes.cpu.interrupt_request && nes.cpu.instruction_cycle == 0 && !nes.cpu.irq_internal_flag 
+       && !nes.cpu.p_i && nes.cpu.instruction.name != RTI && nes.cpu.instruction.name != CLI && nes.cpu.instruction.name != PLP && nes.cpu.instruction.name != SEI {
         nes.cpu.irq_internal_flag = true;
-        println!("In irq");
+        // println!("In irq");
     }
 
-    if nes.cpu.irq_internal_flag {
+    // if nes.cpu.irq_internal_flag {
+    if false {
         match nes.cpu.instruction_cycle {
             0 => DUMMY_READ_FROM_PC(nes),
             1 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
@@ -92,7 +151,7 @@ pub fn step_cpu(nes: &mut Nes) {
                 nes.cpu.interrupt_request = false;
                 nes.cpu.irq_internal_flag = false;
                 nes.cpu.instruction_cycle = -1;
-                println!("leaving irq");
+                // println!("leaving irq");
             }
             _ => unreachable!(),
         }
@@ -105,12 +164,12 @@ pub fn step_cpu(nes: &mut Nes) {
     if nes.cpu.instruction_cycle == 0 {
         let opcode = read_mem(nes.cpu.pc, nes);
         nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
-        println!("Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {} x {} y {}", nes.cpu.instruction.name, opcode, nes.cpu.pc, nes.cpu.cycles, nes.cpu.a, nes.cpu.x, nes.cpu.y);
+        // println!("Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {} x {} y {}", nes.cpu.instruction.name, opcode, nes.cpu.pc, nes.cpu.cycles, nes.cpu.a, nes.cpu.x, nes.cpu.y);
 
-        let test = format!("{:?}", nes.cpu.instruction.name);
-        if test.starts_with("U") {
-            panic!();
-        }
+        // let test = format!("{:?}", nes.cpu.instruction.name);
+        // if test.starts_with("U") {
+            // panic!();
+        // }
 
         increment_pc(nes);
         nes.cpu.cycles += 1;
@@ -439,13 +498,13 @@ fn end_instr(nes: &mut Nes) {
     nes.cpu.instruction_count += 1;
 
 
-    if nes.cpu.instruction_count == nes.cpu.target {
-        let mut line = String::new();
-        std::io::stdin().read_line(&mut line);
-        let step_by: u64 = line.trim().parse().unwrap_or(1);
+    // if nes.cpu.instruction_count == nes.cpu.target {
+    //     let mut line = String::new();
+    //     std::io::stdin().read_line(&mut line);
+    //     let step_by: u64 = line.trim().parse().unwrap_or(1);
 
-        nes.cpu.target = nes.cpu.instruction_count + step_by;
-    }
+    //     nes.cpu.target = nes.cpu.instruction_count + step_by;
+    // }
 
  
 
