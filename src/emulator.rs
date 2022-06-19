@@ -99,16 +99,17 @@ fn do_sample(nes: &mut Nes) {
 
 
     // These will be between 0.0 and 15.0
-    let sq1_output = apu::square_channel_output(&nes.apu.square1) * 0.0;
-    let sq2_output = apu::square_channel_output(&nes.apu.square2) * 0.0;
+    let sq1_output = apu::square_channel_output(&nes.apu.square1) * 1.0;
+    let sq2_output = apu::square_channel_output(&nes.apu.square2) * 1.0;
     let tri_output = apu::triangle_channel_output(&nes.apu.triangle) * 1.0;
-    let noise = apu::noise_channel_output(&nes.apu.noise) * 0.0;
-    // let sample = apu::sample_channel_output(&nes.apu.sample);
+    let noise = apu::noise_channel_output(&nes.apu.noise) * 1.0;
+    let sample = apu::sample_channel_output(&nes.apu.sample) * 1.0;
 
+    let epsilon = 0.00001;
+    let pulse_out = 95.88 / ((8128.0 / (sq1_output + sq2_output + epsilon)) + 100.0);
+    let other_out = 159.79 / ( ( 1.0 / ((tri_output/8227.0) + (noise/12241.0) + (sample/22638.0) + epsilon) ) + 100.0);
     
-    // sample channel sounds like shit, will fix later
-    let output_val = (sq1_output + sq2_output + tri_output * 1.5 + noise) / 150.0;
-    // let output_val = (sample) / 150.0;
+    let output_val = pulse_out + other_out;
     
     
     
