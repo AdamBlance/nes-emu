@@ -37,7 +37,7 @@ pub fn step_cpu(nes: &mut Nes) {
     if nes.cpu.nmi_interrupt && nes.cpu.instruction_cycle == 0 && !nes.cpu.nmi_internal_flag {
         nes.cpu.nmi_internal_flag = true;
         nes.cpu.interrupt_request = false; // I think this happens
-        // println!("Entering NMI");
+        println!("Entering NMI");
     }
 
     if nes.cpu.nmi_internal_flag {
@@ -52,7 +52,7 @@ pub fn step_cpu(nes: &mut Nes) {
                 nes.cpu.nmi_interrupt = false;
                 nes.cpu.nmi_internal_flag = false;
                 nes.cpu.instruction_cycle = -1;
-                // println!("Leaving NMI");
+                println!("Leaving NMI");
 
             }
             _ => unreachable!(),
@@ -105,7 +105,12 @@ pub fn step_cpu(nes: &mut Nes) {
     if nes.cpu.instruction_cycle == 0 {
         let opcode = read_mem(nes.cpu.pc, nes);
         nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
-        // println!("Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {} x {} y {}", nes.cpu.instruction.name, opcode, nes.cpu.pc, nes.cpu.cycles, nes.cpu.a, nes.cpu.x, nes.cpu.y);
+        println!("Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {} x {} y {}", nes.cpu.instruction.name, opcode, nes.cpu.pc, nes.cpu.cycles, nes.cpu.a, nes.cpu.x, nes.cpu.y);
+
+        let test = format!("{:?}", nes.cpu.instruction.name);
+        if test.starts_with("U") {
+            panic!();
+        }
 
         increment_pc(nes);
         nes.cpu.cycles += 1;
@@ -434,13 +439,13 @@ fn end_instr(nes: &mut Nes) {
     nes.cpu.instruction_count += 1;
 
 
-    // if nes.cpu.instruction_count == nes.cpu.target {
-    //     let mut line = String::new();
-    //     std::io::stdin().read_line(&mut line);
-    //     let step_by: u64 = line.trim().parse().unwrap_or(1);
+    if nes.cpu.instruction_count == nes.cpu.target {
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line);
+        let step_by: u64 = line.trim().parse().unwrap_or(1);
 
-    //     nes.cpu.target = nes.cpu.instruction_count + step_by;
-    // }
+        nes.cpu.target = nes.cpu.instruction_count + step_by;
+    }
 
  
 

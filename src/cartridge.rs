@@ -382,9 +382,9 @@ impl Cartridge for CartridgeM4 {
             
             _ => unreachable!(),
         };
-        // let test = self.prg_bank_0_or_2;
-        // let test1 = self.prg_bank_1;
-        // let test2 = self.prg_fixed_bank_select;
+        let test = self.prg_bank_0_or_2;
+        let test1 = self.prg_bank_1;
+        let test2 = self.prg_fixed_bank_select;
 
         // println!("\nPrg read addr {addr:06X} real addr {base_bank_addr:06X} banks 0/2 {test:06X} bank 1 {test1:06X} mode {test2}\n");
 
@@ -395,11 +395,11 @@ impl Cartridge for CartridgeM4 {
     }
     fn write_prg_rom(&mut self, addr: u16, byte: u8, cpu_cycle: u64) {
 
-        // let banks02 = self.prg_bank_0_or_2;
-        // let bank1 = self.prg_bank_1;
-        // let mode = self.prg_fixed_bank_select;
-        // let bank_select = self.bank_index;
-        // println!("Prg write addr before {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
+        let banks02 = self.prg_bank_0_or_2;
+        let bank1 = self.prg_bank_1;
+        let mode = self.prg_fixed_bank_select;
+        let bank_select = self.bank_index;
+        println!("Prg write addr before {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
 
 
 
@@ -455,11 +455,11 @@ impl Cartridge for CartridgeM4 {
             _ => unreachable!(),
         }
 
-        // let banks02 = self.prg_bank_0_or_2;
-        // let bank1 = self.prg_bank_1;
-        // let mode = self.prg_fixed_bank_select;
-        // let bank_select = self.bank_index;
-        // println!("Prg write addr after {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
+        let banks02 = self.prg_bank_0_or_2;
+        let bank1 = self.prg_bank_1;
+        let mode = self.prg_fixed_bank_select;
+        let bank_select = self.bank_index;
+        println!("Prg write addr after {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
 
     }
 
@@ -527,8 +527,8 @@ impl Cartridge for CartridgeM4 {
     fn get_irq_status(&mut self) -> bool {
         let irq = self.interrupt_request;
         self.interrupt_request = false;
-        // irq
-        false
+        irq
+        // false
     }
 }
 
