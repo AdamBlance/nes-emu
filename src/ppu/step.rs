@@ -218,10 +218,11 @@ pub fn step_ppu(nes: &mut Nes) {
 
         // Finally, palette index will point to the colour to be drawn
 
+        // println!("palette index {:04X}", palette_index);
 
         // this isn't a normal memory access I don't think
         // I think palette memory can be accessed internally without a proper memory read
-        let pixel_hue_value = read_vram(palette_index, nes);
+        let pixel_hue_value = read_vram(palette_index, nes) & 0b0011_1111;
         let pixel_rgb = PALETTE[pixel_hue_value as usize];
 
         // Draw the pixel!

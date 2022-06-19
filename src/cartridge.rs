@@ -1,3 +1,5 @@
+use crate::util::{get_bit, get_bit_u16};
+
 
 #[derive(Copy, Clone)]
 pub enum Mirroring {
@@ -22,6 +24,8 @@ pub trait Cartridge {
     fn write_chr(&mut self, _addr: u16, _byte: u8) {}
 
     fn get_physical_ntable_addr(&self, addr: u16) -> u16;
+
+    fn get_irq_status(&mut self) -> bool {false}
 }
 
 
@@ -312,27 +316,41 @@ pub struct CartridgeM4 {
     pub scanline_counter_init: u8,
     pub scanline_counter_curr: u8,
 
+    pub last_a12_value: bool,
+
     pub scanline_counter_reset_flag: bool,
 
     pub irq_enable: bool,
+
+    pub interrupt_request: bool,
 }
-
 impl CartridgeM4 {
-    fn calc_prg_rom_addr(&self, addr: u16) -> usize {
-        let base_bank_addr = match (addr, self.prg_fixed_bank_select) {
-            (0xA000..=0xBFFF, _) => self.prg_bank_1 * 8*KB,
-            (0xE000..=0xFFFF, _) => self.prg_rom.len() - 8*KB,
-
-            (0x8000..=0x9FFF, false) | (0xC000..=0xDFFF, true) => self.prg_bank_0_or_2 * 8*KB,
-            (0x8000..=0x9FFF, true) | (0xC000..=0xDFFF, false) => self.prg_rom.len() - 16*KB,
-            
-            _ => unreachable!(),
-        };
-        let offset_into_bank = (addr as usize / 0x1000) * 0x1000;
-        base_bank_addr + offset_into_bank
+    pub fn new(prg_rom: Vec<u8>, chr_rom: Vec<u8>) -> CartridgeM4 {
+        CartridgeM4 {
+            prg_ram: [0u8; 0x2000].to_vec(),  // This isn't checked
+            prg_rom,
+            chr_rom,
+            bank_index: 0,
+            prg_bank_0_or_2: 0,
+            prg_bank_1: 0,
+            chr_2kb_bank_0: 0,
+            chr_2kb_bank_1: 0,
+            chr_1kb_bank_0: 0,
+            chr_1kb_bank_1: 0,
+            chr_1kb_bank_2: 0,
+            chr_1kb_bank_3: 0,
+            prg_fixed_bank_select: false,
+            chr_bank_size_select: false,
+            mirroring: Mirroring::Vertical,
+            scanline_counter_init: 0,
+            scanline_counter_curr: 0,
+            last_a12_value: false,
+            scanline_counter_reset_flag: false,
+            irq_enable: false,
+            interrupt_request: false,
+        }
     }
 }
-
 impl Cartridge for CartridgeM4 {
 
     // MMC3 can optionally have PRG RAM
@@ -352,31 +370,63 @@ impl Cartridge for CartridgeM4 {
 
 
     fn read_prg_rom(&mut self, addr: u16) -> u8 {
-        self.prg_rom[self.calc_prg_rom_addr(addr)]
+        let base_bank_addr = match (addr, self.prg_fixed_bank_select) {
+            (0xA000..=0xBFFF, _) => self.prg_bank_1 * 8*KB + (addr as usize - 0xA000),
+            (0xE000..=0xFFFF, _) => self.prg_rom.len() - 8*KB + (addr as usize - 0xE000),
+
+            (0x8000..=0x9FFF, false) => self.prg_bank_0_or_2 * 8*KB + (addr as usize - 0x8000),
+            (0xC000..=0xDFFF, false) => self.prg_rom.len() - 16*KB + (addr as usize - 0xC000),
+            
+            (0x8000..=0x9FFF, true) => self.prg_rom.len() - 16*KB + (addr as usize - 0x8000), 
+            (0xC000..=0xDFFF, true) => self.prg_bank_0_or_2 * 8*KB + (addr as usize - 0xC000),
+            
+            _ => unreachable!(),
+        };
+        // let test = self.prg_bank_0_or_2;
+        // let test1 = self.prg_bank_1;
+        // let test2 = self.prg_fixed_bank_select;
+
+        // println!("\nPrg read addr {addr:06X} real addr {base_bank_addr:06X} banks 0/2 {test:06X} bank 1 {test1:06X} mode {test2}\n");
+
+        // let offset_into_bank = addr as usize - (addr as usize / 0x2000) * 0x2000;
+        // let temp = base_bank_addr + offset_into_bank;
+        // println!("base bank addr {base_bank_addr:06X} offset {offset_into_bank:06X} addr {addr:06X} final {temp:06X}");
+        self.prg_rom[base_bank_addr]
     }
     fn write_prg_rom(&mut self, addr: u16, byte: u8, cpu_cycle: u64) {
-        let even = byte % 2 == 0;
+
+        // let banks02 = self.prg_bank_0_or_2;
+        // let bank1 = self.prg_bank_1;
+        // let mode = self.prg_fixed_bank_select;
+        // let bank_select = self.bank_index;
+        // println!("Prg write addr before {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
+
+
+
+        let even = addr % 2 == 0;
         
         let ubyte = byte as usize;
 
         match (addr, even) {
             (0x8000..=0x9FFF, true) => {
+                // println!("Even write!");
                 self.bank_index = byte & 0b0000_0111;
                 self.prg_fixed_bank_select = (byte & 0b0100_0000) > 0;
                 self.chr_bank_size_select = (byte & 0b1000_0000) > 0;
             }
             (0x8000..=0x9FFF, false) => {
+                // println!("Odd write!");
                 match self.bank_index {
-                    0b000 => self.chr_2kb_bank_0 = ubyte,
-                    0b001 => self.chr_2kb_bank_1 = ubyte,
+                    0b000 => self.chr_2kb_bank_0 = ubyte & 0b1111_1110,
+                    0b001 => self.chr_2kb_bank_1 = ubyte & 0b1111_1110,
 
                     0b010 => self.chr_1kb_bank_0 = ubyte,
                     0b011 => self.chr_1kb_bank_1 = ubyte,
                     0b100 => self.chr_1kb_bank_2 = ubyte,
                     0b101 => self.chr_1kb_bank_3 = ubyte,
 
-                    0b110 => self.prg_bank_0_or_2 = ubyte,
-                    0b111 => self.prg_bank_1 = ubyte,
+                    0b110 => self.prg_bank_0_or_2 = ubyte & 0b0011_1111,
+                    0b111 => self.prg_bank_1 = ubyte & 0b0011_1111,
                     _ => unreachable!(),
                 }
             }
@@ -402,15 +452,83 @@ impl Cartridge for CartridgeM4 {
             (0xE000..=0xFFFF, false) => {
                 self.irq_enable = true;
             }
+            _ => unreachable!(),
+        }
+
+        // let banks02 = self.prg_bank_0_or_2;
+        // let bank1 = self.prg_bank_1;
+        // let mode = self.prg_fixed_bank_select;
+        // let bank_select = self.bank_index;
+        // println!("Prg write addr after {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
 
     }
 
+
+
+
     fn read_chr(&mut self, addr: u16) -> u8 {
-        todo!()
+        // This needs to update the scanline conuter
+        // This is naive but can optimise later
+        // the simpler way might be easier to read, maybe even faster
+        // just more verbose
+
+        let uaddr = addr as usize;
+
+        let chr_addr = if !self.chr_bank_size_select { match addr {
+            0x0000..=0x07FF => self.chr_2kb_bank_0 * 1*KB + uaddr,// these must be multiples of 2  no need for 2*KB
+            0x0800..=0x0FFF => self.chr_2kb_bank_1 * 1*KB + (uaddr - 0x0800),// these must be multiples of 2
+            
+            0x1000..=0x13FF => self.chr_1kb_bank_0 * 1*KB + (uaddr - 0x1000),
+            0x1400..=0x17FF => self.chr_1kb_bank_1 * 1*KB + (uaddr - 0x1400),
+            0x1800..=0x1BFF => self.chr_1kb_bank_2 * 1*KB + (uaddr - 0x1800),
+            0x1C00..=0x1FFF => self.chr_1kb_bank_3 * 1*KB + (uaddr - 0x1C00),
+            _ => unreachable!(),
+        }} else { match addr {
+            0x0000..=0x03FF => self.chr_1kb_bank_0 * 1*KB + uaddr,
+            0x0400..=0x07FF => self.chr_1kb_bank_1 * 1*KB + (uaddr - 0x0400),
+            0x0800..=0x0BFF => self.chr_1kb_bank_2 * 1*KB + (uaddr - 0x0800),
+            0x0C00..=0x0FFF => self.chr_1kb_bank_3 * 1*KB + (uaddr - 0x0C00),
+
+            0x1000..=0x17FF => self.chr_2kb_bank_0 * 1*KB + (uaddr - 0x1000), // these must be multiples of 2
+            0x1800..=0x1FFF => self.chr_2kb_bank_1 * 1*KB + (uaddr - 0x1800), // these must be multiples of 2
+            _ => unreachable!(),
+        }};
+
+        let new_a12_value = get_bit_u16(addr, 12);
+
+        // If PPU has gone from fetching background tiles to fetching sprite tiles
+        if self.last_a12_value == false && new_a12_value == true {
+            // println!("Scanline tick, counter {}, init {}", self.scanline_counter_curr, self.scanline_counter_init);
+            if self.scanline_counter_curr == 0 || self.scanline_counter_reset_flag {
+                self.scanline_counter_curr = self.scanline_counter_init;
+                self.scanline_counter_reset_flag = false;
+                if self.irq_enable {self.interrupt_request = true}
+            } else {
+                self.scanline_counter_curr -= 1;
+            }
+        }
+
+        let len = self.chr_rom.len();
+
+        if chr_addr >= self.chr_rom.len() {
+            println!("Bigger than chr rom! addr is {chr_addr:04X}, rom is {len:04X} banks {} {} {} {} {} {}", self.chr_2kb_bank_0, self.chr_2kb_bank_1, self.chr_1kb_bank_0, self.chr_1kb_bank_1, self.chr_1kb_bank_2, self.chr_1kb_bank_3);
+        }
+
+        self.last_a12_value = new_a12_value;
+
+        self.chr_rom[chr_addr]
+
     }
 
     fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
-        todo!()
+        basic_nametable_mirrroring(addr, self.mirroring)
+    }
+
+    fn get_irq_status(&mut self) -> bool {
+        let irq = self.interrupt_request;
+        self.interrupt_request = false;
+        // irq
+        false
     }
 }
 

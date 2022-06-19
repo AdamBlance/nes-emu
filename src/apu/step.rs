@@ -88,7 +88,7 @@ fn clock_sample_timer(nes: &mut Nes) {
                     nes.apu.sample.curr_sample_addr = nes.apu.sample.init_sample_addr;
                     nes.apu.sample.remaining_sample_bytes = nes.apu.sample.sample_length;
                 } else if nes.apu.sample.irq_enabled {
-                    nes.cpu.interrupt_request = true;
+                    // nes.cpu.interrupt_request = true;
                 }
             }
         }
@@ -349,10 +349,10 @@ pub fn noise_channel_output(noise: &Noise) -> f32 {
 }
 
 pub fn sample_channel_output(sample: &Sample) -> f32 {
-    // if sample.enabled {
-        // sample.output as f32
-    // } else {
-        // 0.0
-    // }
-    sample.output as f32
+    if sample.enabled {
+        sample.output as f32
+    } else {
+        0.0
+    }
+    // sample.output as f32
 }

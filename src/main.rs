@@ -119,7 +119,7 @@ fn main() {
     let commandline_args: Vec<String> = std::env::args().collect();
 
     if commandline_args.len() != 3 {
-        panic!("");
+        panic!("Invalid number of arguments");
     }
 
     let ines_data = std::fs::read(&commandline_args[1])
@@ -247,6 +247,7 @@ fn new_cartridge(ines_data: Vec<u8>) -> Box<dyn Cartridge> {
         0 => Box::new(CartridgeM0::new(prg_rom, chr_rom, v_or_h_mirroring)),
         1 => Box::new(CartridgeM1::new(prg_rom, chr_rom, chr_rom_is_ram)),
         2 => Box::new(CartridgeM2::new(prg_rom, chr_rom, chr_rom_is_ram, v_or_h_mirroring)),
+        4 => Box::new(CartridgeM4::new(prg_rom, chr_rom)),
         _ => unimplemented!("Mapper {} not implemented", mapper_id),
     }
 

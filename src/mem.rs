@@ -117,6 +117,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 nes.ppu.set_ppuctrl_from_byte(val);
                 nes.ppu.t &= !ppu::NAMETABLE;
                 nes.ppu.t |= (val_u16 & 0b11) << 10;
+                // println!("nmi {}", nes.ppu.nmi_enable);
             }
             PPUMASK => {
                 if nes.cpu.cycles < PPU_WARMUP {return};

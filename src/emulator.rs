@@ -23,6 +23,7 @@ pub fn run_to_vblank(nes: &mut Nes) {
         nes.cpu.p_i = true;
         nes.cpu.s = 0xFD;
         nes.apu.sample.init_timer_value = 428;
+        nes.cpu.target = 10;
     }
     
 
@@ -102,11 +103,11 @@ fn do_sample(nes: &mut Nes) {
     let sq2_output = apu::square_channel_output(&nes.apu.square2);
     let tri_output = apu::triangle_channel_output(&nes.apu.triangle);
     let noise = apu::noise_channel_output(&nes.apu.noise);
-    let sample = apu::sample_channel_output(&nes.apu.sample);
+    // let sample = apu::sample_channel_output(&nes.apu.sample);
 
     
-
-    let output_val = (sq1_output + sq2_output + tri_output + noise + (sample / 2.3)) / 150.0;
+    // sample channel sounds like shit, will fix later
+    let output_val = (sq1_output + sq2_output + tri_output + noise) / 150.0;
     // let output_val = (sample) / 150.0;
     
     

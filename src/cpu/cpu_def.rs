@@ -34,6 +34,7 @@ pub struct Cpu {
     pub cycles:             u64,
     // Debugging
     pub instruction_count: u64,
+    pub target: u64,
 }
 
 impl Cpu {
