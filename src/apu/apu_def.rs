@@ -16,7 +16,7 @@ pub struct Apu {
 
     pub sample: Sample,
 
-    pub audio_queue: Sender<f32>,
+    pub audio_queue: Sender<(f32, f32)>,
 
     pub cycles_since_last_sample: u64,
     pub average_cycles_per_sample: f64,
@@ -25,7 +25,7 @@ pub struct Apu {
 }
 
 impl Apu {
-    pub fn new(audio_queue: Sender<f32>) -> Apu {
+    pub fn new(audio_queue: Sender<(f32, f32)>) -> Apu {
         Apu {
             frame_sequencer_mode_select: false,
             frame_sequencer_counter: 0,

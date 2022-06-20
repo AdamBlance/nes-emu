@@ -76,6 +76,9 @@ pub fn run_to_vblank(nes: &mut Nes) {
 
 }
 
+// How far to pan the square waves, 0 being no pan (mono)
+const STEREO_PAN: f32 = 0.0;
+
 fn do_sample(nes: &mut Nes) {
 
     /*
@@ -106,11 +109,13 @@ fn do_sample(nes: &mut Nes) {
     let sample = apu::sample_channel_output(&nes.apu.sample) * 1.0;
 
     let epsilon = 0.00001;
-    let pulse_out = 95.88 / ((8128.0 / (sq1_output + sq2_output + epsilon)) + 100.0);
+    let pos_bias = 1.0 + STEREO_PAN;
+    let neg_bias = 1.0 - STEREO_PAN;
+    let pulse1_out = 95.88 / ((8128.0 / (pos_bias*sq1_output + neg_bias*sq2_output + epsilon)) + 100.0);
+    let pulse2_out = 95.88 / ((8128.0 / (pos_bias*sq2_output + neg_bias*sq1_output + epsilon)) + 100.0);
     let other_out = 159.79 / ( ( 1.0 / ((tri_output/8227.0) + (noise/12241.0) + (sample/22638.0) + epsilon) ) + 100.0);
-    
-    let output_val = pulse_out + other_out;
-    
+        
+    let output_val = (pulse1_out + other_out, pulse2_out + other_out);
     
     
     nes.apu.audio_queue.send(output_val).expect("something wrong happened when appending to audio queue");

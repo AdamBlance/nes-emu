@@ -145,9 +145,9 @@ fn main() {
 
     // Would be good to swap this out at somepoint for something that lets me query the 
     // queue length to deal with popping and buffer size and stuff
-    let (audio_queue_producer, audio_queue_consumer) = mpsc::channel::<f32>();
+    let (audio_queue_producer, audio_queue_consumer) = mpsc::channel::<(f32, f32)>();
 
-    let mut prev_sample = 0.0;
+    let mut prev_sample = (0.0, 0.0);
 
     // This is WASAPI
     let host = cpal::default_host();
@@ -173,11 +173,17 @@ fn main() {
                     prev_sample
                 };
 
-                let cpal_sample = cpal::Sample::from::<f32>(&new_sample);
+                let cpal_l_sample = cpal::Sample::from::<f32>(&new_sample.0);
+                let cpal_r_sample = cpal::Sample::from::<f32>(&new_sample.1);
 
-                for sample in frame.iter_mut() {
-                    *sample = cpal_sample;
-                }
+                // let cpal_sample = cpal::Sample::from::<f32>(&new_sample);
+
+                frame[0] = cpal_l_sample;
+                frame[1] = cpal_r_sample;
+
+                // for sample in frame.iter_mut() {
+                    // *sample = cpal_sample;
+                // }
 
 
             }

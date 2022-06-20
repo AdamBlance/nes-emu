@@ -94,7 +94,8 @@ fn clock_sample_timer(nes: &mut Nes) {
         }
 
         let delta: i8 = if (nes.apu.sample.sample_buffer & 1) == 1 {2} else {-2}; 
-        nes.apu.sample.output = nes.apu.sample.output.saturating_add_signed(delta).clamp(0, 0x7F);
+        // This is wrong! It doesn't saturate, just doesn't add the offset if it doesn't fit in the range
+        nes.apu.sample.output = nes.apu.sample.output.saturating_add_signed(delta).clamp(0, 0x7F);  
         nes.apu.sample.sample_buffer >>= 1;
         if nes.apu.sample.buffer_bits_remaining > 0 {nes.apu.sample.buffer_bits_remaining -= 1;}
         
