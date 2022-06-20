@@ -77,7 +77,7 @@ pub fn run_to_vblank(nes: &mut Nes) {
 }
 
 // How far to pan the square waves, 0 being no pan (mono)
-const STEREO_PAN: f32 = 0.0;
+const STEREO_PAN: f32 = 0.25;
 
 fn do_sample(nes: &mut Nes) {
 

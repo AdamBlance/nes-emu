@@ -126,7 +126,7 @@ pub fn step_cpu(nes: &mut Nes) {
 
     // Prevents the cartridge from pulling the IRQ low (high?)
     if !nes.cpu.interrupt_request {
-        nes.cpu.interrupt_request = nes.cartridge.get_irq_status();
+        nes.cpu.interrupt_request = nes.cart.get_irq_status();
         if nes.cpu.interrupt_request {
             // println!("Cartridge asserting interrupt");
         }

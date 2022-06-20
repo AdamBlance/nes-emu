@@ -4,7 +4,7 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 use ggez::{Context, ContextBuilder, GameResult, timer};
-use ggez::event::{self, EventHandler, KeyCode, KeyMods};
+use ggez::event::{self, EventHandler, KeyCode, KeyMods, Button, Axis};
 use ggez::conf::{WindowMode, WindowSetup};
 use ggez::graphics::{self, DrawParam, Image};
 use ggez::mint::Vector2;
@@ -30,16 +30,17 @@ struct Emulator {
     scaling: f32,
 }
 
-const RIGHT:  u8 = 0b1000_0000;
-const LEFT:   u8 = 0b0100_0000;
-const DOWN:   u8 = 0b0010_0000;
 const UP:     u8 = 0b0001_0000;
+const DOWN:   u8 = 0b0010_0000;
+const LEFT:   u8 = 0b0100_0000;
+const RIGHT:  u8 = 0b1000_0000;
 const START:  u8 = 0b0000_1000;
 const SELECT: u8 = 0b0000_0100;
-const B:      u8 = 0b0000_0010;
 const A:      u8 = 0b0000_0001;
+const B:      u8 = 0b0000_0010;
 
 const FRAMERATE: u32 = 60;
+const JOY_DEADZONE: f32 = 0.1;
 
 
 
@@ -76,38 +77,85 @@ impl EventHandler for Emulator {
 
     fn key_down_event(&mut self, _ctx: &mut Context, keycode: KeyCode, _keymods: KeyMods, _repeat: bool) {
         match keycode {
-            KeyCode::W        => self.nes.controller1.button_state |= UP,
-            KeyCode::A        => self.nes.controller1.button_state |= LEFT,
-            KeyCode::R        => self.nes.controller1.button_state |= DOWN,
-            KeyCode::S        => self.nes.controller1.button_state |= RIGHT,
-            KeyCode::N        => self.nes.controller1.button_state |= B,
-            KeyCode::E        => self.nes.controller1.button_state |= A,
-            KeyCode::LBracket => self.nes.controller1.button_state |= SELECT,
-            KeyCode::RBracket => self.nes.controller1.button_state |= START,
+            KeyCode::W        => self.nes.con1.button_state |= UP,
+            KeyCode::R        => self.nes.con1.button_state |= DOWN,
+            KeyCode::A        => self.nes.con1.button_state |= LEFT,
+            KeyCode::S        => self.nes.con1.button_state |= RIGHT,
+            KeyCode::RBracket => self.nes.con1.button_state |= START,
+            KeyCode::LBracket => self.nes.con1.button_state |= SELECT,
+            KeyCode::E        => self.nes.con1.button_state |= A,
+            KeyCode::N        => self.nes.con1.button_state |= B,
             _ => ()
         }   
     }
 
     fn key_up_event(&mut self, _ctx: &mut Context, keycode: KeyCode, _keymods: KeyMods) {
         match keycode {
-            KeyCode::W        => self.nes.controller1.button_state &= !UP,
-            KeyCode::A        => self.nes.controller1.button_state &= !LEFT,
-            KeyCode::R        => self.nes.controller1.button_state &= !DOWN,
-            KeyCode::S        => self.nes.controller1.button_state &= !RIGHT,
-            KeyCode::N        => self.nes.controller1.button_state &= !B,
-            KeyCode::E        => self.nes.controller1.button_state &= !A,
-            KeyCode::LBracket => self.nes.controller1.button_state &= !SELECT,
-            KeyCode::RBracket => self.nes.controller1.button_state &= !START,
+            KeyCode::W        => self.nes.con1.button_state &= !UP,
+            KeyCode::R        => self.nes.con1.button_state &= !DOWN,
+            KeyCode::A        => self.nes.con1.button_state &= !LEFT,
+            KeyCode::S        => self.nes.con1.button_state &= !RIGHT,
+            KeyCode::RBracket => self.nes.con1.button_state &= !START,
+            KeyCode::LBracket => self.nes.con1.button_state &= !SELECT,
+            KeyCode::E        => self.nes.con1.button_state &= !A,
+            KeyCode::N        => self.nes.con1.button_state &= !B,
             _ => ()
         }   
     }
+
+    fn gamepad_button_down_event(&mut self, _ctx: &mut Context, btn: Button, _id: event::GamepadId) {
+        match btn {
+            Button::DPadUp    => self.nes.con1.button_state |= UP,
+            Button::DPadDown  => self.nes.con1.button_state |= DOWN,
+            Button::DPadLeft  => self.nes.con1.button_state |= LEFT,
+            Button::DPadRight => self.nes.con1.button_state |= RIGHT,
+            Button::Start     => self.nes.con1.button_state |= START,
+            Button::Select    => self.nes.con1.button_state |= SELECT,
+            Button::East      => self.nes.con1.button_state |= A,
+            Button::South     => self.nes.con1.button_state |= B,
+            _ => (),
+        }
+    }
+
+    fn gamepad_button_up_event(&mut self, _ctx: &mut Context, btn: Button, _id: event::GamepadId) {
+        match btn {
+            Button::DPadUp    => self.nes.con1.button_state &= !UP,
+            Button::DPadDown  => self.nes.con1.button_state &= !DOWN,
+            Button::DPadLeft  => self.nes.con1.button_state &= !LEFT,
+            Button::DPadRight => self.nes.con1.button_state &= !RIGHT,
+            Button::Start     => self.nes.con1.button_state &= !START,
+            Button::Select    => self.nes.con1.button_state &= !SELECT,
+            Button::East      => self.nes.con1.button_state &= !A,
+            Button::South     => self.nes.con1.button_state &= !B,
+            _ => (),
+        }
+    }
+
+    fn gamepad_axis_event(&mut self, _ctx: &mut Context, axis: event::Axis, value: f32, _id: event::GamepadId) {
+        match axis {
+            Axis::LeftStickY => {
+                self.nes.con1.button_state &= !(UP | DOWN);
+                if value >= JOY_DEADZONE {
+                    self.nes.con1.button_state |= UP;
+                }
+                else if value <= -JOY_DEADZONE {
+                    self.nes.con1.button_state |= DOWN;
+                }
+            }
+            Axis::LeftStickX => {
+                self.nes.con1.button_state &= !(LEFT | RIGHT);
+                if value <= -JOY_DEADZONE {
+                    self.nes.con1.button_state |= LEFT;
+                }
+                else if value >= JOY_DEADZONE {
+                    self.nes.con1.button_state |= RIGHT;
+                }
+            }
+            _ => (),
+        }
+    }
+
 }
-
-
-
-
-
-
 
 
 

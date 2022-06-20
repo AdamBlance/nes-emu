@@ -88,14 +88,14 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
         // Should read back data about the length counters
         APU_STATUS_REG => 0,
 
-        CONTROLLER_1 => nes.controller1.shift_out_button_state(),
-        CONTROLLER_2 => nes.controller2.shift_out_button_state(),
+        CONTROLLER_1 => nes.con1.shift_out_button_state(),
+        CONTROLLER_2 => nes.con2.shift_out_button_state(),
 
         // Cartridge space
 
-        0x6000..=0x7FFF => nes.cartridge.read_prg_ram(addr),
+        0x6000..=0x7FFF => nes.cart.read_prg_ram(addr),
 
-        0x8000..=0xFFFF => nes.cartridge.read_prg_rom(addr),
+        0x8000..=0xFFFF => nes.cart.read_prg_rom(addr),
 
         _ => 0,
     }
@@ -172,8 +172,8 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
             }
         }
 
-        CONTROLLER_1 => nes.controller1.write_to_data_latch(val),
-        CONTROLLER_2 => nes.controller2.write_to_data_latch(val),
+        CONTROLLER_1 => nes.con1.write_to_data_latch(val),
+        CONTROLLER_2 => nes.con2.write_to_data_latch(val),
 
         PULSE_1_REG_1 => nes.apu.square1.set_reg1_from_byte(val),
         PULSE_1_REG_2 => nes.apu.square1.set_reg2_from_byte(val),
@@ -219,9 +219,9 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
 
         // Cartridge space
 
-        0x6000..=0x7FFF => nes.cartridge.write_prg_ram(addr, val),
+        0x6000..=0x7FFF => nes.cart.write_prg_ram(addr, val),
 
-        0x8000..=0xFFFF => nes.cartridge.write_prg_rom(addr, val, nes.cpu.cycles),
+        0x8000..=0xFFFF => nes.cart.write_prg_rom(addr, val, nes.cpu.cycles),
 
         _ => (),
     };

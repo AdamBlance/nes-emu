@@ -11,9 +11,9 @@ pub struct Nes {
     pub ppu:         Ppu,
     pub apu:         Apu,
     pub wram:        [u8; 2048],
-    pub cartridge:   Box<dyn Cartridge>,
-    pub controller1: Controller,
-    pub controller2: Controller,
+    pub cart:   Box<dyn Cartridge>,
+    pub con1: Controller,
+    pub con2: Controller,
     // External
     pub frame:        Vec<u8>,
 }
@@ -25,9 +25,9 @@ impl Nes {
             ppu: Ppu::new(),
             apu: Apu::new(audio_queue),
             wram: [0; 2048],
-            cartridge,
-            controller1: Default::default(),
-            controller2: Default::default(),
+            cart: cartridge,
+            con1: Default::default(),
+            con2: Default::default(),
 
             // RGBA image (4 channels)
             frame: vec![0u8; 256usize * 240 * 4], 
