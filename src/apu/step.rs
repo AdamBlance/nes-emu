@@ -129,7 +129,7 @@ fn clock_triangle_timer(tri: &mut Triangle) {
         // we need to maintain the output but not clock the sequencer to avoid popping 
         // If we output 0 instead of maintaing the output, if the sequencer is at its highest output
         // level (0xF), the sound jumps from 0 to F instantly, creating a popping sound
-        if tri.linear_counter_curr_value > 0 && tri.length_counter > 0 && (tri.timer_init_value > 2) {
+        if tri.linear_counter_curr_value > 0 && tri.length_counter > 0 && (tri.timer_init_value > 2) && tri.enabled{
             tri.sequencer_stage = (tri.sequencer_stage + 1) % 32;
         }
         
@@ -338,11 +338,7 @@ pub fn square_channel_output(sqw: &Square) -> f32 {
 }
 
 pub fn triangle_channel_output(tri: &Triangle) -> f32 {
-    if tri.enabled {
-        tri.sequencer_output as f32
-    } else {
-        0.0
-    }
+    tri.sequencer_output as f32
 }
 
 pub fn noise_channel_output(noise: &Noise) -> f32 {
@@ -359,5 +355,4 @@ pub fn sample_channel_output(sample: &Sample) -> f32 {
     } else {
         0.0
     }
-    // sample.output as f32
 }

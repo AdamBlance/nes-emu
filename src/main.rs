@@ -40,7 +40,7 @@ const A:      u8 = 0b0000_0001;
 const B:      u8 = 0b0000_0010;
 
 const FRAMERATE: u32 = 60;
-const JOY_DEADZONE: f32 = 0.1;
+const JOY_DEADZONE: f32 = 0.4;
 
 
 
@@ -111,8 +111,8 @@ impl EventHandler for Emulator {
             Button::DPadRight => self.nes.con1.button_state |= RIGHT,
             Button::Start     => self.nes.con1.button_state |= START,
             Button::Select    => self.nes.con1.button_state |= SELECT,
-            Button::East      => self.nes.con1.button_state |= A,
-            Button::South     => self.nes.con1.button_state |= B,
+            Button::South     => self.nes.con1.button_state |= A,
+            Button::West      => self.nes.con1.button_state |= B,
             _ => (),
         }
     }
@@ -125,8 +125,8 @@ impl EventHandler for Emulator {
             Button::DPadRight => self.nes.con1.button_state &= !RIGHT,
             Button::Start     => self.nes.con1.button_state &= !START,
             Button::Select    => self.nes.con1.button_state &= !SELECT,
-            Button::East      => self.nes.con1.button_state &= !A,
-            Button::South     => self.nes.con1.button_state &= !B,
+            Button::South     => self.nes.con1.button_state &= !A,
+            Button::West      => self.nes.con1.button_state &= !B,
             _ => (),
         }
     }
@@ -134,6 +134,7 @@ impl EventHandler for Emulator {
     fn gamepad_axis_event(&mut self, _ctx: &mut Context, axis: event::Axis, value: f32, _id: event::GamepadId) {
         match axis {
             Axis::LeftStickY => {
+                println!("y axis val {value}");
                 self.nes.con1.button_state &= !(UP | DOWN);
                 if value >= JOY_DEADZONE {
                     self.nes.con1.button_state |= UP;
@@ -143,6 +144,7 @@ impl EventHandler for Emulator {
                 }
             }
             Axis::LeftStickX => {
+                println!("x axis val {value}");
                 self.nes.con1.button_state &= !(LEFT | RIGHT);
                 if value <= -JOY_DEADZONE {
                     self.nes.con1.button_state |= LEFT;
@@ -250,7 +252,7 @@ fn main() {
 
      
     let cartridge = new_cartridge(ines_data);
-    let nes       = Nes::new(cartridge, audio_queue_producer);
+    let nes       = Nes::new(cartridge, audio_queue_producer, config.sample_rate.0);
     let emulator  = Emulator {nes, frames: 0, scaling};
 
     let cb = ContextBuilder::new("nes-emu", "Adam Blance")

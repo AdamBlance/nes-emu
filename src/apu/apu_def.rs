@@ -1,6 +1,8 @@
 use super::channels::*;
 use std::sync::mpsc::Sender;
 
+const CPU_HZ:   f64 = 1_789_773.0;
+
 pub struct Apu {
 
     pub frame_sequencer_mode_select: bool,
@@ -18,6 +20,8 @@ pub struct Apu {
 
     pub audio_queue: Sender<(f32, f32)>,
 
+    pub target_cycles_per_sample: f64,
+
     pub cycles_since_last_sample: u64,
     pub average_cycles_per_sample: f64,
     pub total_sample_count: u64,
@@ -25,7 +29,7 @@ pub struct Apu {
 }
 
 impl Apu {
-    pub fn new(audio_queue: Sender<(f32, f32)>) -> Apu {
+    pub fn new(audio_queue: Sender<(f32, f32)>, sample_rate: u32) -> Apu {
         Apu {
             frame_sequencer_mode_select: false,
             frame_sequencer_counter: 0,
@@ -41,6 +45,8 @@ impl Apu {
             sample: Default::default(),
 
             audio_queue,
+
+            target_cycles_per_sample: CPU_HZ / sample_rate as f64,
 
             cycles_since_last_sample: 0,
             average_cycles_per_sample: 0.0,

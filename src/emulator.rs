@@ -5,15 +5,6 @@ use crate::ppu;
 use crate::cpu;
 use crate::apu::{self, };
 
-const CPU_HZ:   f64 = 1_789_773.0;
-const SAMPLE_HZ: f64 = 44_100.0;
-
-pub const TARGET_CYCLES_PER_SAMPLE: f64 = CPU_HZ / SAMPLE_HZ;
-
-const TARGET_CYCLES_PER_SAMPLE_FLOOR: u64 = TARGET_CYCLES_PER_SAMPLE as u64;
-const TARGET_CYCLES_PER_SAMPLE_CEIL:  u64 = (TARGET_CYCLES_PER_SAMPLE + 1.0) as u64;
-
-
 pub fn run_to_vblank(nes: &mut Nes) {
 
     if nes.cpu.cycles == 0 {
@@ -37,22 +28,16 @@ pub fn run_to_vblank(nes: &mut Nes) {
         apu::step_apu(nes);
 
 
-        if nes.cpu.cycles % 1000000 == 0 {
-            // println!("Actual {:.20} Target {:.20}", nes.apu.average_cycles_per_sample, TARGET_CYCLES_PER_SAMPLE);
-        }
-
-        // Not entirely sure about this averaging
-
         // At cycle mod 40
-        if nes.apu.cycles_since_last_sample == TARGET_CYCLES_PER_SAMPLE_FLOOR {
+        if nes.apu.cycles_since_last_sample == nes.apu.target_cycles_per_sample.floor() as u64 {
             // If the number of cycles between samples is too large on average,
             // sample on the 40th cycle
-            if nes.apu.average_cycles_per_sample >= TARGET_CYCLES_PER_SAMPLE {
+            if nes.apu.average_cycles_per_sample >= nes.apu.target_cycles_per_sample {
                 do_sample(nes);
             }
         }
-        else if nes.apu.cycles_since_last_sample == TARGET_CYCLES_PER_SAMPLE_CEIL {
-            if nes.apu.average_cycles_per_sample < TARGET_CYCLES_PER_SAMPLE {
+        else if nes.apu.cycles_since_last_sample == nes.apu.target_cycles_per_sample.ceil() as u64 {
+            if nes.apu.average_cycles_per_sample < nes.apu.target_cycles_per_sample {
                 do_sample(nes);
             }
         }

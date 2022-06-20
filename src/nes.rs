@@ -19,11 +19,11 @@ pub struct Nes {
 }
 
 impl Nes {
-    pub fn new(cartridge: Box<dyn Cartridge>, audio_queue: Sender<(f32, f32)>) -> Nes {
+    pub fn new(cartridge: Box<dyn Cartridge>, audio_queue: Sender<(f32, f32)>, sample_rate: u32) -> Nes {
         Nes { 
             cpu: Cpu::new(),
             ppu: Ppu::new(),
-            apu: Apu::new(audio_queue),
+            apu: Apu::new(audio_queue, sample_rate),
             wram: [0; 2048],
             cart: cartridge,
             con1: Default::default(),
