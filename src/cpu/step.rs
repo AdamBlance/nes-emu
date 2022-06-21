@@ -28,7 +28,7 @@ pub fn step_cpu(nes: &mut Nes) {
     if nes.cpu.instruction_cycle == 0 {
         
         if nes.cpu.nmi_pending {
-            println!("IN NMI, cycle {}", nes.cpu.interrupt_cycle);
+            // println!("IN NMI, cycle {}", nes.cpu.interrupt_cycle);
             match nes.cpu.interrupt_cycle {
                 0 => {DUMMY_READ_FROM_PC(nes); nes.cpu.irq_pending = false; nes.cpu.interrupt_vector = 0xFFFA;}
                 1 => DUMMY_READ_FROM_PC(nes),
@@ -49,7 +49,7 @@ pub fn step_cpu(nes: &mut Nes) {
 
         // Ignore IRQ until the interrupt inhibit status flag is cleared
         else if nes.cpu.irq_pending && !nes.cpu.p_i {
-            println!("IN IRQ, cycle {}", nes.cpu.interrupt_cycle);
+            // println!("IN IRQ, cycle {}", nes.cpu.interrupt_cycle);
             match nes.cpu.interrupt_cycle {
                 0 => {DUMMY_READ_FROM_PC(nes); nes.cpu.interrupt_vector = 0xFFFE;}
                 1 => DUMMY_READ_FROM_PC(nes),
@@ -76,7 +76,20 @@ pub fn step_cpu(nes: &mut Nes) {
                 unimplemented!("Unofficial instruction {:?} not implemented!", nes.cpu.instruction.name);
             }
             if nes.cpu.pause {
-                println!("Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {} x {} y {}", nes.cpu.instruction.name, opcode, nes.cpu.pc, nes.cpu.cycles, nes.cpu.a, nes.cpu.x, nes.cpu.y);
+                println!(
+                    "Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {} x {} y {} inhibit {} line {} cycle {} counter {}", 
+                    nes.cpu.instruction.name, 
+                    opcode, 
+                    nes.cpu.pc, 
+                    nes.cpu.cycles, 
+                    nes.cpu.a, 
+                    nes.cpu.x, 
+                    nes.cpu.y,
+                    nes.cpu.p_i,
+                    nes.ppu.scanline,
+                    nes.ppu.scanline_cycle,
+                    nes.cart.get_counter(),
+                );
             }
             increment_pc(nes);
         
@@ -131,7 +144,7 @@ pub fn step_cpu(nes: &mut Nes) {
                 1 => {DUMMY_READ_FROM_PC(nes); increment_pc(nes);}
                 2 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
                 3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
-                4 => {push_p_to_stack(nes); decrement_s(nes);}
+                4 => {push_p_to_stack_during_break(nes); decrement_s(nes);}
                 5 => {fetch_lower_pc_from_interrupt_vector(nes); set_interrupt_inhibit_flag(nes);}
                 6 => {fetch_upper_pc_from_interrupt_vector(nes); nes.cpu.instruction_done = true;}
                 _ => unreachable!(),
@@ -141,7 +154,7 @@ pub fn step_cpu(nes: &mut Nes) {
                 2 => {increment_s(nes);}
                 3 => {pull_p_from_stack(nes); increment_s(nes);}
                 4 => {pull_lower_pc_from_stack(nes); increment_s(nes);}
-                5 => {pull_upper_pc_from_stack(nes); nes.cpu.instruction_done = true; println!("Leaving interrupt");}
+                5 => {pull_upper_pc_from_stack(nes); nes.cpu.instruction_done = true;}
                 _ => unreachable!(),
             }}
             (RTS, _) => { match cyc {
@@ -381,18 +394,17 @@ pub fn step_cpu(nes: &mut Nes) {
         This resets the instruction_cycle counter to -1, so it will be incremented here to 0. 
     */
 
-    end_cycle(nes);
     if nes.cpu.instruction_done {
         end_instr(nes);
     }
-
+    end_cycle(nes);
+    
 }
 
 fn end_cycle(nes: &mut Nes) {
 
     if nes.cpu.prev_nmi_signal == false && nes.ppu.nmi_line == true {
         nes.cpu.nmi_edge_detector_output = true;
-        // println!("NMI line raised");
     }
     nes.cpu.prev_nmi_signal = nes.ppu.nmi_line;
     nes.cpu.prev_irq_signal = nes.apu.asserting_irq() || nes.cart.asserting_irq();
@@ -417,12 +429,14 @@ fn end_instr(nes: &mut Nes) {
     // For most instructions, interrupt polling happens on final cycle, so here
     // Two cycle instructions do the polling at the end of the first cycle instead
     // PLP also? It's not a two cycle instruction though.
+
+    // 
     if !nes.cpu.instruction.does_interrupt_poll_early() {
         nes.cpu.nmi_pending = nes.cpu.nmi_edge_detector_output;
-        nes.cpu.irq_pending = nes.apu.asserting_irq() || nes.cart.asserting_irq();
+        nes.cpu.irq_pending = nes.cpu.prev_irq_signal;
     }
     
-    nes.cpu.instruction_cycle = 0;
+    nes.cpu.instruction_cycle = -1;
     nes.cpu.instruction_done = false;
 
     nes.cpu.instruction_count += 1;

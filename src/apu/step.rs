@@ -32,6 +32,7 @@ pub fn step_apu(nes: &mut Nes) {
 
 
 pub fn clock_frame_sequencer(nes: &mut Nes) {
+    
     match nes.apu.frame_sequencer_counter {
         STEP_1 => {
             clock_envelope_and_triangle_counters(nes);
@@ -44,13 +45,11 @@ pub fn clock_frame_sequencer(nes: &mut Nes) {
             clock_envelope_and_triangle_counters(nes);
         }
         STEP_4 => {
-            if nes.apu.frame_sequencer_mode_select == false {
-                clock_envelope_and_triangle_counters(nes);
-                clock_sweep_and_length_counters(nes);
+            if !nes.apu.frame_sequencer_mode_1 {
                 if !nes.apu.frame_sequencer_interrupt_inhibit {
                     nes.apu.interrupt_request = true;
                 }
-                nes.apu.frame_sequencer_counter = 0;
+                nes.apu.frame_sequencer_counter = 0
             }
         }
         STEP_5 => {
@@ -231,12 +230,13 @@ fn clock_noise_envelope(noise: &mut Noise) {
             // clock decay counter
             noise.envelope_counter_curr_value = noise.volume_and_envelope_period;
             // restart the count from 15 if loop is true
-            if noise.envelope_decay_level == 0 && noise.envelope_loop_and_length_counter_halt {
-                noise.envelope_decay_level = 15;
+            if noise.envelope_decay_level == 0 {
+                if noise.envelope_loop_and_length_counter_halt {
+                    noise.envelope_decay_level = 15;
+                }
             } else {
-                noise.envelope_decay_level = noise.envelope_decay_level.saturating_sub(1);
+                noise.envelope_decay_level -= 1;
             }
-
 
         } else {
             noise.envelope_counter_curr_value -= 1;
@@ -245,10 +245,9 @@ fn clock_noise_envelope(noise: &mut Noise) {
 
     noise.envelope_output = if noise.constant_volume {
         noise.volume_and_envelope_period
-        
     } else {
-        // noise.envelope_decay_level
-        0
+        noise.envelope_decay_level
+        // 0
     };
 
 

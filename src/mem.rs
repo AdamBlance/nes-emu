@@ -34,13 +34,12 @@ const SAMPLE_REG_2: u16 = 0x4011;
 const SAMPLE_REG_3: u16 = 0x4012;
 const SAMPLE_REG_4: u16 = 0x4013;
 
+const OAMDMA: u16    = 0x4014;
 
 const APU_STATUS_REG: u16 = 0x4015;
 
-const OAMDMA: u16    = 0x4014;
-
 const CONTROLLER_1: u16 = 0x4016;
-const CONTROLLER_2: u16 = 0x4017;
+const CONTROLLER_2_AND_FRAME_COUNTER_REG: u16 = 0x4017;
 
 
 const PPU_WARMUP: u64 = 29658;
@@ -98,7 +97,7 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
         },
 
         CONTROLLER_1 => nes.con1.shift_out_button_state(),
-        CONTROLLER_2 => nes.con2.shift_out_button_state(),
+        CONTROLLER_2_AND_FRAME_COUNTER_REG => nes.con2.shift_out_button_state(),
 
         // Cartridge space
 
@@ -182,7 +181,6 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
         }
 
         CONTROLLER_1 => nes.con1.write_to_data_latch(val),
-        CONTROLLER_2 => nes.con2.write_to_data_latch(val),
 
         PULSE_1_REG_1 => nes.apu.square1.set_reg1_from_byte(val),
         PULSE_1_REG_2 => nes.apu.square1.set_reg2_from_byte(val),
@@ -227,6 +225,13 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                 nes.apu.sample.curr_sample_addr = nes.apu.sample.init_sample_addr;
             } // fix this, add silence flag like other channels
 
+        }
+
+        CONTROLLER_2_AND_FRAME_COUNTER_REG => {
+
+            nes.con2.write_to_data_latch(val);
+            nes.apu.frame_sequencer_mode_1 = (val & 0b1000_0000) > 0;
+            nes.apu.frame_sequencer_interrupt_inhibit = (val & 0b0100_0000) > 0;
         }
 
         // Cartridge space

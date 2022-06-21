@@ -5,7 +5,7 @@ const CPU_HZ:   f64 = 1_789_773.0;
 
 pub struct Apu {
 
-    pub frame_sequencer_mode_select: bool,
+    pub frame_sequencer_mode_1: bool,
     pub frame_sequencer_counter: u16,
     pub frame_sequencer_interrupt_inhibit: bool,
 
@@ -32,9 +32,9 @@ pub struct Apu {
 impl Apu {
     pub fn new(audio_queue: Sender<(f32, f32)>, sample_rate: u32) -> Apu {
         Apu {
-            frame_sequencer_mode_select: false,
+            frame_sequencer_mode_1: false,
             frame_sequencer_counter: 0,
-            frame_sequencer_interrupt_inhibit: false,
+            frame_sequencer_interrupt_inhibit: true,
 
             square1: Default::default(),
             square2: Default::default(),
@@ -57,7 +57,7 @@ impl Apu {
         }
     }
     pub fn asserting_irq(&self) -> bool {
-        // self.interrupt_request || self.sample.interrupt_request
-        false
+        self.interrupt_request || self.sample.interrupt_request
+        // false
     }
 }

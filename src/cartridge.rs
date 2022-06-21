@@ -26,6 +26,8 @@ pub trait Cartridge {
     fn get_physical_ntable_addr(&self, addr: u16) -> u16;
 
     fn asserting_irq(&mut self) -> bool {false}
+
+    fn get_counter(&self) -> u8 {100}
 }
 
 
@@ -482,9 +484,12 @@ impl Cartridge for CartridgeM4 {
         // If PPU has gone from fetching background tiles to fetching sprite tiles
         if self.last_a12_value == false && new_a12_value == true {
             if self.scanline_counter_curr == 0 || self.scanline_counter_reset_flag {
+                if self.irq_enable && self.scanline_counter_curr == 0{
+                    self.interrupt_request = true; 
+                    // println!("Reset or reached 0");
+                }
                 self.scanline_counter_curr = self.scanline_counter_init;
                 self.scanline_counter_reset_flag = false;
-                if self.irq_enable {self.interrupt_request = true}
             } else {
                 self.scanline_counter_curr -= 1;
             }
@@ -502,10 +507,15 @@ impl Cartridge for CartridgeM4 {
     }
 
     fn asserting_irq(&mut self) -> bool {
-        let irq = self.interrupt_request;
-        self.interrupt_request = false;
+        // let irq = self.interrupt_request;
+        self.interrupt_request
+        // self.interrupt_request = false;
         // irq
-        false
+        // false
+    }
+
+    fn get_counter(&self) -> u8 {
+        self.scanline_counter_curr
     }
 }
 

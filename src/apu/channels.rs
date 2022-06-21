@@ -137,17 +137,20 @@ pub struct Noise {
 }
 impl Noise {
     pub fn set_reg1_from_byte(&mut self, byte: u8) {
+        // println!("Reg 1 set");
         self.envelope_loop_and_length_counter_halt = (byte & 0b0010_0000) > 0;
-        self.constant_volume = (byte & 0b0001_000) > 0;
+        self.constant_volume = (byte & 0b0001_0000) > 0;
         self.volume_and_envelope_period = byte & 0b0000_1111;
     }
     pub fn set_reg2_from_byte(&mut self, byte: u8) {
+        // println!("Reg 2 set");
         // This will go unused. I'm not convinced that it does anything substantial
         self.mode = (byte & 0b1000_0000) > 0;
         self.timer_init_value = NOISE_PERIOD_TABLE[(byte & 0b0000_1111) as usize];
     }
     pub fn set_reg3_from_byte(&mut self, byte: u8) {
-        self.length_counter = LENGTH_TABLE[((byte & 0b11111_000) >> 3) as usize];
+        // println!("Reg 3 set, mute {}", self.length_counter_mute_signal);
+        self.length_counter = LENGTH_TABLE[((byte & 0b1111_1000) >> 3) as usize];
         self.envelope_start_flag = true;
     }
 }
