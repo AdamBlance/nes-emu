@@ -85,8 +85,17 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
             _ => 0,
         }
 
-        // Should read back data about the length counters
-        APU_STATUS_REG => 0,
+        APU_STATUS_REG => {
+            let result = nes.apu.square1.length_counter.min(1)
+                       | (nes.apu.square2.length_counter.min(1) << 1)
+                       | (nes.apu.triangle.length_counter.min(1) << 2)
+                       | (nes.apu.noise.length_counter.min(1) << 3)
+                       | ((nes.apu.sample.remaining_sample_bytes.min(1) as u8) << 4)
+                       | ((nes.apu.interrupt_request as u8) << 6)
+                       | ((nes.apu.sample.interrupt_request as u8) << 7);
+            nes.apu.interrupt_request = false;
+            result
+        },
 
         CONTROLLER_1 => nes.con1.shift_out_button_state(),
         CONTROLLER_2 => nes.con2.shift_out_button_state(),
@@ -199,6 +208,9 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
         SAMPLE_REG_4 => nes.apu.sample.set_reg4_from_byte(val),
 
         APU_STATUS_REG => {
+
+            nes.apu.sample.interrupt_request = false;
+
             nes.apu.square1.enabled = (val & 0b01) > 0;
             nes.apu.square2.enabled = (val & 0b10) > 0;
             nes.apu.triangle.enabled = (val & 0b100) > 0;

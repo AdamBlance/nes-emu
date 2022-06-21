@@ -60,6 +60,7 @@ pub struct Ppu {
     pub sprite_zero_in_soam:    bool,
     pub sprite_zero_in_latches: bool,
     // Misc
+    pub nmi_line:       bool,
     pub ppudata_buffer: u8,
     pub cycles:         u64,
 }
@@ -124,6 +125,7 @@ impl Ppu {
             sprite_zero_in_soam: false,
             sprite_zero_in_latches: false,
 
+            nmi_line: false,
             ppudata_buffer: 0,
             cycles: 0,
         }

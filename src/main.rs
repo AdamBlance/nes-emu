@@ -85,6 +85,7 @@ impl EventHandler for Emulator {
             KeyCode::LBracket => self.nes.con1.button_state |= SELECT,
             KeyCode::E        => self.nes.con1.button_state |= A,
             KeyCode::N        => self.nes.con1.button_state |= B,
+            KeyCode::Space => self.nes.cpu.pause = true,
             _ => ()
         }   
     }

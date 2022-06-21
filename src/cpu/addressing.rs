@@ -23,21 +23,29 @@ pub fn copy_address_to_pc(nes: &mut Nes) {
     nes.cpu.pc = nes.cpu.get_address();
 }
 pub fn fetch_lower_pc_from_interrupt_vector(nes: &mut Nes) {
-    let lower = read_mem(0xFFFE, nes);
+    let lower = read_mem(nes.cpu.interrupt_vector, nes);
     nes.cpu.set_lower_pc(lower);
 }
 pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
-    let upper = read_mem(0xFFFF, nes);
+    let upper = read_mem(nes.cpu.interrupt_vector+1, nes);
     nes.cpu.set_upper_pc(upper);
 }
-pub fn fetch_lower_pc_from_nmi_vector(nes: &mut Nes) {
-    let lower = read_mem(0xFFFA, nes);
-    nes.cpu.set_lower_pc(lower);
-}
-pub fn fetch_upper_pc_from_nmi_vector(nes: &mut Nes) {
-    let upper = read_mem(0xFFFB, nes);
-    nes.cpu.set_upper_pc(upper);
-}
+// pub fn fetch_lower_pc_from_interrupt_vector(nes: &mut Nes) {
+//     let lower = read_mem(0xFFFE, nes);
+//     nes.cpu.set_lower_pc(lower);
+// }
+// pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
+//     let upper = read_mem(0xFFFF, nes);
+//     nes.cpu.set_upper_pc(upper);
+// }
+// pub fn fetch_lower_pc_from_nmi_vector(nes: &mut Nes) {
+//     let lower = read_mem(0xFFFA, nes);
+//     nes.cpu.set_lower_pc(lower);
+// }
+// pub fn fetch_upper_pc_from_nmi_vector(nes: &mut Nes) {
+//     let upper = read_mem(0xFFFB, nes);
+//     nes.cpu.set_upper_pc(upper);
+// }
 
 
 // Immediate
@@ -133,7 +141,7 @@ pub fn push_upper_pc_to_stack(nes: &mut Nes) {
 pub fn push_p_to_stack(nes: &mut Nes) {
     push_to_stack(nes.cpu.get_p() | 0b0011_0000, nes);
 }
-pub fn push_p_to_stack_during_interrupt(nes: &mut Nes) {
+pub fn push_p_to_stack_during_break(nes: &mut Nes) {
     push_to_stack(nes.cpu.get_p() | 0b0010_0000, nes);
 }
 pub fn push_a_to_stack(nes: &mut Nes) {

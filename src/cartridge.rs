@@ -25,7 +25,7 @@ pub trait Cartridge {
 
     fn get_physical_ntable_addr(&self, addr: u16) -> u16;
 
-    fn get_irq_status(&mut self) -> bool {false}
+    fn asserting_irq(&mut self) -> bool {false}
 }
 
 
@@ -382,15 +382,6 @@ impl Cartridge for CartridgeM4 {
             
             _ => unreachable!(),
         };
-        let test = self.prg_bank_0_or_2;
-        let test1 = self.prg_bank_1;
-        let test2 = self.prg_fixed_bank_select;
-
-        // println!("\nPrg read addr {addr:06X} real addr {base_bank_addr:06X} banks 0/2 {test:06X} bank 1 {test1:06X} mode {test2}\n");
-
-        // let offset_into_bank = addr as usize - (addr as usize / 0x2000) * 0x2000;
-        // let temp = base_bank_addr + offset_into_bank;
-        // println!("base bank addr {base_bank_addr:06X} offset {offset_into_bank:06X} addr {addr:06X} final {temp:06X}");
         self.prg_rom[base_bank_addr]
     }
     fn write_prg_rom(&mut self, addr: u16, byte: u8, cpu_cycle: u64) {
@@ -399,9 +390,6 @@ impl Cartridge for CartridgeM4 {
         let bank1 = self.prg_bank_1;
         let mode = self.prg_fixed_bank_select;
         let bank_select = self.bank_index;
-        // println!("Prg write addr before {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
-
-
 
         let even = addr % 2 == 0;
         
@@ -448,6 +436,7 @@ impl Cartridge for CartridgeM4 {
             }
             (0xE000..=0xFFFF, true) => {
                 self.irq_enable = false;
+                self.interrupt_request = false;
             }
             (0xE000..=0xFFFF, false) => {
                 self.irq_enable = true;
@@ -459,7 +448,6 @@ impl Cartridge for CartridgeM4 {
         let bank1 = self.prg_bank_1;
         let mode = self.prg_fixed_bank_select;
         let bank_select = self.bank_index;
-        // println!("Prg write addr after {addr:06X} data {byte:08b} banks 0/2 {banks02:06X} bank 1 {bank1:06X} mode {mode} bank select {bank_select}");
 
     }
 
@@ -467,16 +455,11 @@ impl Cartridge for CartridgeM4 {
 
 
     fn read_chr(&mut self, addr: u16) -> u8 {
-        // This needs to update the scanline conuter
-        // This is naive but can optimise later
-        // the simpler way might be easier to read, maybe even faster
-        // just more verbose
-
         let uaddr = addr as usize;
 
         let chr_addr = if !self.chr_bank_size_select { match addr {
-            0x0000..=0x07FF => self.chr_2kb_bank_0 * 1*KB + uaddr,// these must be multiples of 2  no need for 2*KB
-            0x0800..=0x0FFF => self.chr_2kb_bank_1 * 1*KB + (uaddr - 0x0800),// these must be multiples of 2
+            0x0000..=0x07FF => self.chr_2kb_bank_0 * 1*KB + uaddr,
+            0x0800..=0x0FFF => self.chr_2kb_bank_1 * 1*KB + (uaddr - 0x0800),
             
             0x1000..=0x13FF => self.chr_1kb_bank_0 * 1*KB + (uaddr - 0x1000),
             0x1400..=0x17FF => self.chr_1kb_bank_1 * 1*KB + (uaddr - 0x1400),
@@ -489,8 +472,8 @@ impl Cartridge for CartridgeM4 {
             0x0800..=0x0BFF => self.chr_1kb_bank_2 * 1*KB + (uaddr - 0x0800),
             0x0C00..=0x0FFF => self.chr_1kb_bank_3 * 1*KB + (uaddr - 0x0C00),
 
-            0x1000..=0x17FF => self.chr_2kb_bank_0 * 1*KB + (uaddr - 0x1000), // these must be multiples of 2
-            0x1800..=0x1FFF => self.chr_2kb_bank_1 * 1*KB + (uaddr - 0x1800), // these must be multiples of 2
+            0x1000..=0x17FF => self.chr_2kb_bank_0 * 1*KB + (uaddr - 0x1000),
+            0x1800..=0x1FFF => self.chr_2kb_bank_1 * 1*KB + (uaddr - 0x1800), 
             _ => unreachable!(),
         }};
 
@@ -498,7 +481,6 @@ impl Cartridge for CartridgeM4 {
 
         // If PPU has gone from fetching background tiles to fetching sprite tiles
         if self.last_a12_value == false && new_a12_value == true {
-            // println!("Scanline tick, counter {}, init {}", self.scanline_counter_curr, self.scanline_counter_init);
             if self.scanline_counter_curr == 0 || self.scanline_counter_reset_flag {
                 self.scanline_counter_curr = self.scanline_counter_init;
                 self.scanline_counter_reset_flag = false;
@@ -519,128 +501,13 @@ impl Cartridge for CartridgeM4 {
         basic_nametable_mirrroring(addr, self.mirroring)
     }
 
-    fn get_irq_status(&mut self) -> bool {
+    fn asserting_irq(&mut self) -> bool {
         let irq = self.interrupt_request;
         self.interrupt_request = false;
-        irq
-        // false
+        // irq
+        false
     }
 }
-
-
-/*
-
-    notes:
-    
-    6000-7FFF = optional ram
-    8000-9FFF = 8KB PRG ROM bank
-    A000-BFFF = 8KB PRG ROM bank, always switchable
-    C000-DFFF = 8KB PRG ROM bank
-    E000-FFFF = 8KB PRG ROM, always fixed to the last bank
-
-    0000-07FF = 2KB CHR ROM bank
-    0800-0FFF = 2KB CHR ROM bank
-    1000-13FF = 1KB CHR ROM bank
-    1400-17FF = 1KB CHR ROM bank
-    1800-1BFF = 1KB CHR ROM bank
-    1C00-1FFF = 1KB CHR ROM bank
-
-    
-
-
-
-    8000-9FFF -> mapping 
-
-    EVEN
-    
-    bits 2,1,0 select a bank to configure
-
-    bits 5,4,3 are unused
-
-    bit 6 chooses which PRG bank is fixed and which is swappable
-    when 0, 8000-9FFF is switchable, C000-DFFF fixed to second last bank
-    when 1, 8000-9FFF is fixed to second last bank, C000-DFFF is switchable 
-
-    bit 7 chooses whether CHR ROM is made up of 
-    2*2KB + 4*1KB banks, or 4*1KB banks + 2*2KB banks
-
-    ODD 
-
-    the byte written selects the bank number of the bank selected by the even write
-
-
-    A000-BFFF -> mirroring
-
-    EVEN
-
-    only bit 0 is considered, 0 for vertical mirroring, 1 for horizontal
-    this bit is ignored if 4 screen mirroring is used
-
-    ODD
-
-    Write protection for ram, although doesn't really matter, can just leave it out for now
-
-
-
-
-    scanline counter!
-
-    so CHR rom is made up of two pattern tables, 0000-0FFF and 1000-1FFF
-    
-    if all background tiles are fetched from the 0000-0FFF and all sprite tiles are 
-    fetched from 1000-1FFF, bit 12 of the address line will flip once every scanline,
-    when sprite fetches begin.
-    This can be used to count the scanline that is currently being rendered
-
-
-
-    C000-DFFF -> irq stuff
-
-    EVEN
-
-    written byte specifies the reset value for the scanline counter
-    the counter is initialised to this value when it reaches 0 or is reset
-
-
-    ODD
-
-    writing any value reloads the IRQ counter at the next rising edge of PPU addr bit 12
-
-
-    E000-FFFF -> irq stuff 
-
-    EVEN
-    
-    prevents future interrupts from being raised, but will allow any pending interrupt to complete
-
-    ODD
-
-    enables interrupts
-
-*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

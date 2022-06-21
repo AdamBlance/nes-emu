@@ -196,7 +196,7 @@ pub fn set_carry_flag(nes: &mut Nes) {
 pub fn set_decimal_flag(nes: &mut Nes) {
     nes.cpu.p_d = true;
 }
-pub fn set_interrupt_flag(nes: &mut Nes) {
+pub fn set_interrupt_inhibit_flag(nes: &mut Nes) {
     nes.cpu.p_i = true;
 }
 

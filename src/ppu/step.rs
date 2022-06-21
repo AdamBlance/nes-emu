@@ -21,6 +21,14 @@ const ATTRIBUTE_READ:   i32 = 3;
 const PATTERN_LSB_READ: i32 = 5;
 const PATTERN_MSB_READ: i32 = 7;
 
+/*
+
+    the only way that the PPU directly changes the state of the CPU is by changing the NMI line, 
+    just like the apu raising the irq flag.
+    This whole thing could be written with methods. The advantage is that you don't have to preface
+    all fields with nes.ppu. instead of self.
+
+*/
 
 pub fn step_ppu(nes: &mut Nes) {
 
@@ -242,14 +250,14 @@ pub fn step_ppu(nes: &mut Nes) {
     else if scanline == 241 && cycle == 1 {
         nes.ppu.in_vblank = true;
         if nes.ppu.nmi_enable {
-            nes.cpu.nmi_interrupt = true;
+            nes.ppu.nmi_line = true;
         }
     } 
     // At (1, -1), clear PPUSTATUS in_vblank bit and disable NMI signal
     else if scanline == -1 && cycle == 1 {
         nes.ppu.in_vblank = false;
         nes.ppu.sprite_zero_hit = false;
-        nes.cpu.nmi_interrupt = false;
+        nes.ppu.nmi_line = false;
         // nes.ppu.sprite_zero_in_latches = false;
         // nes.ppu.sprite_zero_in_soam = false;
     }

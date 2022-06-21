@@ -26,6 +26,7 @@ pub struct Apu {
     pub average_cycles_per_sample: f64,
     pub total_sample_count: u64,
 
+    pub interrupt_request: bool,
 }
 
 impl Apu {
@@ -51,6 +52,12 @@ impl Apu {
             cycles_since_last_sample: 0,
             average_cycles_per_sample: 0.0,
             total_sample_count: 0,
+
+            interrupt_request: false,
         }
+    }
+    pub fn asserting_irq(&self) -> bool {
+        // self.interrupt_request || self.sample.interrupt_request
+        false
     }
 }

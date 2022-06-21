@@ -179,10 +179,13 @@ pub struct Sample {
 
     pub mute_signal: bool,
     pub output: u8,
+
+    pub interrupt_request: bool,
 }
 impl Sample {
     pub fn set_reg1_from_byte(&mut self, byte: u8) {
         self.irq_enabled      = (byte & 0b1000_0000) > 0;
+        if !self.irq_enabled {self.interrupt_request = false}
         self.loop_sample      = (byte & 0b0100_0000) > 0;
         self.init_timer_value = SAMPLE_RATE_TABLE[(byte & 0b0000_1111) as usize];
     }

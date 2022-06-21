@@ -16,13 +16,17 @@ pub struct Cpu {
     pub p_c: bool,
     pub pc:  u16,
     // Interrupts
-    pub nmi_interrupt:     bool,
-    pub nmi_internal_flag: bool,
-    pub interrupt_request: bool,
-    pub irq_internal_flag: bool,
+    pub prev_nmi_signal:          bool,
+    pub nmi_edge_detector_output: bool,
+    pub nmi_pending:              bool,
+    pub prev_irq_signal:          bool,
+    pub irq_pending:              bool,
+    pub interrupt_vector:         u16,
     // Internal
     pub instruction:        Instruction,
+    pub instruction_done:   bool,
     pub instruction_cycle:  i8,
+    pub interrupt_cycle:    i8,
     pub data:               u8,
     pub lower_address:      u8,
     pub upper_address:      u8,
@@ -35,6 +39,7 @@ pub struct Cpu {
     // Debugging
     pub instruction_count: u64,
     pub target: u64,
+    pub pause: bool,
 }
 
 impl Cpu {

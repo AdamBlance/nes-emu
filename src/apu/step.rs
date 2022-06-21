@@ -48,7 +48,7 @@ pub fn clock_frame_sequencer(nes: &mut Nes) {
                 clock_envelope_and_triangle_counters(nes);
                 clock_sweep_and_length_counters(nes);
                 if !nes.apu.frame_sequencer_interrupt_inhibit {
-                    nes.cpu.interrupt_request = true;
+                    nes.apu.interrupt_request = true;
                 }
                 nes.apu.frame_sequencer_counter = 0;
             }
@@ -88,7 +88,7 @@ fn clock_sample_timer(nes: &mut Nes) {
                     nes.apu.sample.curr_sample_addr = nes.apu.sample.init_sample_addr;
                     nes.apu.sample.remaining_sample_bytes = nes.apu.sample.sample_length;
                 } else if nes.apu.sample.irq_enabled {
-                    // nes.cpu.interrupt_request = true;
+                    nes.apu.sample.interrupt_request = true;
                 }
             }
         }
