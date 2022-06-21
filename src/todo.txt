@@ -1,13 +1,9 @@
 High priority:
-    - Implement most common mappers
-        + MMC3
     - Refinement of PPU and CPU before moving on 
         + Make sure that CPU passes most tests, NMI, timing, etc
         + Make sure that PPU passes most tests, sprite zero, NMI
-        + Colour emphasis modes
+        + Sprite 0 2 cycle rendering delay
     - Refactor APU
-        + Fix noise envelope
-        + Fix mixing
         + Break APU down into units
 
 Low priority: 

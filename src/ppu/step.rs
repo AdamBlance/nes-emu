@@ -175,8 +175,8 @@ pub fn step_ppu(nes: &mut Nes) {
         Otherwise, draw 0x3F00 colour
         */
 
-        let bg_transparent = !bg_patt_lsb && !bg_patt_msb;
-        let sprite_transparent = !sprite_patt_lsb && !sprite_patt_msb;
+        let bg_transparent = (!bg_patt_lsb && !bg_patt_msb) || (!nes.ppu.show_leftmost_bg && cycle <= 8);
+        let sprite_transparent = (!sprite_patt_lsb && !sprite_patt_msb) || (!nes.ppu.show_leftmost_sprites && cycle <= 8);
 
         if !bg_transparent && !sprite_transparent && cycle < 256 && sprite_number == 0 && nes.ppu.sprite_zero_in_latches {
             if !(cycle <= 8 && (!nes.ppu.show_leftmost_bg || !nes.ppu.show_leftmost_sprites)) {
@@ -231,7 +231,28 @@ pub fn step_ppu(nes: &mut Nes) {
         // this isn't a normal memory access I don't think
         // I think palette memory can be accessed internally without a proper memory read
         let pixel_hue_value = read_vram(palette_index, nes) & 0b0011_1111;
-        let pixel_rgb = PALETTE[pixel_hue_value as usize];
+
+        let mut pixel_rgb = PALETTE[pixel_hue_value as usize];
+
+        let r_delta = pixel_rgb.0 / 4;
+        let g_delta = pixel_rgb.1 / 4;
+        let b_delta = pixel_rgb.2 / 4;
+
+        if nes.ppu.red_emphasis {
+            pixel_rgb.0 = pixel_rgb.0.saturating_add(r_delta);
+            pixel_rgb.1 = pixel_rgb.1.saturating_sub(g_delta);
+            pixel_rgb.2 = pixel_rgb.2.saturating_sub(b_delta);
+        }
+        if nes.ppu.green_emphasis {
+            pixel_rgb.0 = pixel_rgb.0.saturating_sub(r_delta);
+            pixel_rgb.1 = pixel_rgb.1.saturating_add(g_delta);
+            pixel_rgb.2 = pixel_rgb.2.saturating_sub(b_delta);
+        }
+        if nes.ppu.blue_emphasis {
+            pixel_rgb.0 = pixel_rgb.0.saturating_sub(r_delta);
+            pixel_rgb.1 = pixel_rgb.1.saturating_sub(g_delta);
+            pixel_rgb.2 = pixel_rgb.2.saturating_add(b_delta);
+        }
 
         // Draw the pixel!
         nes.frame[frame_index    ] = pixel_rgb.0;  // R
@@ -404,7 +425,7 @@ pub fn step_ppu(nes: &mut Nes) {
                 } 
                 // if in bottom tile, move back to top tile, then invert
                 else {
-                    (tile_y - 8) + 7
+                    7 - (tile_y - 8)
                 }
             }
         };
