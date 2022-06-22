@@ -201,3 +201,24 @@ pub fn set_interrupt_inhibit_flag(nes: &mut Nes) {
 }
 
 pub fn nop(_nes: &mut Nes) {}
+
+// unofficial
+
+pub fn las(nes: &mut Nes) {
+    let result = nes.cpu.data & nes.cpu.s;
+    nes.cpu.a = result;
+    nes.cpu.x = result;
+    nes.cpu.s = result;
+    update_p_nz(nes.cpu.a, nes);
+}
+
+pub fn lax(nes: &mut Nes) {
+    nes.cpu.a = nes.cpu.data;
+    nes.cpu.x = nes.cpu.data;
+    update_p_nz(nes.cpu.a, nes);
+}
+
+pub fn sax(nes: &mut Nes) {
+    let result = nes.cpu.a & nes.cpu.x;
+    write_mem(nes.cpu.get_address(), result, nes);
+}

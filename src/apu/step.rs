@@ -94,7 +94,7 @@ fn clock_sample_timer(nes: &mut Nes) {
 
         let delta: i8 = if (nes.apu.sample.sample_buffer & 1) == 1 {2} else {-2}; 
         // This is wrong! It doesn't saturate, just doesn't add the offset if it doesn't fit in the range
-        nes.apu.sample.output = nes.apu.sample.output.saturating_add_signed(delta).clamp(0, 0x7F);  
+        nes.apu.sample.output = nes.apu.sample.output.saturating_add_signed(delta).clamp(0, 0x7F);
         nes.apu.sample.sample_buffer >>= 1;
         if nes.apu.sample.buffer_bits_remaining > 0 {nes.apu.sample.buffer_bits_remaining -= 1;}
         
@@ -337,11 +337,20 @@ pub fn square_channel_output(sqw: &Square) -> f32 {
 }
 
 pub fn triangle_channel_output(tri: &Triangle) -> f32 {
+    /*
+        There is a problem with this. Although not clocking the sequencer when the triangle channel
+        is muted prevents popping, it distords the levels of the other channels, since, if the 
+        sequencer stops at a value of 15, all the other instruments get turned down until
+        it resumes. Probably a better way would be to ensure the sequencer always starts at step 0
+        whenever the triangle channel turns on, although special handling would need to be done 
+        for when the music mutes the triangle channel by setting the frequency really high. 
+    */
     tri.sequencer_output as f32
 }
 
 pub fn noise_channel_output(noise: &Noise) -> f32 {
     if noise.sequencer_output && !noise.length_counter_mute_signal && noise.enabled {
+        // println!("Noise envelope {}", noise.envelope_output);
         noise.envelope_output as f32
     } else {
         0.0

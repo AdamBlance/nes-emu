@@ -175,8 +175,8 @@ pub fn step_ppu(nes: &mut Nes) {
         Otherwise, draw 0x3F00 colour
         */
 
-        let bg_transparent = (!bg_patt_lsb && !bg_patt_msb) || (!nes.ppu.show_leftmost_bg && cycle <= 8);
-        let sprite_transparent = (!sprite_patt_lsb && !sprite_patt_msb) || (!nes.ppu.show_leftmost_sprites && cycle <= 8);
+        let bg_transparent = (!bg_patt_lsb && !bg_patt_msb) || (!nes.ppu.show_leftmost_bg && cycle <= 8) || !nes.ppu.show_bg;
+        let sprite_transparent = (!sprite_patt_lsb && !sprite_patt_msb) || (!nes.ppu.show_leftmost_sprites && cycle <= 8) || !nes.ppu.show_sprites;
 
         if !bg_transparent && !sprite_transparent && cycle < 256 && sprite_number == 0 && nes.ppu.sprite_zero_in_latches {
             if !(cycle <= 8 && (!nes.ppu.show_leftmost_bg || !nes.ppu.show_leftmost_sprites)) {

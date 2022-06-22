@@ -1,4 +1,7 @@
 High priority:
+    - Implement all unofficial instructions. Most test roms test these, might as well implement them.
+    - Implement a decent debugger! Will need this to figure out why tests aren't passing.
+    - Implement mapper 3, most of Blargg's tests use that
     - Refinement of PPU and CPU before moving on 
         + Make sure that CPU passes most tests, NMI, timing, etc
         + Make sure that PPU passes most tests, sprite zero, NMI
@@ -7,6 +10,5 @@ High priority:
         + Break APU down into units
 
 Low priority: 
-    - Implement all unofficial instructions
     - Make APU and OAM DMA suspend CPU for correct number of cycles
 
