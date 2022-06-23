@@ -55,15 +55,39 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
         0x2000..=0x3FFF => match 0x2000 + (addr % 8) {
             // Reading PPUSTATUS clears flags
             PPUSTATUS => {
-                // there is specific behaviour here depending on when the thing is read
+                /*
+                
+                    Notes, okay, so,
 
-                // If it's read one PPU cycle before it gets set (when scanline = 240, cycle = 0)
-                // it reads back 0 and never gets set on the next PPU cycle, so NMI isn't raised
+                    One CPU cycle lasts for 3 PPU cycles. 
 
-                // If it reads on the same PPU cycle or one after, it reads it at set and clears
-                // it like normal, but supresses the NMI for that frame (the NMI signal is raised, 
-                // but pulled back down really quickly so the CPU doesn't have time to check it
+                    If CPU reads at scanline dot 0, the CPU reads 0, which makes sense right?
+                    That's what it would do anyway since it hasn't been set yet.
+                    The only difference is that NMI doesn't fire on the next PPU cycle, that could
+                    be a flag in the PPU or the CPU that we check before asserting NMI.
+
+                    If the CPU reads at scanline dot 1, it reads back a 1, setting the value back
+                    to 0. Although the NMI line briefly goes low, it is brought back up again
+                    immediately, so the CPU doesn't have a chance to process the falling edge. 
+                    We don't have to worry about this, and can simply not pull the NMI line low. 
+
+                    Since this emulator runs the CPU clock, then 3 PPU clocks sequentially, 
+                    the PPUSTATUS flag won't actually be set when we go to read it. In this case,
+                    we have to use a little hack. That's fine though, this emulator will still be 
+                    cycle perfect, lol. 
+
+                    If the CPU reads at scanline dot 2, the NMI line will have been asserted for 
+                    one PPU cycle. When a CPU cycle starts, it will check for rising edges, and will
+                    detect the low NMI line. Since this is just the edge detector and not any sort
+                    of pending NMI state, we can just reset the state of the edge detector. 
+
+
+                */
+
+
+
                 let status = nes.ppu.get_ppustatus_byte();
+
                 nes.ppu.in_vblank = false;
                 nes.ppu.w = false;
                 status

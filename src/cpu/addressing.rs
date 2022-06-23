@@ -30,23 +30,6 @@ pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
     let upper = read_mem(nes.cpu.interrupt_vector+1, nes);
     nes.cpu.set_upper_pc(upper);
 }
-// pub fn fetch_lower_pc_from_interrupt_vector(nes: &mut Nes) {
-//     let lower = read_mem(0xFFFE, nes);
-//     nes.cpu.set_lower_pc(lower);
-// }
-// pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
-//     let upper = read_mem(0xFFFF, nes);
-//     nes.cpu.set_upper_pc(upper);
-// }
-// pub fn fetch_lower_pc_from_nmi_vector(nes: &mut Nes) {
-//     let lower = read_mem(0xFFFA, nes);
-//     nes.cpu.set_lower_pc(lower);
-// }
-// pub fn fetch_upper_pc_from_nmi_vector(nes: &mut Nes) {
-//     let upper = read_mem(0xFFFB, nes);
-//     nes.cpu.set_upper_pc(upper);
-// }
-
 
 // Immediate
 

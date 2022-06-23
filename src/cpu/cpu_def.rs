@@ -36,6 +36,7 @@ pub struct Cpu {
     pub branching:          bool,
     pub internal_carry_out: bool,
     pub cycles:             u64,
+    pub ppustatus_read_time: (i32, i32),
     // Debugging
     pub instruction_count: u64,
     pub target: u64,

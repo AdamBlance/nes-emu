@@ -77,7 +77,7 @@ pub fn step_cpu(nes: &mut Nes) {
             }
             if nes.cpu.pause {
                 println!(
-                    "Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {:02X} x {:02X} y {:02X} inhibit {} line {} cycle {} counter {}", 
+                    "Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {:02X} x {:02X} y {:02X} inhibit {} line {} cycle {}", 
                     nes.cpu.instruction.name, 
                     opcode, 
                     nes.cpu.pc, 
@@ -88,7 +88,7 @@ pub fn step_cpu(nes: &mut Nes) {
                     nes.cpu.p_i,
                     nes.ppu.scanline,
                     nes.ppu.scanline_cycle,
-                    nes.cart.get_counter(),
+                    // nes.cart.get_counter(),
                 );
             }
             if nes.cpu.cycles == nes.cpu.target && nes.cpu.pause {
