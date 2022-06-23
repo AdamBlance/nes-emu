@@ -34,7 +34,7 @@ impl Cartridge for CartridgeM3 {
     fn read_prg_rom(&mut self, addr: u16) -> u8 {
         self.prg_rom[addr as usize % self.prg_rom.len()]
     }
-    fn write_prg_rom(&mut self, _addr: u16, byte: u8, _cpu_cycle: u64) {
+    fn write_prg_rom(&mut self, _addr: u16, byte: u8) {
         // self.bank_select = (byte & 0b1111_1111) as usize;
         self.bank_select = (byte & 0b0000_0011) as usize;
     }

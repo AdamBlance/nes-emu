@@ -32,6 +32,9 @@ const PATTERN_MSB_READ: i32 = 7;
 
 pub fn step_ppu(nes: &mut Nes) {
 
+    nes.cart.ppu_tick(nes.ppu.addr_bus);
+    if nes.cpu.pause{println!("addr bus {:016b} ({:04X}) dot {}", nes.ppu.addr_bus, nes.ppu.addr_bus, nes.ppu.scanline_cycle);}
+
     // Aliases
     let cycle = nes.ppu.scanline_cycle;
     let scanline = nes.ppu.scanline;
@@ -327,12 +330,14 @@ pub fn step_ppu(nes: &mut Nes) {
         match cycle % 8 {
             
             NAMETABLE_READ => {
+                if nes.cpu.pause{println!("nametable read");}
                 let ntable_address = 0x2000 | (nes.ppu.v & !FINE_Y);
                 nes.ppu.bg_ntable_tmp = read_vram(ntable_address, nes);
 
             }
 
             ATTRIBUTE_READ => {
+                if nes.cpu.pause{println!("attribute read");}
                 let attribute_addr = 0x23C0 | (nes.ppu.v & NAMETABLE) 
                                             | ((nes.ppu.v & 0b11100_00000) >> 4)
                                             | ((nes.ppu.v & 0b00000_11100) >> 2);
@@ -340,6 +345,7 @@ pub fn step_ppu(nes: &mut Nes) {
             }
 
             PATTERN_LSB_READ => {
+                if nes.cpu.pause{println!("lower pattern read");}
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
                               | ((nes.ppu.bg_ntable_tmp as u16) << 4) 
                               | ((nes.ppu.v & FINE_Y) >> 12);
@@ -347,6 +353,7 @@ pub fn step_ppu(nes: &mut Nes) {
             }
 
             PATTERN_MSB_READ => {
+                if nes.cpu.pause{println!("upper pattern read");}
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
                                 | ((nes.ppu.bg_ntable_tmp as u16) << 4) 
                                 | ((nes.ppu.v & FINE_Y) >> 12)

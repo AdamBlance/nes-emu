@@ -62,7 +62,8 @@ pub struct Ppu {
     // Misc
     pub nmi_line:       bool,
     pub ppudata_buffer: u8,
-    pub cycles:         u64,
+    pub cycles:         u64, 
+    pub addr_bus:   u16,
 }
 
 impl Ppu {
@@ -128,6 +129,7 @@ impl Ppu {
             nmi_line: false,
             ppudata_buffer: 0,
             cycles: 0,
+            addr_bus: 0,
         }
     }
 

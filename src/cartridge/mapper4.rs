@@ -101,7 +101,7 @@ impl Cartridge for CartridgeM4 {
         };
         self.prg_rom[base_bank_addr]
     }
-    fn write_prg_rom(&mut self, addr: u16, byte: u8, _cpu_cycle: u64) {
+    fn write_prg_rom(&mut self, addr: u16, byte: u8) {
 
         let even = addr % 2 == 0;
         
@@ -184,24 +184,6 @@ impl Cartridge for CartridgeM4 {
             _ => unreachable!(),
         }};
 
-        let new_a12_value = get_bit_u16(addr, 12);
-
-        // If PPU has gone from fetching background tiles to fetching sprite tiles
-        if self.last_a12_value == false && new_a12_value == true {
-            if self.scanline_counter_curr == 0 || self.scanline_counter_reset_flag {
-                if self.irq_enable && self.scanline_counter_curr == 0{
-                    self.interrupt_request = true; 
-                    // println!("Reset or reached 0");
-                }
-                self.scanline_counter_curr = self.scanline_counter_init;
-                self.scanline_counter_reset_flag = false;
-            } else {
-                self.scanline_counter_curr -= 1;
-            }
-        }
-
-
-        self.last_a12_value = new_a12_value;
 
         self.chr_rom[chr_addr]
 
@@ -212,12 +194,34 @@ impl Cartridge for CartridgeM4 {
     }
 
     fn asserting_irq(&mut self) -> bool {
-        // let irq = self.interrupt_request;
         self.interrupt_request
-        // self.interrupt_request = false;
-        // irq
-        // false
     }
 
+    fn ppu_tick(&mut self, addr_bus: u16) {
+        let new_a12_value = get_bit_u16(addr_bus, 12);
+        
+        // https://archive.nes.science/nesdev-forums/f2/t7718.xhtml
+        // https://forums.nesdev.org/viewtopic.php?t=8807
+        // https://www.nesdev.org/wiki/CPU_pinout
+        // M2 is actually a CPU pin
+        // So nametable reads will sometimes make A12 go high during rendering which of course
+        // fucks up the scanline counter
+
+        // If PPU has gone from fetching background tiles to fetching sprite tiles
+        if self.last_a12_value == false && new_a12_value == true {
+            println!("sc curr {} init {} enable {}", self.scanline_counter_curr, self.scanline_counter_init, self.irq_enable);
+            if self.scanline_counter_curr == 0 || self.scanline_counter_reset_flag {
+                if self.irq_enable && self.scanline_counter_curr == 0 {
+                    self.interrupt_request = true; 
+                }
+                self.scanline_counter_curr = self.scanline_counter_init;
+                self.scanline_counter_reset_flag = false;
+            } else {
+                self.scanline_counter_curr -= 1;
+            }
+        }
+
+        self.last_a12_value = new_a12_value;
+    }
 
 }

@@ -12,15 +12,20 @@ pub struct CartridgeM1 {
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
     pub chr_rom_is_ram: bool,
-    pub shift_register: u8,
-    pub write_counter: u8,
-    pub last_write_cycle: u64,
-    pub mirroring: Mirroring,
-    pub prg_bank_mode: u8,
-    pub chr_bank_mode: u8,
+
     pub chr_bank_0: usize,
     pub chr_bank_1: usize,
     pub prg_bank: usize,
+
+    pub prg_bank_mode: u8,
+    pub chr_bank_mode: u8,
+
+    pub mirroring: Mirroring,
+
+    pub shift_register: u8,
+    pub write_counter: u8,
+
+    pub consecutive_write_toggle: bool,
 }
 
 impl CartridgeM1 {
@@ -31,15 +36,19 @@ impl CartridgeM1 {
             chr_rom,
             chr_rom_is_ram,
             
-            shift_register: 0,
-            write_counter: 0,
-            last_write_cycle: u64::MAX,
-            mirroring: Mirroring::Vertical,
-            prg_bank_mode: 3,
-            chr_bank_mode: 0,
             chr_bank_0: 0,
             chr_bank_1: 0,
             prg_bank: 0,
+
+            prg_bank_mode: 3,
+            chr_bank_mode: 0,
+
+            mirroring: Mirroring::Vertical,
+
+            shift_register: 0,
+            write_counter: 0,
+            
+            consecutive_write_toggle: false,
         }
     }
 
@@ -56,7 +65,10 @@ impl CartridgeM1 {
         }
     }
 }
+
+
 impl Cartridge for CartridgeM1 {
+
     // MMC1 can optionally have PRG RAM
     fn read_prg_ram(&mut self, addr: u16) -> u8 {
         if !self.prg_ram.is_empty() {
@@ -73,7 +85,7 @@ impl Cartridge for CartridgeM1 {
 
     fn read_prg_rom(&mut self, addr: u16) -> u8 {
         let addru = addr as usize;
-        match self.prg_bank_mode { // Use KB const for readability
+        match self.prg_bank_mode {
             0 | 1 => self.prg_rom[(self.prg_bank & 0b11110) * 32*KB + (addru - 0x8000)],
             2 => { match addr {
                 0x8000..=0xBFFF => self.prg_rom[addru - 0x8000],
@@ -82,22 +94,18 @@ impl Cartridge for CartridgeM1 {
             }}
             3 => { match addr {
                 0x8000..=0xBFFF => {
-                    // println!("First bank read {:04X}", addr);
                     self.prg_rom[(self.prg_bank * 16*KB) + (addru - 0x8000)]
                 }
                 0xC000..=0xFFFF => {
-                    // println!("Second bank read {:04X}", addr);
                     self.prg_rom[(self.prg_rom.len() - 16*KB) + (addru - 0xC000)]
                 }
                 _ => unreachable!(),
             }}
             _ => unreachable!(),
-
         }
     }
-    fn write_prg_rom(&mut self, addr: u16, byte: u8, cpu_cycle: u64) {
 
-        // println!("ROM write - data {:08b}, addr {:04X}, cpu cycle {}", byte, addr, cpu_cycle);
+    fn write_prg_rom(&mut self, addr: u16, byte: u8) {
 
         if (byte & 0b1000_0000) > 0 {
             self.shift_register = 0;
@@ -105,8 +113,7 @@ impl Cartridge for CartridgeM1 {
             self.prg_bank_mode = 3;
         } 
         // Ignore consecutive writes
-        else if cpu_cycle - 1 != self.last_write_cycle {
-            self.last_write_cycle = cpu_cycle;
+        else if !self.consecutive_write_toggle {
 
             self.shift_register >>= 1;
             self.shift_register |= (byte & 1) << 4;
@@ -136,6 +143,7 @@ impl Cartridge for CartridgeM1 {
                 self.write_counter = 0;
             }
         }
+        self.consecutive_write_toggle = !self.consecutive_write_toggle;
     }
 
     fn read_chr(&mut self, addr: u16) -> u8 {

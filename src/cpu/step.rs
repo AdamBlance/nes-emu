@@ -25,6 +25,8 @@ const DUMMY_READ_FROM_POINTER: fn(&mut Nes) = read_from_pointer;
 
 pub fn step_cpu(nes: &mut Nes) {
 
+    nes.cart.cpu_tick();
+
     if nes.cpu.instruction_cycle == 0 {
         
         if nes.cpu.nmi_pending {

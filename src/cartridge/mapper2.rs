@@ -3,7 +3,6 @@ use super::cartridge::{
     Cartridge, 
     Mirroring, 
     basic_nametable_mirrroring,
-    KB,
 };
 
 pub struct CartridgeM2 {
@@ -39,7 +38,7 @@ impl Cartridge for CartridgeM2 {
             _ => unreachable!(),
         }
     }
-    fn write_prg_rom(&mut self, _addr: u16, byte: u8, _cpu_cycle: u64) {
+    fn write_prg_rom(&mut self, _addr: u16, byte: u8) {
         self.bank_select = byte as usize;   
     }
 

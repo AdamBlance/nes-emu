@@ -1,6 +1,8 @@
 use crate::nes::Nes;
 
 pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
+    // Colour palette reads don't actually put anything on the PPU address bus? I think?
+    if addr < 0x3F00 {nes.ppu.addr_bus = addr;}
     match addr {
         0x0000..=0x1FFF => nes.cart.read_chr(addr),
         0x2000..=0x2FFF => nes.ppu.vram[nes.cart.get_physical_ntable_addr(addr) as usize],
@@ -15,6 +17,7 @@ pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
 }
 
 pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
+    if addr < 0x3F00 {nes.ppu.addr_bus = addr;}
     match addr {
         0x0000..=0x1FFF => nes.cart.write_chr(addr, val),
         0x2000..=0x2FFF => nes.ppu.vram[nes.cart.get_physical_ntable_addr(addr) as usize] = val,

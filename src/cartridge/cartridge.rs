@@ -24,21 +24,21 @@ pub const KB: usize = 0x400;
 
 // All cartridges must implement this
 pub trait Cartridge {
-    fn read_prg_ram(&mut self, _addr: u16) -> u8 {0}
-    fn write_prg_ram(&mut self, _addr: u16, _byte: u8) {}
+    fn read_prg_ram(&mut self, addr: u16) -> u8 {0}
+    fn write_prg_ram(&mut self, addr: u16, byte: u8) {}
 
     fn read_prg_rom(&mut self, addr: u16) -> u8;
-    fn write_prg_rom(&mut self, _addr: u16, _byte: u8, _cpu_cycle: u64) {}
+    fn write_prg_rom(&mut self, addr: u16, byte: u8) {}
 
     fn read_chr(&mut self, addr: u16) -> u8;
-    fn write_chr(&mut self, _addr: u16, _byte: u8) {}
+    fn write_chr(&mut self, addr: u16, byte: u8) {}
 
     fn get_physical_ntable_addr(&self, addr: u16) -> u16;
 
     fn asserting_irq(&mut self) -> bool {false}
 
     fn cpu_tick(&mut self) {}
-    fn ppu_tick(&mut self) {}
+    fn ppu_tick(&mut self, addr_bus: u16) {}
 }
 
 

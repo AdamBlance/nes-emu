@@ -270,7 +270,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
 
         0x6000..=0x7FFF => nes.cart.write_prg_ram(addr, val),
 
-        0x8000..=0xFFFF => nes.cart.write_prg_rom(addr, val, nes.cpu.cycles),
+        0x8000..=0xFFFF => nes.cart.write_prg_rom(addr, val),
 
         _ => (),
     };

@@ -27,7 +27,7 @@ impl Cartridge for CartridgeM7 {
     fn read_prg_rom(&mut self, addr: u16) -> u8 {
         self.prg_rom[self.bank_select * 0x8000 + (addr as usize - 0x8000)]
     }
-    fn write_prg_rom(&mut self, _addr: u16, byte: u8, _cpu_cycle: u64) {
+    fn write_prg_rom(&mut self, _addr: u16, byte: u8) {
         self.bank_select = (byte & 0b0000_0111) as usize;
         self.mirroring = if (byte & 0b0001_0000) == 0 {
             Mirroring::SingleScreenLower
