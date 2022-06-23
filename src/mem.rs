@@ -55,6 +55,14 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
         0x2000..=0x3FFF => match 0x2000 + (addr % 8) {
             // Reading PPUSTATUS clears flags
             PPUSTATUS => {
+                // there is specific behaviour here depending on when the thing is read
+
+                // If it's read one PPU cycle before it gets set (when scanline = 240, cycle = 0)
+                // it reads back 0 and never gets set on the next PPU cycle, so NMI isn't raised
+
+                // If it reads on the same PPU cycle or one after, it reads it at set and clears
+                // it like normal, but supresses the NMI for that frame (the NMI signal is raised, 
+                // but pulled back down really quickly so the CPU doesn't have time to check it
                 let status = nes.ppu.get_ppustatus_byte();
                 nes.ppu.in_vblank = false;
                 nes.ppu.w = false;

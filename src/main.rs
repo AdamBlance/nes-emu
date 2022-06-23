@@ -7,7 +7,7 @@ use ggez::{Context, ContextBuilder, GameResult, timer};
 use ggez::event::{self, EventHandler, KeyCode, KeyMods, Button, Axis};
 use ggez::conf::{WindowMode, WindowSetup};
 use ggez::graphics::{self, DrawParam, Image};
-use ggez::mint::Vector2;
+use ggez::mint::{Vector2, Point2};
 
 use std::sync::mpsc;
 
@@ -64,7 +64,9 @@ impl EventHandler for Emulator {
             240, 
             &self.nes.frame
         )?;
-        let dp = DrawParam::default().scale(Vector2{x: self.scaling, y: self.scaling});
+        let dp = DrawParam::default()
+            .scale(Vector2{x: self.scaling, y: self.scaling})
+            .dest(Point2{x: 0.0, y: -8.0*self.scaling});
         graphics::draw(ctx, &image, dp)?;
 
         // Push image to screen
@@ -260,7 +262,7 @@ fn main() {
     let emulator  = Emulator {nes, frames: 0, scaling};
 
     let cb = ContextBuilder::new("nes-emu", "Adam Blance")
-        .window_mode(WindowMode::default().dimensions(256.0*scaling, 240.0*scaling))
+        .window_mode(WindowMode::default().dimensions(256.0*scaling, 224.0*scaling))
         .window_setup(WindowSetup::default().title("R-nemUST"));
 
     let (mut ctx, event_loop) = cb.build().unwrap();
@@ -307,7 +309,9 @@ fn new_cartridge(ines_data: Vec<u8>) -> Box<dyn Cartridge> {
         0 => Box::new(CartridgeM0::new(prg_rom, chr_rom, v_or_h_mirroring)),
         1 => Box::new(CartridgeM1::new(prg_rom, chr_rom, chr_rom_is_ram)),
         2 => Box::new(CartridgeM2::new(prg_rom, chr_rom, chr_rom_is_ram, v_or_h_mirroring)),
+        3 => Box::new(CartridgeM3::new(prg_rom, chr_rom, v_or_h_mirroring)),
         4 => Box::new(CartridgeM4::new(prg_rom, chr_rom)),
+        7 => Box::new(CartridgeM7::new(prg_rom)),
         _ => unimplemented!("Mapper {} not implemented", mapper_id),
     }
 

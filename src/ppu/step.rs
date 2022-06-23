@@ -504,9 +504,10 @@ pub fn step_ppu(nes: &mut Nes) {
     }
 
     // Skip last pre-render cycle on odd frames
-    if nes.ppu.odd_frame && nes.ppu.scanline_cycle == 339 && nes.ppu.scanline == -1 {
+    if nes.ppu.odd_frame && nes.ppu.scanline_cycle == 339 && nes.ppu.scanline == -1 && rendering_enabled {
         nes.ppu.scanline_cycle = 0;
         nes.ppu.scanline = 0;
+        nes.ppu.odd_frame = !nes.ppu.odd_frame;
     }
     // Wrap scanline cycles
     else if nes.ppu.scanline_cycle < 340 {

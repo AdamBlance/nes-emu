@@ -4,8 +4,8 @@ use crate::mem::*;
 use crate::util::*;
 
 
-
-pub fn update_p_nz(val: u8, nes: &mut Nes) {
+#[inline(always)]
+pub fn update_p_nz(nes: &mut Nes, val: u8) {
     nes.cpu.p_n = val > 0x7F;
     nes.cpu.p_z = val == 0;
 }
@@ -47,15 +47,15 @@ fn compare_data_with_register(reg_val: u8, nes: &mut Nes) {
 
 pub fn load_a(nes: &mut Nes) {
     nes.cpu.a = nes.cpu.data;
-    update_p_nz(nes.cpu.a, nes);
+    update_p_nz(nes, nes.cpu.a);
 }
 pub fn load_x(nes: &mut Nes) {
     nes.cpu.x = nes.cpu.data;
-    update_p_nz(nes.cpu.x, nes);
+    update_p_nz(nes, nes.cpu.x);
 }
 pub fn load_y(nes: &mut Nes) {
     nes.cpu.y = nes.cpu.data;
-    update_p_nz(nes.cpu.y, nes);
+    update_p_nz(nes, nes.cpu.y);
 }
 
 
@@ -72,15 +72,15 @@ pub fn store_y(nes: &mut Nes) {
 
 pub fn xor(nes: &mut Nes) {
     nes.cpu.a ^= nes.cpu.data;
-    update_p_nz(nes.cpu.a, nes);
+    update_p_nz(nes, nes.cpu.a);
 }
 pub fn or(nes: &mut Nes) {
     nes.cpu.a |= nes.cpu.data;
-    update_p_nz(nes.cpu.a, nes);
+    update_p_nz(nes, nes.cpu.a);
 }
 pub fn and(nes: &mut Nes) {
     nes.cpu.a &= nes.cpu.data;
-    update_p_nz(nes.cpu.a, nes);
+    update_p_nz(nes, nes.cpu.a);
 }
 pub fn bit(nes: &mut Nes) {
     let result = nes.cpu.data & nes.cpu.a;
@@ -92,23 +92,23 @@ pub fn bit(nes: &mut Nes) {
 
 pub fn transfer_a_to_x(nes: &mut Nes) {
     nes.cpu.x = nes.cpu.a;
-    update_p_nz(nes.cpu.x, nes);
+    update_p_nz(nes, nes.cpu.x);
 }
 pub fn transfer_a_to_y(nes: &mut Nes) {
     nes.cpu.y = nes.cpu.a;
-    update_p_nz(nes.cpu.y, nes);
+    update_p_nz(nes, nes.cpu.y);
 }
 pub fn transfer_s_to_x(nes: &mut Nes) {
     nes.cpu.x = nes.cpu.s;
-    update_p_nz(nes.cpu.x, nes);
+    update_p_nz(nes, nes.cpu.x);
 }
 pub fn transfer_x_to_a(nes: &mut Nes) {
     nes.cpu.a = nes.cpu.x;
-    update_p_nz(nes.cpu.a, nes);
+    update_p_nz(nes, nes.cpu.a);
 }
 pub fn transfer_y_to_a(nes: &mut Nes) {
     nes.cpu.a = nes.cpu.y;
-    update_p_nz(nes.cpu.a, nes);
+    update_p_nz(nes, nes.cpu.a);
 }
 pub fn transfer_x_to_s(nes: &mut Nes) {
     nes.cpu.s = nes.cpu.x;
@@ -116,28 +116,28 @@ pub fn transfer_x_to_s(nes: &mut Nes) {
 
 pub fn arithmetic_shift_left(nes: &mut Nes) {
     nes.cpu.data = shift_left(nes.cpu.data, false, nes);
-    update_p_nz(nes.cpu.data, nes);
+    update_p_nz(nes, nes.cpu.data);
 }
 pub fn logical_shift_right(nes: &mut Nes) {
     nes.cpu.data = shift_right(nes.cpu.data, false, nes);
-    update_p_nz(nes.cpu.data, nes);
+    update_p_nz(nes, nes.cpu.data);
 }
 pub fn rotate_left(nes: &mut Nes) {
     nes.cpu.data = shift_left(nes.cpu.data, true, nes);
-    update_p_nz(nes.cpu.data, nes);
+    update_p_nz(nes, nes.cpu.data);
 }
 pub fn rotate_right(nes: &mut Nes) {
     nes.cpu.data = shift_right(nes.cpu.data, true, nes);
-    update_p_nz(nes.cpu.data, nes);
+    update_p_nz(nes, nes.cpu.data);
 }
 
 pub fn add_with_carry(nes: &mut Nes) {
     add_value_to_a_with_carry(nes.cpu.data, nes);
-    update_p_nz(nes.cpu.a, nes);
+    update_p_nz(nes, nes.cpu.a);
 }
 pub fn subtract_with_carry(nes: &mut Nes) {
     add_value_to_a_with_carry(!nes.cpu.data, nes);
-    update_p_nz(nes.cpu.a, nes);
+    update_p_nz(nes, nes.cpu.a);
 }
 
 
@@ -153,28 +153,28 @@ pub fn compare_memory_with_y(nes: &mut Nes) {
 
 pub fn decrement_memory(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.data.wrapping_sub(1);
-    update_p_nz(nes.cpu.data, nes);
+    update_p_nz(nes, nes.cpu.data);
 }
 pub fn decrement_x(nes: &mut Nes) {
     nes.cpu.x = nes.cpu.x.wrapping_sub(1);
-    update_p_nz(nes.cpu.x, nes);
+    update_p_nz(nes, nes.cpu.x);
 }
 pub fn decrement_y(nes: &mut Nes) {
     nes.cpu.y = nes.cpu.y.wrapping_sub(1);
-    update_p_nz(nes.cpu.y, nes);
+    update_p_nz(nes, nes.cpu.y);
 }
 
 pub fn increment_memory(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.data.wrapping_add(1);
-    update_p_nz(nes.cpu.data, nes);
+    update_p_nz(nes, nes.cpu.data);
 }
 pub fn increment_x(nes: &mut Nes) {
     nes.cpu.x = nes.cpu.x.wrapping_add(1);
-    update_p_nz(nes.cpu.x, nes);
+    update_p_nz(nes, nes.cpu.x);
 }
 pub fn increment_y(nes: &mut Nes) {
     nes.cpu.y = nes.cpu.y.wrapping_add(1);
-    update_p_nz(nes.cpu.y, nes);
+    update_p_nz(nes, nes.cpu.y);
 }
 
 pub fn clear_carry_flag(nes: &mut Nes) {
@@ -209,13 +209,13 @@ pub fn las(nes: &mut Nes) {
     nes.cpu.a = result;
     nes.cpu.x = result;
     nes.cpu.s = result;
-    update_p_nz(nes.cpu.a, nes);
+    update_p_nz(nes, nes.cpu.a);
 }
 
 pub fn lax(nes: &mut Nes) {
     nes.cpu.a = nes.cpu.data;
     nes.cpu.x = nes.cpu.data;
-    update_p_nz(nes.cpu.a, nes);
+    update_p_nz(nes, nes.cpu.a);
 }
 
 pub fn sax(nes: &mut Nes) {

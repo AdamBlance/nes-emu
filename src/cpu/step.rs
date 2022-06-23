@@ -77,7 +77,7 @@ pub fn step_cpu(nes: &mut Nes) {
             }
             if nes.cpu.pause {
                 println!(
-                    "Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {} x {} y {} inhibit {} line {} cycle {} counter {}", 
+                    "Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {:02X} x {:02X} y {:02X} inhibit {} line {} cycle {} counter {}", 
                     nes.cpu.instruction.name, 
                     opcode, 
                     nes.cpu.pc, 
@@ -91,6 +91,13 @@ pub fn step_cpu(nes: &mut Nes) {
                     nes.cart.get_counter(),
                 );
             }
+            if nes.cpu.cycles == nes.cpu.target && nes.cpu.pause {
+                let mut line = String::new();
+                std::io::stdin().read_line(&mut line);
+                let step_by: u64 = line.trim().parse().unwrap_or(1);
+        
+                nes.cpu.target = step_by;
+            }
             increment_pc(nes);
         
             // acknowledge interrupts on opcode fetch cycle for 2 cycle instructions
@@ -103,6 +110,14 @@ pub fn step_cpu(nes: &mut Nes) {
         }
 
         return
+    }
+
+    if nes.cpu.cycles == nes.cpu.target && nes.cpu.pause {
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line);
+        let step_by: u64 = line.trim().parse().unwrap_or(1);
+
+        nes.cpu.target = step_by;
     }
 
     /*
@@ -186,7 +201,7 @@ pub fn step_cpu(nes: &mut Nes) {
             (PLA, _) => { match cyc {
                 1 => {DUMMY_READ_FROM_PC(nes);}
                 2 => {increment_s(nes);}
-                3 => {pull_a_from_stack(nes); update_p_nz(nes.cpu.a, nes); nes.cpu.instruction_done = true;}
+                3 => {pull_a_from_stack(nes); update_p_nz(nes, nes.cpu.a); nes.cpu.instruction_done = true;}
                 _ => unreachable!(),
             }}
             (PLP, _) => { match cyc {
@@ -441,12 +456,6 @@ fn end_instr(nes: &mut Nes) {
 
     nes.cpu.instruction_count += 1;
 
-    if nes.cpu.instruction_count == nes.cpu.target && nes.cpu.pause {
-        let mut line = String::new();
-        std::io::stdin().read_line(&mut line);
-        let step_by: u64 = line.trim().parse().unwrap_or(1);
 
-        nes.cpu.target = nes.cpu.instruction_count + step_by;
-    }
 
 }

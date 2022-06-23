@@ -1,4 +1,4 @@
-use crate::util::{get_bit, get_bit_u16};
+use crate::util::get_bit_u16;
 
 
 #[derive(Copy, Clone)]
@@ -283,7 +283,47 @@ impl Cartridge for CartridgeM2 {
 
 
 
+pub struct CartridgeM3 {
+    // pub prg_ram: Vec<u8>,
+    pub prg_rom: Vec<u8>,
+    pub chr_rom: Vec<u8>,
+    pub mirroring: Mirroring,
 
+    pub bank_select: usize,
+}
+impl CartridgeM3 {
+    pub fn new(prg_rom: Vec<u8>, chr_rom: Vec<u8>, mirroring: Mirroring) -> CartridgeM3 {
+        CartridgeM3 {
+            // prg_ram: [0; 0x2000].to_vec(),
+            prg_rom,
+            chr_rom,
+            mirroring,
+            bank_select: 0,
+        }
+    }
+}
+impl Cartridge for CartridgeM3 {
+    // fn write_prg_ram(&mut self, addr: u16, byte: u8) {
+    //     self.prg_ram[(addr - 0x6000) as usize] = byte;
+    //     let string = String::from_utf8_lossy(&self.prg_ram[4..]);
+    //     println!("{string}");
+    // }
+    fn read_prg_rom(&mut self, addr: u16) -> u8 {
+        self.prg_rom[addr as usize % self.prg_rom.len()]
+    }
+    fn write_prg_rom(&mut self, _addr: u16, byte: u8, _cpu_cycle: u64) {
+        // self.bank_select = (byte & 0b1111_1111) as usize;
+        self.bank_select = (byte & 0b0000_0011) as usize;
+    }
+
+    fn read_chr(&mut self, addr: u16) -> u8 {
+        self.chr_rom[self.bank_select * 0x2000 + addr as usize]
+    }
+
+    fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
+        basic_nametable_mirrroring(addr, self.mirroring)
+    }
+}
 
 
 
@@ -386,12 +426,7 @@ impl Cartridge for CartridgeM4 {
         };
         self.prg_rom[base_bank_addr]
     }
-    fn write_prg_rom(&mut self, addr: u16, byte: u8, cpu_cycle: u64) {
-
-        let banks02 = self.prg_bank_0_or_2;
-        let bank1 = self.prg_bank_1;
-        let mode = self.prg_fixed_bank_select;
-        let bank_select = self.bank_index;
+    fn write_prg_rom(&mut self, addr: u16, byte: u8, _cpu_cycle: u64) {
 
         let even = addr % 2 == 0;
         
@@ -445,11 +480,6 @@ impl Cartridge for CartridgeM4 {
             }
             _ => unreachable!(),
         }
-
-        let banks02 = self.prg_bank_0_or_2;
-        let bank1 = self.prg_bank_1;
-        let mode = self.prg_fixed_bank_select;
-        let bank_select = self.bank_index;
 
     }
 
@@ -518,6 +548,64 @@ impl Cartridge for CartridgeM4 {
         self.scanline_counter_curr
     }
 }
+
+
+
+
+
+
+
+
+
+pub struct CartridgeM7 {
+    pub prg_rom: Vec<u8>,
+    pub chr_ram: Vec<u8>,
+    pub mirroring: Mirroring,
+
+    pub bank_select: usize,
+}
+impl CartridgeM7 {
+    pub fn new(prg_rom: Vec<u8>) -> CartridgeM7 {
+        CartridgeM7 {
+            prg_rom,
+            chr_ram: [0; 0x2000].to_vec(),
+            mirroring: Mirroring::SingleScreenLower,
+            bank_select: 0,
+        }
+    }
+}
+impl Cartridge for CartridgeM7 {
+    fn read_prg_rom(&mut self, addr: u16) -> u8 {
+        self.prg_rom[self.bank_select * 0x8000 + (addr as usize - 0x8000)]
+    }
+    fn write_prg_rom(&mut self, _addr: u16, byte: u8, _cpu_cycle: u64) {
+        self.bank_select = (byte & 0b0000_0111) as usize;
+        self.mirroring = if (byte & 0b0001_0000) == 0 {
+            Mirroring::SingleScreenLower
+        } else {
+            Mirroring::SingleScreenUpper
+        };
+    }
+
+    fn read_chr(&mut self, addr: u16) -> u8 {
+        self.chr_ram[addr as usize]
+    }
+
+    fn write_chr(&mut self, addr: u16, byte: u8) {
+        self.chr_ram[addr as usize] = byte;
+    }
+
+    fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
+        basic_nametable_mirrroring(addr, self.mirroring)
+    }
+}
+
+
+
+
+
+
+
 
 
 
