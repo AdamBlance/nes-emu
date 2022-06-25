@@ -25,7 +25,7 @@ pub struct CartridgeM1 {
     pub shift_register: u8,
     pub write_counter: u8,
 
-    pub consecutive_write_toggle: bool,
+    pub consecutive_write_counter: u8,
 }
 
 impl CartridgeM1 {
@@ -48,7 +48,7 @@ impl CartridgeM1 {
             shift_register: 0,
             write_counter: 0,
             
-            consecutive_write_toggle: false,
+            consecutive_write_counter: 0,
         }
     }
 
@@ -113,7 +113,9 @@ impl Cartridge for CartridgeM1 {
             self.prg_bank_mode = 3;
         } 
         // Ignore consecutive writes
-        else if !self.consecutive_write_toggle {
+        else if self.consecutive_write_counter == 0 {
+
+            self.consecutive_write_counter = 2;
 
             self.shift_register >>= 1;
             self.shift_register |= (byte & 1) << 4;
@@ -143,7 +145,7 @@ impl Cartridge for CartridgeM1 {
                 self.write_counter = 0;
             }
         }
-        self.consecutive_write_toggle = !self.consecutive_write_toggle;
+
     }
 
     fn read_chr(&mut self, addr: u16) -> u8 {
@@ -158,6 +160,10 @@ impl Cartridge for CartridgeM1 {
 
     fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
         basic_nametable_mirrroring(addr, self.mirroring)
+    }
+
+    fn cpu_tick(&mut self) {
+        self.consecutive_write_counter = self.consecutive_write_counter.saturating_sub(1);
     }
 
 }

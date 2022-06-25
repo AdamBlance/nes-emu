@@ -40,6 +40,8 @@ pub struct CartridgeM4 {
     pub irq_enable: bool,
 
     pub interrupt_request: bool,
+
+    pub a12_filtering_counter: u8,
 }
 
 impl CartridgeM4 {
@@ -66,6 +68,7 @@ impl CartridgeM4 {
             scanline_counter_reset_flag: false,
             irq_enable: false,
             interrupt_request: false,
+            a12_filtering_counter: 0,
         }
     }
 }
@@ -198,27 +201,43 @@ impl Cartridge for CartridgeM4 {
     }
 
     fn ppu_tick(&mut self, addr_bus: u16) {
-        let new_a12_value = get_bit_u16(addr_bus, 12);
-        
+
         // https://archive.nes.science/nesdev-forums/f2/t7718.xhtml
         // https://forums.nesdev.org/viewtopic.php?t=8807
         // https://www.nesdev.org/wiki/CPU_pinout
-        // M2 is actually a CPU pin
-        // So nametable reads will sometimes make A12 go high during rendering which of course
-        // fucks up the scanline counter
 
+        self.a12_filtering_counter = self.a12_filtering_counter.saturating_sub(1);
+
+        let new_a12_value = get_bit_u16(addr_bus, 12);
+        
         // If PPU has gone from fetching background tiles to fetching sprite tiles
         if self.last_a12_value == false && new_a12_value == true {
-            println!("sc curr {} init {} enable {}", self.scanline_counter_curr, self.scanline_counter_init, self.irq_enable);
-            if self.scanline_counter_curr == 0 || self.scanline_counter_reset_flag {
-                if self.irq_enable && self.scanline_counter_curr == 0 {
-                    self.interrupt_request = true; 
+            // println!("A12 edge");
+            // If last rising edge was more than 16 PPU cycles ago, update scanline counter
+            if self.a12_filtering_counter == 0 {
+                // println!("Within 16 ticks");
+                // println!("Old counter val {} init {} reset {} irq {}", self.scanline_counter_curr, self.scanline_counter_init, self.scanline_counter_reset_flag, self.irq_enable);
+                if self.scanline_counter_curr == 0 || self.scanline_counter_reset_flag {
+                    self.scanline_counter_curr = self.scanline_counter_init;
+                    self.scanline_counter_reset_flag = false;
+                } else {
+                    self.scanline_counter_curr -= 1;
+
+                    // println!("Decremented!");
+                    // let mut line = String::new();
+                    // std::io::stdin().read_line(&mut line);
+
+                    if self.irq_enable && self.scanline_counter_curr == 0 {
+                        // println!("Do interrupt");
+
+                        self.interrupt_request = true; 
+                    }
                 }
-                self.scanline_counter_curr = self.scanline_counter_init;
-                self.scanline_counter_reset_flag = false;
-            } else {
-                self.scanline_counter_curr -= 1;
+                // println!("New counter val {} init {} reset {}", self.scanline_counter_curr, self.scanline_counter_init, self.scanline_counter_reset_flag);
+
             }
+            // Reset the 16 PPU cycles ago counter whenever there is a rising edge on A12
+            self.a12_filtering_counter = 16;
         }
 
         self.last_a12_value = new_a12_value;

@@ -195,6 +195,8 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                     nes.ppu.t |= val_u16;
                     // Copy t into v
                     nes.ppu.v = nes.ppu.t;
+                    nes.ppu.addr_bus = nes.ppu.v;
+                    // println!("new ppu addr {:013b} {:04X}", nes.ppu.v, nes.ppu.v);
                 }
                 nes.ppu.w = !nes.ppu.w;
             }

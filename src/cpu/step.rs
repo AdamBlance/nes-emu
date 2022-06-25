@@ -51,7 +51,7 @@ pub fn step_cpu(nes: &mut Nes) {
 
         // Ignore IRQ until the interrupt inhibit status flag is cleared
         else if nes.cpu.irq_pending && !nes.cpu.p_i {
-            // println!("IN IRQ, cycle {}", nes.cpu.interrupt_cycle);
+            if nes.cpu.pause {println!("IN IRQ, cycle {}", nes.cpu.interrupt_cycle);}
             match nes.cpu.interrupt_cycle {
                 0 => {DUMMY_READ_FROM_PC(nes); nes.cpu.interrupt_vector = 0xFFFE;}
                 1 => DUMMY_READ_FROM_PC(nes),
@@ -105,7 +105,7 @@ pub fn step_cpu(nes: &mut Nes) {
             // acknowledge interrupts on opcode fetch cycle for 2 cycle instructions
             if nes.cpu.instruction.does_interrupt_poll_early() {
                 nes.cpu.nmi_pending = nes.cpu.nmi_edge_detector_output;
-                nes.cpu.irq_pending = nes.cpu.prev_irq_signal;
+                nes.cpu.irq_pending = nes.cpu.prev_irq_signal && !nes.cpu.p_i;
             }
 
             end_cycle(nes);
@@ -158,7 +158,7 @@ pub fn step_cpu(nes: &mut Nes) {
     else if cat == Control {
         match (instr.name, instr.mode) {
             (BRK, _) => { match cyc {
-                1 => {DUMMY_READ_FROM_PC(nes); increment_pc(nes);}
+                1 => {DUMMY_READ_FROM_PC(nes); increment_pc(nes); nes.cpu.interrupt_vector = 0xFFFE;}
                 2 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
                 3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
                 4 => {push_p_to_stack_during_break(nes); decrement_s(nes);}
@@ -424,6 +424,7 @@ fn end_cycle(nes: &mut Nes) {
         nes.cpu.nmi_edge_detector_output = true;
     }
     nes.cpu.prev_nmi_signal = nes.ppu.nmi_line;
+    if nes.cpu.pause {println!("cart irq {} pending {}", nes.cart.asserting_irq(), nes.cpu.irq_pending);}
     nes.cpu.prev_irq_signal = nes.apu.asserting_irq() || nes.cart.asserting_irq();
 
     nes.cpu.cycles += 1;
@@ -450,7 +451,7 @@ fn end_instr(nes: &mut Nes) {
     // 
     if !nes.cpu.instruction.does_interrupt_poll_early() {
         nes.cpu.nmi_pending = nes.cpu.nmi_edge_detector_output;
-        nes.cpu.irq_pending = nes.cpu.prev_irq_signal;
+        nes.cpu.irq_pending = nes.cpu.prev_irq_signal && !nes.cpu.p_i;
     }
     
     nes.cpu.instruction_cycle = -1;
