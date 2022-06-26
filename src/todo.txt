@@ -1,4 +1,5 @@
 High priority:
+    - IT'S TIME TO WRITE A PROPPER DEBUGGER!!!
     - Implement all unofficial instructions. Most test roms test these, might as well implement them.
         + This will involve putting associated functions in the
     - Implement a decent debugger! Will need this to figure out why tests aren't passing.
