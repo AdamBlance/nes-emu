@@ -1,3 +1,5 @@
+use ggez::input::gamepad::gilrs::ff::Envelope;
+
 use crate::nes::Nes;
 use crate::mem::read_mem;
 use super::channels::*;
@@ -9,11 +11,168 @@ const STEP_3: u16 = 11186;
 const STEP_4: u16 = 14915;
 const STEP_5: u16 = 18641;
 
+/*
+
+This is just an incomprehensible mess. Try to mimic these diagrams instead.
+
+https://www.nesdev.org/apu_ref.txt
 
 
 
-// I could totally make some linear counter object
-// dividers, counters, sequencers are so common here that an "abstract" implementation might be nice
+--------------
+Square Channel
+--------------
+
+                   +---------+    +---------+
+                   |  Sweep  |--->|Timer / 2|
+                   +---------+    +---------+
+                        |              |
+                        |              v 
+                        |         +---------+    +---------+
+                        |         |Sequencer|    | Length  |
+                        |         +---------+    +---------+
+                        |              |              |
+                        v              v              v
+    +---------+        |\             |\             |\          +---------+
+    |Envelope |------->| >----------->| >----------->| >-------->|   DAC   |
+    +---------+        |/             |/             |/          +---------+
+
+
+
+----------------
+Triangle Channel
+----------------
+
+                   +---------+    +---------+
+                   |LinearCtr|    | Length  |
+                   +---------+    +---------+
+                        |              |
+                        v              v
+    +---------+        |\             |\         +---------+    +---------+ 
+    |  Timer  |------->| >----------->| >------->|Sequencer|--->|   DAC   |
+    +---------+        |/             |/         +---------+    +---------+ 
+
+
+-------------   
+Noise Channel
+-------------
+
+    +---------+    +---------+    +---------+
+    |  Timer  |--->| Random  |    | Length  |
+    +---------+    +---------+    +---------+
+                        |              |
+                        v              v
+    +---------+        |\             |\         +---------+
+    |Envelope |------->| >----------->| >------->|   DAC   |
+    +---------+        |/             |/         +---------+
+
+------------------------------
+Delta Modulation Channel (DMC)
+------------------------------
+
+    +----------+    +---------+
+    |DMA Reader|    |  Timer  |
+    +----------+    +---------+
+         |               |
+         |               v
+    +----------+    +---------+     +---------+     +---------+ 
+    |  Buffer  |----| Output  |---->| Counter |---->|   DAC   |
+    +----------+    +---------+     +---------+     +---------+ 
+
+*/
+
+
+
+struct EnvelopeGenerator {
+    pub divider: u8,
+    pub start_flag: bool,
+    pub loop_flag: bool,
+    pub constant_volume_flag: bool,
+    pub envelope_parameter: u8,
+    pub decay_level: u8,
+}
+impl EnvelopeGenerator {
+    fn clock(&mut self) {
+        if self.start_flag {
+            self.start_flag = false;
+            self.decay_level = 15;
+            self.divider = self.envelope_parameter;
+        } else {
+            self.clock_divider();
+        }
+    }
+
+    fn clock_divider(&mut self) {
+        if self.divider > 0 {
+            self.divider -= 1;
+        } else {
+            self.divider = self.envelope_parameter;
+            self.clock_decay_counter();
+        }
+    }
+
+    fn clock_decay_counter(&mut self) {
+        if self.decay_level > 0 {
+            self.decay_level -= 1;
+        } else if self.loop_flag {
+            self.decay_level = 15;
+        }
+    }
+
+    fn get_output(&self) -> u8 {
+        if self.constant_volume_flag {
+            self.envelope_parameter
+        } else {
+            self.decay_level
+        }
+    }
+}
+
+
+struct SweepUnit {
+
+    pub is_pulse_1: bool,
+
+    pub pulse_period: u16,
+
+    pub enabled_flag: bool,
+    pub divider_period: u8,
+    pub divider: u8,
+    pub negate_flag: bool,
+    pub shift_amount: u8,
+    pub reload_flag: bool,
+
+}
+impl SweepUnit {
+
+    fn get_target_period(&self) -> u16 {
+        let period_change = self.pulse_period >> self.shift_amount;
+        match (self.negate_flag, self.is_pulse_1) {
+            (false, _) => self.pulse_period + period_change,
+            (true, true) => self.pulse_period - period_change - 1,
+            (true, false) => self.pulse_period - period_change,
+        }
+    }
+
+    fn is_muting(&self) -> bool {
+        self.pulse_period < 8 || self.get_target_period() > 0x7FF
+    }
+
+    fn clock(&mut self) {
+
+        // will need to update mute status constantly, I think? 
+        // period can be updated by writes to pulse period that bypass sweep unit
+
+        let target = self.get_target_period();
+        if self.divider == 0 && self.enabled_flag && !self.is_muting() {
+        }
+    }
+}
+
+
+
+
+
 
 
 pub fn step_apu(nes: &mut Nes) {
@@ -23,10 +182,8 @@ pub fn step_apu(nes: &mut Nes) {
         clock_pulse_timer(&mut nes.apu.square2);
         clock_noise_timer(&mut nes.apu.noise);
     }
-
     clock_triangle_timer(&mut nes.apu.triangle);
     clock_sample_timer(nes);
-
 }
 
 
@@ -63,18 +220,14 @@ pub fn clock_frame_sequencer(nes: &mut Nes) {
 }
 
 
-// I have to figure out how to make this less verbose, probably methods
+
 fn clock_sample_timer(nes: &mut Nes) {
     if nes.apu.sample.curr_timer_value == 0 {
         nes.apu.sample.curr_timer_value = nes.apu.sample.init_timer_value;
         
-        // println!("Bytes remaining {}", nes.apu.sample.remaining_sample_bytes);
-
         if nes.apu.sample.buffer_bits_remaining == 0 && nes.apu.sample.remaining_sample_bytes > 0 && nes.apu.sample.enabled {
             
             let new_sample_data = read_mem(nes.apu.sample.curr_sample_addr, nes);
-            // println!("Sample curr addr {:04X}", nes.apu.sample.curr_sample_addr);
-            // std::thread::sleep(std::time::Duration::from_millis(5));
             nes.apu.sample.sample_buffer = new_sample_data;
             nes.apu.sample.buffer_bits_remaining = 8;
             // Wrap around 0xC000-0xFFFF
@@ -128,7 +281,7 @@ fn clock_triangle_timer(tri: &mut Triangle) {
         // we need to maintain the output but not clock the sequencer to avoid popping 
         // If we output 0 instead of maintaing the output, if the sequencer is at its highest output
         // level (0xF), the sound jumps from 0 to F instantly, creating a popping sound
-        if tri.linear_counter_curr_value > 0 && tri.length_counter > 0 && (tri.timer_init_value > 3) && tri.enabled {
+        if tri.linear_counter_curr_value > 0 && tri.length_counter > 0 && (tri.timer_init_value > 2) && tri.enabled {
             tri.sequencer_stage = (tri.sequencer_stage + 1) % 32;
         }
         
