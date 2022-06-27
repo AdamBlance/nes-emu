@@ -1,9 +1,7 @@
-use ggez::input::gamepad::gilrs::ff::Envelope;
 
 use crate::nes::Nes;
 use crate::mem::read_mem;
-use super::channels::*;
-
+use super::channels::{*, self};
 
 const STEP_1: u16 = 3729;
 const STEP_2: u16 = 7457;
@@ -130,45 +128,75 @@ impl EnvelopeGenerator {
 
 
 struct SweepUnit {
+    pub divider_period: u8,
+    pub divider: u8,
 
+    pub enabled_flag: bool,
+    pub reload_flag: bool,
     pub is_pulse_1: bool,
 
     pub pulse_period: u16,
-
-    pub enabled_flag: bool,
-    pub divider_period: u8,
-    pub divider: u8,
+    pub target_period: u16,
     pub negate_flag: bool,
     pub shift_amount: u8,
-    pub reload_flag: bool,
 
+    pub mute_flag: bool,
 }
 impl SweepUnit {
 
-    fn get_target_period(&self) -> u16 {
+    fn clock(&mut self) {
+        if self.divider == 0 && self.enabled_flag && !self.mute_flag && self.shift_amount != 0 {
+            self.set_period(self.target_period);
+        }
+
+        if self.divider == 0 || self.reload_flag {
+            self.divider = self.divider_period;
+            self.reload_flag = false;
+        } else {
+            self.divider -= 1;
+        }
+    }
+
+    fn set_period(&mut self, period: u16) {
+        self.pulse_period = period;
+
         let period_change = self.pulse_period >> self.shift_amount;
-        match (self.negate_flag, self.is_pulse_1) {
+        self.target_period = match (self.negate_flag, self.is_pulse_1) {
             (false, _) => self.pulse_period + period_change,
             (true, true) => self.pulse_period - period_change - 1,
             (true, false) => self.pulse_period - period_change,
-        }
-    }
+        };
 
-    fn is_muting(&self) -> bool {
-        self.pulse_period < 8 || self.get_target_period() > 0x7FF
-    }
-
-    fn clock(&mut self) {
-
-        // will need to update mute status constantly, I think? 
-        // period can be updated by writes to pulse period that bypass sweep unit
-
-        let target = self.get_target_period();
-        if self.divider == 0 && self.enabled_flag && !self.is_muting() {
-        }
+        self.mute_flag = self.pulse_period < 8 || self.target_period > 0x7FF;
     }
 }
 
+
+
+
+struct LengthCounter {
+    // When the channel is disabled, the length counter value cannot be changed
+    pub channel_disabled: bool,
+    pub counter: u8,
+    pub halt_flag: bool,
+    pub mute_flag: bool,
+}
+impl LengthCounter {
+    fn clock(&mut self) {
+        if self.counter > 0 && !self.halt_flag {
+            self.counter -= 1;
+        }
+        self.mute_flag = self.counter == 0;
+    }
+    
+    fn update_counter(&mut self, val: u8) {
+        if !self.channel_disabled {
+            self.counter = LENGTH_TABLE[val as usize];
+        }
+    }
+
+    
+}
 
 
 
