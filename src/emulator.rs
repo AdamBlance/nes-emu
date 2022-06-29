@@ -13,7 +13,7 @@ pub fn run_to_vblank(nes: &mut Nes) {
         nes.ppu.scanline_cycle = 27;
         nes.cpu.p_i = true;
         nes.cpu.s = 0xFD;
-        nes.apu.sample.init_timer_value = 428;
+        nes.apu.sample.timer_reload = 428;
         nes.cpu.target = 100;
         // nes.cpu.pause = true;
     }

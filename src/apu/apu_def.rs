@@ -4,6 +4,12 @@ use std::sync::mpsc::Sender;
 
 const CPU_HZ:   f64 = 1_789_773.0;
 
+const STEP_1: u16 = 3729;
+const STEP_2: u16 = 7457;
+const STEP_3: u16 = 11186;
+const STEP_4: u16 = 14915;
+const STEP_5: u16 = 18641;
+
 pub struct Apu {
 
     pub frame_sequencer_mode_1: bool,
@@ -65,12 +71,12 @@ impl Apu {
     pub fn step_apu(&mut self, cpu_cycles: u64) {
         if cpu_cycles % 2 == 0 {
             self.clock_frame_sequencer();
-            clock_pulse_timer(&mut nes.apu.square1);
-            clock_pulse_timer(&mut nes.apu.square2);
-            clock_noise_timer(&mut nes.apu.noise);
+            self.square1.clock_period_timer();
+            self.square2.clock_period_timer();
+            self.noise.clock_period_timer();
         }
-        clock_triangle_timer(&mut nes.apu.triangle);
-        clock_sample_timer(nes);
+        self.triangle.clock_period_timer();
+        self.sample.clock_period_timer();
     }
 
 
@@ -134,15 +140,6 @@ impl Apu {
         self.triangle.length_counter.clock();
         self.noise.length_counter.clock();
     }
-
-
-
-
-
-    
-
-
-
 
 
 }

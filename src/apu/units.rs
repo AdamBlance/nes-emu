@@ -120,7 +120,7 @@ impl SweepUnit {
 
     pub fn clock(&mut self) {
         if self.divider == 0 && self.enabled_flag && !self.mute_flag && self.shift_amount != 0 {
-            self.set_period(self.target_period);
+            self.set_timer_period(self.target_period);
         }
 
         if self.divider == 0 || self.reload_flag {
@@ -131,7 +131,7 @@ impl SweepUnit {
         }
     }
 
-    pub fn set_period(&mut self, period: u16) {
+    pub fn set_timer_period(&mut self, period: u16) {
         self.pulse_period = period;
 
         let period_change = self.pulse_period >> self.shift_amount;
@@ -175,19 +175,19 @@ impl LengthCounter {
         }
         self.mute_flag = self.counter == 0;
     }
-    
-    pub fn update_counter(&mut self, val: u8) {
-        if !self.channel_disabled {
-            self.counter = step::LENGTH_TABLE[val as usize];
-        }
-    }
 
     pub fn set_halt_flag(&mut self, val: bool) {
         self.halt_flag = val;
     }
 
     pub fn configure_with_byte(&mut self, byte: u8) {
-        self.counter = LENGTH_TABLE[((byte & 0b1111_1000) >> 3) as usize];
+        if !self.channel_disabled {
+            self.counter = LENGTH_TABLE[((byte & 0b1111_1000) >> 3) as usize];
+        }
+    }
+
+    pub fn get_mute_flag(&self) -> bool {
+        self.mute_flag
     }
 }
 
@@ -223,8 +223,8 @@ impl LinearCounter {
     pub fn set_reload_flag(&mut self) {
         self.reload_flag = true;
     }
-}
 
-pub struct PeriodTimer {
-    pub fn clock(&mut self, self.reset_period)
+    pub fn get_mute_flag(&self) -> bool {
+        self.mute_flag
+    }
 }
