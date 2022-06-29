@@ -1,4 +1,5 @@
 use super::channels::*;
+use super::units::*;
 use std::sync::mpsc::Sender;
 
 const CPU_HZ:   f64 = 1_789_773.0;
@@ -58,6 +59,90 @@ impl Apu {
     }
     pub fn asserting_irq(&self) -> bool {
         self.interrupt_request || self.sample.interrupt_request
-        // false
     }
+
+
+    pub fn step_apu(&mut self, cpu_cycles: u64) {
+        if cpu_cycles % 2 == 0 {
+            self.clock_frame_sequencer();
+            clock_pulse_timer(&mut nes.apu.square1);
+            clock_pulse_timer(&mut nes.apu.square2);
+            clock_noise_timer(&mut nes.apu.noise);
+        }
+        clock_triangle_timer(&mut nes.apu.triangle);
+        clock_sample_timer(nes);
+    }
+
+
+
+    fn clock_frame_sequencer(&mut self) {
+    
+        match self.frame_sequencer_counter {
+            STEP_1 => {
+                self.clock_envelope_generators_and_linear_counter();
+            }
+            STEP_2 => {
+                self.clock_envelope_generators_and_linear_counter();
+                self.clock_sweep_units_and_length_counters();
+            }
+            STEP_3 => {
+                self.clock_envelope_generators_and_linear_counter();
+            }
+            STEP_4 => {
+                if !self.frame_sequencer_mode_1 {
+                    self.clock_envelope_generators_and_linear_counter();
+                    self.clock_sweep_units_and_length_counters();
+                    if !self.frame_sequencer_interrupt_inhibit {
+                        self.interrupt_request = true;
+                    }
+                    self.frame_sequencer_counter = 0
+                }
+            }
+            STEP_5 => {
+                self.clock_envelope_generators_and_linear_counter();
+                self.clock_sweep_units_and_length_counters();
+                self.frame_sequencer_counter = 0;
+            }
+            _ => (),
+        }
+        self.frame_sequencer_counter += 1;
+    }
+    
+    
+
+    
+    
+    
+    
+    
+    
+    
+    fn clock_envelope_generators_and_linear_counter(&mut self) {
+        self.square1.envelope_generator.clock();
+        self.square2.envelope_generator.clock();
+        self.noise.envelope_generator.clock();
+        self.triangle.linear_counter.clock();    
+    }
+    
+    
+    fn clock_sweep_units_and_length_counters(&mut self) {
+        self.square1.sweep_unit.clock();
+        self.square2.sweep_unit.clock();
+        
+        self.square1.length_counter.clock();
+        self.square2.length_counter.clock();
+        self.triangle.length_counter.clock();
+        self.noise.length_counter.clock();
+    }
+
+
+
+
+
+    
+
+
+
+
+
 }
