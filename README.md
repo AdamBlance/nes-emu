@@ -14,6 +14,8 @@ in confirming my emulator behaves the same way as NES hardware.
 
 The emulator currently runs at full speed with video, audio, and controller support (CPU, PPU, and APU implemented). 
 
+![smb3gif](smb3.gif)
+
 Mappers currently supported: 
 - [iNES mapper 0 / NROM](https://nesdir.github.io/mapper0.html)
 - [iNES mapper 1 / MMC1](https://nesdir.github.io/mapper1.html)
