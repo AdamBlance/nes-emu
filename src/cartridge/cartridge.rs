@@ -27,7 +27,7 @@ pub trait Cartridge {
     fn read_prg_ram(&mut self, addr: u16) -> u8 {0}
     fn write_prg_ram(&mut self, addr: u16, byte: u8) {}
 
-    fn read_prg_rom(&mut self, addr: u16) -> u8;
+    fn read_prg_rom(&self, addr: u16) -> u8;
     fn write_prg_rom(&mut self, addr: u16, byte: u8) {}
 
     fn read_chr(&mut self, addr: u16) -> u8;

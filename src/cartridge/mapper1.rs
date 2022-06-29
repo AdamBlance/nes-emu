@@ -83,7 +83,7 @@ impl Cartridge for CartridgeM1 {
         }
     }
 
-    fn read_prg_rom(&mut self, addr: u16) -> u8 {
+    fn read_prg_rom(&self, addr: u16) -> u8 {
         let addru = addr as usize;
         match self.prg_bank_mode {
             0 | 1 => self.prg_rom[(self.prg_bank & 0b11110) * 32*KB + (addru - 0x8000)],

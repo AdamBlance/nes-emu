@@ -89,7 +89,7 @@ impl Cartridge for CartridgeM4 {
         }
     }
 
-    fn read_prg_rom(&mut self, addr: u16) -> u8 {
+    fn read_prg_rom(&self, addr: u16) -> u8 {
         let base_bank_addr = match (addr, self.prg_fixed_bank_select) {
             (0xA000..=0xBFFF, _) => self.prg_bank_1 * 8*KB + (addr as usize - 0xA000),
             (0xE000..=0xFFFF, _) => self.prg_rom.len() - 8*KB + (addr as usize - 0xE000),

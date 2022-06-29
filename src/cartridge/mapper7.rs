@@ -24,7 +24,7 @@ impl CartridgeM7 {
     }
 }
 impl Cartridge for CartridgeM7 {
-    fn read_prg_rom(&mut self, addr: u16) -> u8 {
+    fn read_prg_rom(&self, addr: u16) -> u8 {
         self.prg_rom[self.bank_select * 0x8000 + (addr as usize - 0x8000)]
     }
     fn write_prg_rom(&mut self, _addr: u16, byte: u8) {

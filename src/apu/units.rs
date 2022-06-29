@@ -1,45 +1,14 @@
 
 use crate::util::get_bit;
 
-use super::step;
-
 static LENGTH_TABLE: [u8; 32] = [
-    0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06, 
-    0xA0, 0x08, 0x3C, 0x0A, 0x0E, 0x0C, 0x1A, 0x0E, 
-    0x0C, 0x10, 0x18, 0x12, 0x30, 0x14, 0x60, 0x16, 
-    0xC0, 0x18, 0x48, 0x1A, 0x10, 0x1C, 0x20, 0x1E,
+    10,254, 20,  2, 40,  4, 80,  6, 160,  8, 60, 10, 14, 12, 26, 14,
+    12, 16, 24, 18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32, 30,
 ];
 
 
-
-
-
-/*
-
-    Envelope
-    Used by pulse and noise
-
-    both use --LC.VVVV for first register
-
-    both use LLLL.L--- for second register
-
-
-
-    Sweep
-    Only used by pulse channel
-
-    Length counter
-
-    pulse and noise have the length counter halt flag here --H-.----
-
-    triangle has length counter halt here H---.----
-
-
-
-
-
-*/
-
+// This encapsulation is nice and all but will have to go when I want to create a debugger
+// There's no way I'm writing getters and setters for no reason
 
 
 
@@ -51,7 +20,6 @@ pub struct EnvelopeGenerator {
     constant_volume_flag: bool,
     envelope_parameter: u8,
     decay_level: u8,
-    output: u8,
 }
 impl EnvelopeGenerator {
     pub fn clock(&mut self) {
@@ -63,6 +31,7 @@ impl EnvelopeGenerator {
             self.clock_divider();
         }
     }
+
 
     fn clock_divider(&mut self) {
         if self.divider > 0 {
@@ -81,16 +50,13 @@ impl EnvelopeGenerator {
         }
     }
 
+    // should get rid of all this configure with byte stuff, it's just confusing having to go around a bunch of files
+    // I should try to minimise the amount of jumping around you have to do, even if that means duplicating some code
+
     pub fn configure_with_byte(&mut self, byte: u8) {
         self.constant_volume_flag = get_bit(byte, 4);
         self.envelope_parameter = byte & 0b0000_1111;
         self.loop_flag = get_bit(byte, 5);
-
-        self.output = if self.constant_volume_flag {
-            self.envelope_parameter
-        } else {
-            self.decay_level
-        };
     }
 
     pub fn set_start_flag(&mut self) {
@@ -98,9 +64,21 @@ impl EnvelopeGenerator {
     }
 
     pub fn get_output(&self) -> u8 {
-        self.output
+        if self.constant_volume_flag {
+            self.envelope_parameter
+        } else {
+            self.decay_level
+        }
     }
 }
+
+
+
+
+
+
+
+
 
 
 #[derive(Copy, Clone, Default)]
@@ -155,7 +133,14 @@ impl SweepUnit {
         self.pulse_period
     }
 
+    pub fn is_muting(&self) -> bool {
+        self.mute_flag
+    }
+
 }
+
+
+
 
 
 
@@ -164,32 +149,59 @@ impl SweepUnit {
 pub struct LengthCounter {
     // When the channel is disabled, the length counter value cannot be changed
     channel_disabled: bool,
-    counter: u8,
+    pub counter: u8,  // temp? 
     halt_flag: bool,
-    mute_flag: bool,
 }
 impl LengthCounter {
+
+    pub fn set_lock(&mut self, status: bool) {
+        // println!("Enabled/disabled {status}");
+        self.channel_disabled = !status;
+        if self.channel_disabled {
+            self.counter = 0;
+        }
+    }
+
     pub fn clock(&mut self) {
         if self.counter > 0 && !self.halt_flag {
             self.counter -= 1;
         }
-        self.mute_flag = self.counter == 0;
+        println!("Length counter {}", self.counter);
     }
 
     pub fn set_halt_flag(&mut self, val: bool) {
         self.halt_flag = val;
+        if self.halt_flag {
+            println!("Something halting");
+        }
     }
 
     pub fn configure_with_byte(&mut self, byte: u8) {
         if !self.channel_disabled {
+            println!("configuring with {}", (byte & 0b1111_1000) >> 3);
             self.counter = LENGTH_TABLE[((byte & 0b1111_1000) >> 3) as usize];
+        } else {
+            println!("Still disabled");
         }
     }
 
-    pub fn get_mute_flag(&self) -> bool {
-        self.mute_flag
+    pub fn is_muting(&self) -> bool {
+        self.counter == 0
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #[derive(Copy, Clone, Default)]
@@ -198,7 +210,6 @@ pub struct LinearCounter {
     control_flag: bool,
     reload_value: u8,
     counter: u8,
-    mute_flag: bool,
 }
 impl LinearCounter {
     pub fn clock(&mut self) {
@@ -211,8 +222,6 @@ impl LinearCounter {
         if !self.control_flag {
             self.reload_flag = false;
         }
-
-        self.mute_flag = self.counter == 0;
     }
 
     pub fn configure_with_byte(&mut self, byte: u8) {
@@ -224,7 +233,7 @@ impl LinearCounter {
         self.reload_flag = true;
     }
 
-    pub fn get_mute_flag(&self) -> bool {
-        self.mute_flag
+    pub fn is_muting(&self) -> bool {
+        self.counter == 0
     }
 }

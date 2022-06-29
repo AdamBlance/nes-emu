@@ -29,7 +29,7 @@ impl CartridgeM2 {
 impl Cartridge for CartridgeM2 {
     // UxROM doesn't have PRG RAM support
 
-    fn read_prg_rom(&mut self, addr: u16) -> u8 {
+    fn read_prg_rom(&self, addr: u16) -> u8 {
         match addr {
             // Swappable 16KB at start of cartridge range
             0x8000..=0xBFFF => self.prg_rom[(self.bank_select * 0x4000) + (addr as usize - 0x8000)],

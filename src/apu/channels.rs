@@ -1,7 +1,7 @@
 
 use super::units::{EnvelopeGenerator, SweepUnit, LengthCounter, LinearCounter};
+use crate::cartridge::Cartridge;
 use crate::util::get_bit;
-use crate::mem::read_mem;
 
 static SAMPLE_RATE_TABLE: [u16; 16] = [
     428, 380, 340, 320, 286, 254, 226, 214, 
@@ -31,11 +31,6 @@ static SQUARE_SEQUENCES: [[bool; 8]; 4] = [
 
 
 
-
-
-
-
-
 #[derive(Copy, Clone, Default)]
 pub struct Square {
     pub envelope_generator: EnvelopeGenerator,
@@ -44,8 +39,8 @@ pub struct Square {
 
     timer: u16,
 
-    duty_cycle: u8,
-    sequencer_stage: u8,
+    duty_cycle: usize,
+    sequencer_stage: usize,
 }
 impl Square {
 
@@ -58,9 +53,21 @@ impl Square {
         }
     }
 
-    pub fn set_reg1_from_byte(&mut self, byte: u8) {
-        self.duty_cycle = (byte & 0b1100_0000) >> 6;
+    pub fn get_output(&self) -> f32 {
+        let signal_propagating = !self.sweep_unit.is_muting() 
+                                 && !self.length_counter.is_muting()
+                                 && SQUARE_SEQUENCES[self.duty_cycle][self.sequencer_stage];
+        
+        if signal_propagating {
+            self.envelope_generator.get_output() as f32
+        } else {
+            0.0
+        }
+    }
 
+
+    pub fn set_reg1_from_byte(&mut self, byte: u8) {
+        self.duty_cycle = ((byte & 0b1100_0000) >> 6) as usize;
         self.length_counter.set_halt_flag(get_bit(byte, 5));
         self.envelope_generator.configure_with_byte(byte);
     }
@@ -78,7 +85,7 @@ impl Square {
         self.sweep_unit.set_timer_period(val);
         self.sequencer_stage = 0;
         
-        self.length_counter.configure_with_byte(byte);        
+        self.length_counter.configure_with_byte(byte);
         self.envelope_generator.set_start_flag();
     }
 }
@@ -94,7 +101,7 @@ pub struct Triangle {
     timer_reload: u16,
     timer: u16,
 
-    sequencer_stage: u8,
+    sequencer_stage: usize,
 }
 impl Triangle {
 
@@ -103,10 +110,16 @@ impl Triangle {
             self.timer -= 1;
         } else {
             self.timer = self.timer_reload;
-            if !self.linear_counter.get_mute_flag() && !self.length_counter.get_mute_flag() && self.timer_reload > 2 {
+            if !self.linear_counter.is_muting() && !self.length_counter.is_muting() && self.timer_reload > 2 {
                 self.sequencer_stage = (self.sequencer_stage + 1) % 32;
             }
         }
+    }
+
+    pub fn get_output(&self) -> f32 {
+        // This isn't true to the diagram but prevents popping when the triangle turns on/off
+        // Instead, when it is being "muted", it just stops clocking the sequencer
+        TRIANGLE_SEQUENCE[self.sequencer_stage] as f32
     }
 
     pub fn set_reg1_from_byte(&mut self, byte: u8) {
@@ -148,6 +161,14 @@ impl Noise {
         } else {
             self.timer = self.timer_reload;
             self.shift_reg_output = fastrand::bool();
+        }
+    }
+
+    pub fn get_output(&self) -> f32 {
+        if self.shift_reg_output && !self.length_counter.is_muting() {
+            self.envelope_generator.get_output() as f32
+        } else {
+            0.0
         }
     }
 
@@ -194,13 +215,17 @@ pub struct Sample {
 }
 impl Sample {
 
-    pub fn clock_period_timer(&mut self) {
+    pub fn clock_period_timer(&mut self, cart: &Box<dyn Cartridge>) {
         if self.timer > 0 {
             self.timer -= 1;
         } else {
             self.timer = self.timer_reload;
-            self.clock_sample_logic();
+            self.clock_sample_logic(cart);
         }
+    }
+
+    pub fn get_output(&self) -> f32 {
+        self.output as f32
     }
 
     pub fn set_reg1_from_byte(&mut self, byte: u8) {
@@ -231,7 +256,7 @@ impl Sample {
         }
     }
 
-    fn clock_sample_logic(&mut self) {
+    fn clock_sample_logic(&mut self, cart: &Box<dyn Cartridge>) {
         if self.buffer_bits_remaining == 0 && self.remaining_sample_bytes > 0 {
                 
 
@@ -266,6 +291,10 @@ impl Sample {
     becomes hard to remember when you should and shouldn't be able to modify a field from outside 
     of the channel or unit.  
 
+    Now that I've refactored it from that absolutely hideous mess before, I could probably go back
+    and change it all into functions if I wanted to. I could always mark "private" fields
+    that aren't actually private with a letter or something at the start of their name
+
 */
 
 
@@ -277,7 +306,7 @@ impl Sample {
 
 
 
-            let new_sample_data = read_mem(self.curr_sample_addr, nes);
+            let new_sample_data = cart.read_prg_rom(self.curr_sample_addr);
             self.sample_buffer = new_sample_data;
             self.buffer_bits_remaining = 8;
             // Wrap around 0xC000-0xFFFF

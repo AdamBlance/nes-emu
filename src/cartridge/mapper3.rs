@@ -31,7 +31,7 @@ impl Cartridge for CartridgeM3 {
     //     let string = String::from_utf8_lossy(&self.prg_ram[4..]);
     //     println!("{string}");
     // }
-    fn read_prg_rom(&mut self, addr: u16) -> u8 {
+    fn read_prg_rom(&self, addr: u16) -> u8 {
         self.prg_rom[addr as usize % self.prg_rom.len()]
     }
     fn write_prg_rom(&mut self, _addr: u16, byte: u8) {
