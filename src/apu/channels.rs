@@ -1,92 +1,82 @@
 
-use super::units::{EnvelopeGenerator, SweepUnit, LengthCounter, LinearCounter};
-use crate::cartridge::Cartridge;
-use crate::util::get_bit;
-
-static SAMPLE_RATE_TABLE: [u16; 16] = [
-    428, 380, 340, 320, 286, 254, 226, 214, 
-    190, 160, 142, 128, 106,  84,  72,  54,
-];
-
-static NOISE_PERIOD_TABLE: [u16; 16] = [
-    0x004, 0x008, 0x010, 0x020, 0x040, 0x060, 0x080, 0x0A0, 
-    0x0CA, 0x0FE, 0x17C, 0x1FC, 0x2FA, 0x3F8, 0x7F2, 0xFE4,
-];
-
-static TRIANGLE_SEQUENCE: [u8; 32] = [
-    15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-];
-
 const H: bool = true;
 const L: bool = false;
-static SQUARE_SEQUENCES: [[bool; 8]; 4] = [
+pub static SQUARE_SEQUENCES: [[bool; 8]; 4] = [
     [L, H, L, L, L, L, L, L],  // 12.5% duty
     [L, H, H, L, L, L, L, L],  // 25.0% duty
     [L, H, H, H, H, L, L, L],  // 50.0% duty
     [H, L, L, H, H, H, H, H],  // 75.0% duty
 ];
 
+pub static TRIANGLE_SEQUENCE: [u8; 32] = [
+    0xF, 0xE, 0xD, 0xC, 0xB, 0xA, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0,
+    0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF,
+];
 
+pub static LENGTH_TABLE: [u8; 32] = [
+    0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06, 
+    0xA0, 0x08, 0x3C, 0x0A, 0x0E, 0x0C, 0x1A, 0x0E, 
+    0x0C, 0x10, 0x18, 0x12, 0x30, 0x14, 0x60, 0x16, 
+    0xC0, 0x18, 0x48, 0x1A, 0x10, 0x1C, 0x20, 0x1E,
+];
 
+pub static NOISE_PERIOD_TABLE: [u16; 16] = [
+    0x004, 0x008, 0x010, 0x020, 0x040, 0x060, 0x080, 0x0A0, 
+    0x0CA, 0x0FE, 0x17C, 0x1FC, 0x2FA, 0x3F8, 0x7F2, 0xFE4,
+];
 
+pub static SAMPLE_RATE_TABLE: [u16; 16] = [
+    428, 380, 340, 320, 286, 254, 226, 214, 
+    190, 160, 142, 128, 106,  84,  72,  54,
+];
 
 #[derive(Copy, Clone, Default)]
 pub struct Square {
-    pub envelope_generator: EnvelopeGenerator,
-    pub sweep_unit: SweepUnit, 
-    pub length_counter: LengthCounter,
-
-    timer: u16,
-
-    duty_cycle: usize,
-    sequencer_stage: usize,
+    pub enabled: bool,
+    pub length_counter_mute_signal: bool,
+    pub sequencer_stage: u8,
+    pub timer_init_value: u16,
+    pub timer_curr_value: u16,
+    pub duty_cycle: u8,
+    pub length_counter: u8,
+    pub constant_volume: bool,
+    pub envelope_loop_and_length_counter_halt: bool,
+    pub envelope_start_flag: bool,
+    pub volume_and_envelope_period: u8,
+    pub envelope_counter_curr_value: u8,
+    pub envelope_decay_level: u8,
+    pub envelope_output: u8,
+    pub sweep_enabled: bool,
+    pub sweep_counter_init_value: u8,
+    pub sweep_counter_curr_value: u8,
+    pub sweep_mute_signal: bool,
+    pub sweep_negate: bool,
+    pub sweep_shift_amount: u8,
+    pub sweep_reload_flag: bool,
+    pub sequencer_output: bool,
 }
 impl Square {
-
-    pub fn clock_period_timer(&mut self) {
-        if self.timer > 0 {
-            self.timer -= 1;
-        } else {
-            self.timer = self.sweep_unit.get_timer_period();
-            self.sequencer_stage = (self.sequencer_stage + 1) % 8;
-        }
-    }
-
-    pub fn get_output(&self) -> f32 {
-        let signal_propagating = !self.sweep_unit.is_muting() 
-                                 && !self.length_counter.is_muting()
-                                 && SQUARE_SEQUENCES[self.duty_cycle][self.sequencer_stage];
-        
-        if signal_propagating {
-            self.envelope_generator.get_output() as f32
-        } else {
-            0.0
-        }
-    }
-
-
     pub fn set_reg1_from_byte(&mut self, byte: u8) {
-        self.duty_cycle = ((byte & 0b1100_0000) >> 6) as usize;
-        self.length_counter.set_halt_flag(get_bit(byte, 5));
-        self.envelope_generator.configure_with_byte(byte);
+        self.duty_cycle = byte >> 6;
+        self.envelope_loop_and_length_counter_halt = (byte & 0b0010_0000) > 0;
+        self.constant_volume = (byte & 0b0001_0000) > 0;
+        self.volume_and_envelope_period = byte & 0b0000_1111;
     }
     pub fn set_reg2_from_byte(&mut self, byte: u8) {
-        self.sweep_unit.configure_with_byte(byte);
+        self.sweep_enabled = (byte & 0b1000_0000) > 0;
+        self.sweep_counter_init_value = (byte & 0b0111_0000) >> 4;
+        self.sweep_negate = (byte & 0b0000_1000) > 0;
+        self.sweep_shift_amount = byte & 0b0000_0111;
     }
     pub fn set_reg3_from_byte(&mut self, byte: u8) {
-        let val = (self.sweep_unit.get_timer_period() & 0b111_0000_0000) | byte as u16;
-        self.sweep_unit.set_timer_period(val)
+        self.timer_init_value &= 0b111_0000_0000;
+        self.timer_init_value |= byte as u16;
     }
     pub fn set_reg4_from_byte(&mut self, byte: u8) {
-        let val = (self.sweep_unit.get_timer_period() & 0b000_1111_1111) 
-                | (byte as u16 & 0b0000_0111) << 8;
-
-        self.sweep_unit.set_timer_period(val);
-        self.sequencer_stage = 0;
-        
-        self.length_counter.configure_with_byte(byte);
-        self.envelope_generator.set_start_flag();
+        self.timer_init_value &= 0b000_1111_1111;
+        self.timer_init_value |= ((byte as u16) & 0b111) << 8;
+        self.length_counter = LENGTH_TABLE[((byte & 0b11111_000) >> 3) as usize];
+        self.envelope_start_flag = true;
     }
 }
 
@@ -95,48 +85,33 @@ impl Square {
 
 #[derive(Copy, Clone, Default)]
 pub struct Triangle {
-    pub linear_counter: LinearCounter,
-    pub length_counter: LengthCounter,
-
-    timer_reload: u16,
-    timer: u16,
-
-    sequencer_stage: usize,
+    pub enabled: bool,
+    pub sequencer_stage: u8,
+    pub sequencer_output: u8,
+    pub timer_init_value: u16,
+    pub timer_curr_value: u16,
+    pub length_counter: u8,
+    pub length_counter_halt_and_linear_counter_control: bool,
+    pub length_counter_mute_signal: bool,
+    pub linear_counter_reload_flag: bool,
+    pub linear_counter_init_value: u8,
+    pub linear_counter_curr_value: u8,
+    pub linear_counter_mute_signal: bool,
 }
 impl Triangle {
-
-    pub fn clock_period_timer(&mut self) {
-        if self.timer > 0 {
-            self.timer -= 1;
-        } else {
-            self.timer = self.timer_reload;
-            if !self.linear_counter.is_muting() && !self.length_counter.is_muting() && self.timer_reload > 2 {
-                self.sequencer_stage = (self.sequencer_stage + 1) % 32;
-            }
-        }
-    }
-
-    pub fn get_output(&self) -> f32 {
-        // This isn't true to the diagram but prevents popping when the triangle turns on/off
-        // Instead, when it is being "muted", it just stops clocking the sequencer
-        TRIANGLE_SEQUENCE[self.sequencer_stage] as f32
-    }
-
     pub fn set_reg1_from_byte(&mut self, byte: u8) {
-        self.linear_counter.configure_with_byte(byte);
-        self.length_counter.set_halt_flag(get_bit(byte, 7));
+        self.length_counter_halt_and_linear_counter_control = (byte & 0b1000_0000) > 0;
+        self.linear_counter_init_value = byte & 0b0111_1111;
     }
     pub fn set_reg2_from_byte(&mut self, byte: u8) {
-        self.timer_reload &= 0b111_0000_0000;
-        self.timer_reload |= byte as u16;
+        self.timer_init_value &= 0b111_0000_0000;
+        self.timer_init_value |= byte as u16;
     }
     pub fn set_reg3_from_byte(&mut self, byte: u8) {
-        self.timer_reload &= 0b000_1111_1111;
-        self.timer_reload |= ((byte as u16) & 0b111) << 8;
-
-        self.length_counter.configure_with_byte(byte);
-
-        self.linear_counter.set_reload_flag();
+        self.timer_init_value &= 0b000_1111_1111;
+        self.timer_init_value |= ((byte as u16) & 0b111) << 8;
+        self.length_counter = LENGTH_TABLE[((byte & 0b11111_000) >> 3) as usize];
+        self.linear_counter_reload_flag = true;
     }
 }
 
@@ -145,52 +120,49 @@ impl Triangle {
 
 #[derive(Copy, Clone, Default)]
 pub struct Noise {
-    pub envelope_generator: EnvelopeGenerator,
-    pub length_counter: LengthCounter,
-
-    timer_reload: u16,
-    timer: u16,
-
-    shift_reg_output: bool,
+    pub enabled: bool,
+    pub envelope_loop_and_length_counter_halt: bool,
+    pub constant_volume: bool,
+    pub length_counter: u8,
+    pub length_counter_mute_signal: bool,
+    pub envelope_start_flag: bool,
+    pub envelope_decay_level: u8,
+    pub envelope_counter_curr_value: u8,
+    pub volume_and_envelope_period: u8,
+    pub sequencer_output: bool,
+    pub envelope_output: u8,
+    pub mode: bool,
+    pub timer_init_value: u16,
+    pub timer_curr_value: u16,
 }
 impl Noise {
-
-    pub fn clock_period_timer(&mut self) {
-        if self.timer > 0 {
-            self.timer -= 1;
-        } else {
-            self.timer = self.timer_reload;
-            self.shift_reg_output = fastrand::bool();
-        }
-    }
-
-    pub fn get_output(&self) -> f32 {
-        if self.shift_reg_output && !self.length_counter.is_muting() {
-            self.envelope_generator.get_output() as f32
-        } else {
-            0.0
-        }
-    }
-
     pub fn set_reg1_from_byte(&mut self, byte: u8) {
-        self.length_counter.set_halt_flag(get_bit(byte, 5));
-        self.envelope_generator.configure_with_byte(byte);
+        // println!("Reg 1 set");
+        self.envelope_loop_and_length_counter_halt = (byte & 0b0010_0000) > 0;
+        self.constant_volume = (byte & 0b0001_0000) > 0;
+        self.volume_and_envelope_period = byte & 0b0000_1111;
     }
     pub fn set_reg2_from_byte(&mut self, byte: u8) {
-        self.timer_reload = NOISE_PERIOD_TABLE[(byte & 0b0000_1111) as usize];
+        // println!("Reg 2 set");
+        // This will go unused. I'm not convinced that it does anything substantial
+        self.mode = (byte & 0b1000_0000) > 0;
+        self.timer_init_value = NOISE_PERIOD_TABLE[(byte & 0b0000_1111) as usize];
     }
     pub fn set_reg3_from_byte(&mut self, byte: u8) {
-        self.length_counter.configure_with_byte(byte);
-        self.envelope_generator.set_start_flag()
+        // println!("Reg 3 set, mute {}", self.length_counter_mute_signal);
+        self.length_counter = LENGTH_TABLE[((byte & 0b1111_1000) >> 3) as usize];
+        self.envelope_start_flag = true;
     }
 }
 
 #[derive(Copy, Clone, Default)]
 pub struct Sample {
+    pub enabled: bool,
+    // 0x4010
     pub irq_enabled: bool,
     pub loop_sample: bool,
-    pub timer_reload: u16,
-    pub timer: u16,
+    pub init_timer_value: u16,
+    pub curr_timer_value: u16,
 
     // 0x4011 - Writes directly to sample channel output
     // Used to playback PCM audio with full 7 bit samples
@@ -214,25 +186,11 @@ pub struct Sample {
     pub interrupt_request: bool,
 }
 impl Sample {
-
-    pub fn clock_period_timer(&mut self, cart: &Box<dyn Cartridge>) {
-        if self.timer > 0 {
-            self.timer -= 1;
-        } else {
-            self.timer = self.timer_reload;
-            self.clock_sample_logic(cart);
-        }
-    }
-
-    pub fn get_output(&self) -> f32 {
-        self.output as f32
-    }
-
     pub fn set_reg1_from_byte(&mut self, byte: u8) {
         self.irq_enabled      = (byte & 0b1000_0000) > 0;
         if !self.irq_enabled {self.interrupt_request = false}
         self.loop_sample      = (byte & 0b0100_0000) > 0;
-        self.timer_reload = SAMPLE_RATE_TABLE[(byte & 0b0000_1111) as usize];
+        self.init_timer_value = SAMPLE_RATE_TABLE[(byte & 0b0000_1111) as usize];
     }
     pub fn set_reg2_from_byte(&mut self, byte: u8) {
         // println!("Written {:08b} enabled {}", byte, self.enabled);
@@ -244,93 +202,4 @@ impl Sample {
     pub fn set_reg4_from_byte(&mut self, byte: u8) {
         self.sample_length = (byte as u16 * 16) + 1;
     }
-
-    fn clock_sample_timer(&mut self) {
-        if self.timer == 0 {
-            self.timer = self.timer_reload;
-            
-
-            
-        } else {
-            self.timer -= 1;
-        }
-    }
-
-    fn clock_sample_logic(&mut self, cart: &Box<dyn Cartridge>) {
-        if self.buffer_bits_remaining == 0 && self.remaining_sample_bytes > 0 {
-                
-
-
-
-/*
-
-    Alright, here's the problem. The APU needs to access memory (DMA) to read samples from memory. 
-    It will only ever read areas C000-FFFF.
-    
-    Since I've re-implemented the APU in an OO way with methods, I have been assuming that the APU 
-    is self contained and doesn't modify the rest of the system state, which is maybe wrong. 
-    
-    Since it can't read below C000, it at least can't touch any memory mapped registers.
-    It does need to read memory though, so it will need some access to the PRG ROM. 
-
-    My options are to:
-
-        - pass a mutable reference to the NES struct into the APU step function which ruins the 
-            point of encapsulation
-        - just pass the cartridge in, which is also a bit weird
-        - rewrite the whole thing to use functions again
-        - just rewrite the sample channel to use functions? 
-
-    It would be nice to keep the methods because writing nes.apu.sample... instead of self. is 
-    just really unpleasant to read. 
-
-    I think for the moment I'll just pass the cartridge in, can have a re-think later on. 
-    
-    Rewriting to use functions instead of methods is fine honestly. It was helpful to refactor this
-    with access control though, because there are so many little counters and variables that it
-    becomes hard to remember when you should and shouldn't be able to modify a field from outside 
-    of the channel or unit.  
-
-    Now that I've refactored it from that absolutely hideous mess before, I could probably go back
-    and change it all into functions if I wanted to. I could always mark "private" fields
-    that aren't actually private with a letter or something at the start of their name
-
-*/
-
-
-
-
-
-
-
-
-
-
-            let new_sample_data = cart.read_prg_rom(self.curr_sample_addr);
-            self.sample_buffer = new_sample_data;
-            self.buffer_bits_remaining = 8;
-            // Wrap around 0xC000-0xFFFF
-            self.curr_sample_addr = self.curr_sample_addr.wrapping_add(1);
-            if self.curr_sample_addr == 0 {self.curr_sample_addr = 0xC000}
-            
-            self.remaining_sample_bytes -= 1;
-
-            if self.remaining_sample_bytes == 0 {
-                if self.loop_sample {
-                    self.curr_sample_addr = self.init_sample_addr;
-                    self.remaining_sample_bytes = self.sample_length;
-                } else if self.irq_enabled {
-                    self.interrupt_request = true;
-                }
-            }
-        }
-
-        let delta: i8 = if (self.sample_buffer & 1) == 1 {2} else {-2}; 
-        // This is wrong! It doesn't saturate, just doesn't add the offset if it doesn't fit in the range
-        self.output = self.output.saturating_add_signed(delta).clamp(0, 0x7F);
-        self.sample_buffer >>= 1;
-        if self.buffer_bits_remaining > 0 {self.buffer_bits_remaining -= 1;}
-    }
-
-
 }

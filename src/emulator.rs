@@ -13,7 +13,6 @@ pub fn run_to_vblank(nes: &mut Nes) {
         nes.ppu.scanline_cycle = 27;
         nes.cpu.p_i = true;
         nes.cpu.s = 0xFD;
-        nes.apu.sample.timer_reload = 428;
         nes.cpu.target = 100;
         // nes.cpu.pause = true;
     }
@@ -26,8 +25,7 @@ pub fn run_to_vblank(nes: &mut Nes) {
         ppu::step_ppu(nes);
         ppu::step_ppu(nes);
         
-        nes.apu.step_apu(&nes.cart, nes.cpu.cycles);
-
+        apu::step_apu(nes);
 
         // At cycle mod 40
         if nes.apu.cycles_since_last_sample == nes.apu.target_cycles_per_sample.floor() as u64 {
@@ -88,11 +86,11 @@ fn do_sample(nes: &mut Nes) {
 
 
     // These will be between 0.0 and 15.0
-    let sq1_output = nes.apu.square1.get_output() * 1.0;
-    let sq2_output = nes.apu.square2.get_output() * 1.0;
-    let tri_output = nes.apu.triangle.get_output() * 1.0;
-    let noise = nes.apu.noise.get_output() * 1.0;
-    let sample = nes.apu.sample.get_output() * 1.0;
+    let sq1_output = apu::square_channel_output(&nes.apu.square1) * 1.0;
+    let sq2_output = apu::square_channel_output(&nes.apu.square2) * 1.0;
+    let tri_output = apu::triangle_channel_output(&nes.apu.triangle) * 1.0;
+    let noise = apu::noise_channel_output(&nes.apu.noise) * 1.0;
+    let sample = apu::sample_channel_output(&nes.apu.sample) * 1.0;
 
     let epsilon = 0.00001;
     let pos_bias = 1.0 + STEREO_PAN;

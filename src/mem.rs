@@ -117,14 +117,13 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
         }
 
         APU_STATUS_REG => {
-            let result = (!nes.apu.square1.length_counter.is_muting() as u8)
-                       | ((!nes.apu.square2.length_counter.is_muting() as u8) << 1)
-                       | ((!nes.apu.triangle.length_counter.is_muting() as u8) << 2)
-                       | ((!nes.apu.noise.length_counter.is_muting() as u8) << 3)
+            let result = nes.apu.square1.length_counter.min(1)
+                       | (nes.apu.square2.length_counter.min(1) << 1)
+                       | (nes.apu.triangle.length_counter.min(1) << 2)
+                       | (nes.apu.noise.length_counter.min(1) << 3)
                        | ((nes.apu.sample.remaining_sample_bytes.min(1) as u8) << 4)
                        | ((nes.apu.interrupt_request as u8) << 6)
                        | ((nes.apu.sample.interrupt_request as u8) << 7);
-            println!("Result {result:08b} sq1 len {} muting {}", nes.apu.square1.length_counter.counter, nes.apu.square1.length_counter.is_muting());
             nes.apu.interrupt_request = false;
             result
         },
@@ -242,18 +241,23 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
 
         APU_STATUS_REG => {
 
-            println!("Enabled/disabled {val:08b}");
-
             nes.apu.sample.interrupt_request = false;
 
-            nes.apu.square1.length_counter.set_lock((val & 0b00001) > 0);
-            nes.apu.square2.length_counter.set_lock((val & 0b00010) > 0);
-            nes.apu.triangle.length_counter.set_lock((val & 0b00100) > 0);
-            nes.apu.noise.length_counter.set_lock((val & 0b01000) > 0);
-            
-            if (val & 0b10000) == 0 {
-                nes.apu.sample.remaining_sample_bytes = 0;
-            }
+            nes.apu.square1.enabled = (val & 0b01) > 0;
+            nes.apu.square2.enabled = (val & 0b10) > 0;
+            nes.apu.triangle.enabled = (val & 0b100) > 0;
+            nes.apu.noise.enabled = (val & 0b1000) > 0;
+            nes.apu.sample.enabled = (val & 0b10000) > 0;
+
+            if !nes.apu.square1.enabled {nes.apu.square1.length_counter = 0;}
+            if !nes.apu.square2.enabled {nes.apu.square2.length_counter = 0;}
+            if !nes.apu.triangle.enabled {nes.apu.triangle.length_counter = 0;}
+            if !nes.apu.noise.enabled {nes.apu.noise.length_counter = 0;}
+            if !nes.apu.sample.enabled {nes.apu.sample.remaining_sample_bytes = 0;
+            } else {
+                nes.apu.sample.remaining_sample_bytes = nes.apu.sample.sample_length;
+                nes.apu.sample.curr_sample_addr = nes.apu.sample.init_sample_addr;
+            } // fix this, add silence flag like other channels
 
         }
 
@@ -262,19 +266,6 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
             nes.con2.write_to_data_latch(val);
             nes.apu.frame_sequencer_mode_1 = (val & 0b1000_0000) > 0;
             nes.apu.frame_sequencer_interrupt_inhibit = (val & 0b0100_0000) > 0;
-
-            if nes.apu.frame_sequencer_interrupt_inhibit {
-                nes.apu.interrupt_request = false;
-            }
-
-            if nes.apu.frame_sequencer_mode_1 {
-                nes.apu.clock_envelope_generators_and_linear_counter();
-                nes.apu.clock_sweep_units_and_length_counters();
-            }
-
-            nes.apu.last_frame_counter_write = nes.cpu.cycles;
-
-
         }
 
         // Cartridge space
