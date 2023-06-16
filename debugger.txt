@@ -16,6 +16,8 @@ Debugger required features:
     + show mapper specific information
     + show v, how it gets transformed to get the pattern table, nametable, palette values
     + PPUDATA bus
+    + show a zoomed in, pixel-by-pixel view as the image is being drawn
+    + show optional tile and attribute table boundaries
 - APU 
     + show all counters
     + show derived pitch values, approximate note
@@ -44,3 +46,12 @@ Debugger required features:
 - Misc
     + have a little box with text that pings when obscure behaviour happens and gives an explanation
     + have an NES controller with buttons that you can click on to send input at next cycle
+
+
+If you're coming back to this, a good place to start I think is the CPU. 
+Try to get literally every test you can think of passing. 
+So implement every single unofficial opcode. 
+Also do a little review of how the interrupt stuff is working.
+Might be nice to create a (mostly) exhaustive flowchart.
+Also, try not to get stuck on refactoring. Focus on just implementing all the opcodes. 
+
