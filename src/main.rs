@@ -10,6 +10,7 @@ use ggez::graphics::{self, DrawParam, Image};
 use ggez::mint::{Vector2, Point2};
 
 use std::sync::mpsc;
+use std::fs::File;
 
 mod nes;
 mod controller;
@@ -171,7 +172,7 @@ impl EventHandler for Emulator {
 
 
 
-fn main() {
+fn main() -> std::io::Result<()>{
     let commandline_args: Vec<String> = std::env::args().collect();
 
     if commandline_args.len() != 3 {
@@ -254,11 +255,11 @@ fn main() {
 
 
 
-
+     let mut logfile = File::create("emulator.log")?;
 
      
     let cartridge = new_cartridge(ines_data);
-    let nes       = Nes::new(cartridge, audio_queue_producer, config.sample_rate.0);
+    let nes       = Nes::new(cartridge, audio_queue_producer, config.sample_rate.0, logfile);
     let emulator  = Emulator {nes, frames: 0, scaling};
 
     let cb = ContextBuilder::new("nes-emu", "Adam Blance")

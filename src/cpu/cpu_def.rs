@@ -41,6 +41,14 @@ pub struct Cpu {
     pub instruction_count: u64,
     pub target: u64,
     pub pause: bool,
+
+    pub trace_opc_addr: u16,
+    pub trace_operand_1: u8,
+    pub trace_operand_2: u8,
+    pub trace_lower_pointer: u8,
+    pub trace_upper_pointer: u8,
+    pub trace_data: u8,
+    
 }
 
 impl Cpu {

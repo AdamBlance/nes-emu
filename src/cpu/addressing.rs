@@ -35,15 +35,18 @@ pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
 
 pub fn fetch_immediate_from_pc(nes: &mut Nes) {
     nes.cpu.data = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_operand_1 = nes.cpu.data;
 }
 
 // Address
 
 pub fn fetch_lower_address_from_pc(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_operand_1 = nes.cpu.lower_address;
 }
 pub fn fetch_upper_address_from_pc(nes: &mut Nes) {
     nes.cpu.upper_address = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_operand_2 = nes.cpu.upper_address;
 }
 pub fn fetch_lower_address_from_pointer(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.get_pointer(), nes);
@@ -71,9 +74,11 @@ pub fn add_lower_address_carry_bit_to_upper_address(nes: &mut Nes) {
 
 pub fn fetch_lower_pointer_address_from_pc(nes: &mut Nes) {
     nes.cpu.lower_pointer = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_lower_pointer = nes.cpu.lower_pointer;
 }
 pub fn fetch_upper_pointer_address_from_pc(nes: &mut Nes) {
     nes.cpu.upper_pointer = read_mem(nes.cpu.pc, nes);
+    nes.cpu.trace_upper_pointer = nes.cpu.upper_pointer;
 }
 pub fn increment_lower_pointer(nes: &mut Nes) {
     nes.cpu.lower_pointer = nes.cpu.lower_pointer.wrapping_add(1);
@@ -88,6 +93,11 @@ pub fn read_from_pc(nes: &mut Nes) {
     nes.cpu.data = read_mem(nes.cpu.pc, nes);
 }
 pub fn read_from_address(nes: &mut Nes) {
+    let addr = nes.cpu.get_address();
+    nes.cpu.data = read_mem(addr, nes);
+    nes.cpu.trace_data = nes.cpu.data;
+}
+pub fn dummy_read_from_address(nes: &mut Nes) {
     let addr = nes.cpu.get_address();
     nes.cpu.data = read_mem(addr, nes);
 }

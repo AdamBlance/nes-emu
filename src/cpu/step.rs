@@ -8,7 +8,8 @@ use super::lookup_table::{
     Name::*,
 };
 use super::operation_funcs::{update_p_nz, set_interrupt_inhibit_flag};
-use crate::util::is_neg;
+use crate::util::{is_neg, concat_u8};
+use std::io::Write;
 
 /*
     Because of the way the CPU is designed, it often reads data from memory when it isn't needed. 
@@ -20,7 +21,7 @@ use crate::util::is_neg;
     These aliases are just to help distinguish "useful" reads from dummy reads.
 */
 const DUMMY_READ_FROM_PC:      fn(&mut Nes) = read_from_pc;
-const DUMMY_READ_FROM_ADDRESS: fn(&mut Nes) = read_from_address;
+// const dummy_read_from_address: fn(&mut Nes) = read_from_address;
 const DUMMY_READ_FROM_POINTER: fn(&mut Nes) = read_from_pointer;
 
 pub fn step_cpu(nes: &mut Nes) {
@@ -28,6 +29,8 @@ pub fn step_cpu(nes: &mut Nes) {
     nes.cart.cpu_tick();
 
     if nes.cpu.instruction_cycle == 0 {
+
+        nes.cpu.trace_opc_addr = nes.cpu.pc;
         
         if nes.cpu.nmi_pending {
             // println!("IN NMI, cycle {}", nes.cpu.interrupt_cycle);
@@ -114,13 +117,13 @@ pub fn step_cpu(nes: &mut Nes) {
         return
     }
 
-    if nes.cpu.cycles == nes.cpu.target && nes.cpu.pause {
-        let mut line = String::new();
-        std::io::stdin().read_line(&mut line);
-        let step_by: u64 = line.trim().parse().unwrap_or(1);
+    // if nes.cpu.cycles == nes.cpu.target && nes.cpu.pause {
+    //     let mut line = String::new();
+    //     std::io::stdin().read_line(&mut line);
+    //     let step_by: u64 = line.trim().parse().unwrap_or(1);
 
-        nes.cpu.target = step_by;
-    }
+    //     nes.cpu.target = step_by;
+    // }
 
     /*
         The second instruction cycle (cycle 1) is when instructions start to do things. 
@@ -295,12 +298,12 @@ pub fn step_cpu(nes: &mut Nes) {
             }}
             ZeroPageX => { match cyc {
                 1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
-                2 => {DUMMY_READ_FROM_ADDRESS(nes); add_x_to_lower_address(nes);}
+                2 => {dummy_read_from_address(nes); add_x_to_lower_address(nes);}
                 _ => unreachable!(),
             }}
             ZeroPageY => { match cyc {
                 1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
-                2 => {DUMMY_READ_FROM_ADDRESS(nes); add_y_to_lower_address(nes);}
+                2 => {dummy_read_from_address(nes); add_y_to_lower_address(nes);}
                 _ => unreachable!(),
             }}
             Absolute => { match cyc {
@@ -318,6 +321,37 @@ pub fn step_cpu(nes: &mut Nes) {
                 2 => {fetch_upper_address_from_pc(nes); add_y_to_lower_address(nes); increment_pc(nes);}
                 _ => unreachable!(),
             }}
+
+            /*
+            
+                confusing naming here
+
+                "pointer address" could either mean:
+                    - the location in memory of a pointer
+                    - the value of the pointer itself (the address that the pointer points to)
+
+                I think things should be renamed like this:
+
+                    - fetch_lower_address_from_pc
+                    - take_operand_as_low_address_byte
+                
+                    - fetch_upper_address_from_pc
+                    - take_operand_as_high_address_byte
+
+                    - dummy_read_from_address
+                    - dummy_read_from_stored_address
+                    
+                    - fetch_lower_pointer_address_from_pc
+                    - take_operand_as_low_pointer_byte
+
+                    - fetch_upper_pointer_address_from_pc
+                    - take_operand_as_high_pointer_byte
+                    
+                    
+
+            
+             */
+
             IndirectX => { match cyc {
                 1 => {fetch_lower_pointer_address_from_pc(nes); increment_pc(nes);}
                 2 => {DUMMY_READ_FROM_POINTER(nes); add_x_to_lower_pointer(nes);}
@@ -391,10 +425,10 @@ pub fn step_cpu(nes: &mut Nes) {
                 }
                 (Read, 2) => {read_from_address(nes); func(nes); nes.cpu.instruction_done = true;}
 
-                (Write, 1) => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
+                (Write, 1) => {dummy_read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
                 (Write, 2) => {func(nes); nes.cpu.instruction_done = true;}
 
-                (ReadModifyWrite, 1) => {DUMMY_READ_FROM_ADDRESS(nes); add_lower_address_carry_bit_to_upper_address(nes);}
+                (ReadModifyWrite, 1) => {dummy_read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
                 (ReadModifyWrite, 2) => read_from_address(nes),
                 (ReadModifyWrite, 3) => {write_to_address(nes); func(nes);}
                 (ReadModifyWrite, 4) => {write_to_address(nes); nes.cpu.instruction_done = true;}
@@ -429,11 +463,17 @@ fn end_cycle(nes: &mut Nes) {
 
     nes.cpu.cycles += 1;
     nes.cpu.instruction_cycle += 1;
+    
 }
 
 fn end_instr(nes: &mut Nes) {
     // let log_str = log(nes);
     // println!("{}", log_str);
+
+    // writeln!(nes.logfile, "{:04X}  {:?}", nes.cpu.trace_pc_at_opc, nes.cpu.instruction.name).unwrap();
+    
+    
+
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
@@ -459,6 +499,101 @@ fn end_instr(nes: &mut Nes) {
 
     nes.cpu.instruction_count += 1;
 
+    if nes.cpu.instruction_count == 1717875 { nes.logfile.sync_all().unwrap(); panic!() }
 
+
+}
+
+fn create_log_line(nes: &mut Nes) {
+    
+    let part1 = match nes.cpu.instruction.number_of_operands() {
+        0 => format!("{:02X}", nes.cpu.trace_opc_addr),
+        1 => format!("{:02X} {:02X}", nes.cpu.trace_opc_addr, nes.cpu.trace_operand_1),
+        2 => format!("{:02X} {:02X} {:02X}", nes.cpu.trace_opc_addr, nes.cpu.trace_operand_1, nes.cpu.trace_operand_2)
+    };
+
+    let part2 = if nes.cpu.instruction.is_unofficial {
+        format!("*{:?}", nes.cpu.instruction.name)
+    } else {
+        format!(" {:?}", nes.cpu.instruction.name)
+    };
+
+    let part3 = match nes.cpu.instruction.mode {
+        Implied => String::from(""),
+        Accumulator => format!(
+            "A"
+        ),
+        Immediate => format!(
+            "#${:02X}", 
+            nes.cpu.trace_operand_1
+        ),
+        ZeroPage => format!(
+            "${:02X} = {:02X}", 
+            nes.cpu.trace_operand_1, 
+            nes.cpu.trace_data
+        ),
+        ZeroPageX => format!(
+            "${:02X},X @ {:02X} = {:02X}", 
+            nes.cpu.trace_operand_1, 
+            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.x), 
+            nes.cpu.trace_data
+        ),
+        ZeroPageY => format!(
+            "${:02X},Y @ {:02X} = {:02X}", 
+            nes.cpu.trace_operand_1, 
+            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.y), 
+            nes.cpu.trace_data
+        ),
+        Absolute => {
+            if nes.cpu.instruction.category != Control {
+                format!(
+                    "${:04X} = {:02X}", 
+                    concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1), 
+                    nes.cpu.trace_data
+                )
+            } else {
+                format!(
+                    "${:04X}", 
+                    concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1)
+                )
+            }
+        }
+
+        AbsoluteX => format!(
+            "${:04X},X @ {:04X} = {:02X}", 
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1),
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1).wrapping_add(nes.cpu.x as u16),
+            nes.cpu.trace_data
+        ),
+        AbsoluteY => format!(
+            "${:04X},Y @ {:04X} = {:02X}", 
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1),
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1).wrapping_add(nes.cpu.y as u16),
+            nes.cpu.trace_data
+        ),
+        IndirectX => format!(
+            "(${:02X},X) @ {:02X} = {:04X} = {:02X}", 
+            nes.cpu.trace_operand_1, 
+            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.x), 
+            concat_u8(nes.cpu.trace_upper_pointer, nes.cpu.trace_lower_pointer),
+            nes.cpu.trace_data
+        ),
+        IndirectY => format!(
+            "(${:02X}),Y = {:04x} @ {:04x} = {:02x}", 
+            nes.cpu.trace_byte2, 
+            concat_u8(nes.cpu.upper_pointer, nes.cpu.lower_pointer),
+            nes.cpu.get_address(), 
+            nes.cpu.trace_stored_val
+        ),
+        AbsoluteI => format!(
+            "(${:04X}) = {:04X}",
+            concat_u8(nes.cpu.upper_pointer, nes.cpu.lower_pointer),
+            nes.cpu.pc,
+        ),
+        Relative => format!(
+            "${:04X}",
+            nes.cpu.pc,
+        ),
+    };
 
 }

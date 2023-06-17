@@ -3,6 +3,7 @@ use crate::ppu::Ppu;
 use crate::apu::Apu;
 use crate::controller::Controller;
 use crate::cartridge::Cartridge;
+use std::fs::File;
 use std::sync::mpsc::Sender;
 
 pub struct Nes {
@@ -16,10 +17,11 @@ pub struct Nes {
     pub con2: Controller,
     // External
     pub frame:        Vec<u8>,
+    pub logfile: File
 }
 
 impl Nes {
-    pub fn new(cartridge: Box<dyn Cartridge>, audio_queue: Sender<(f32, f32)>, sample_rate: u32) -> Nes {
+    pub fn new(cartridge: Box<dyn Cartridge>, audio_queue: Sender<(f32, f32)>, sample_rate: u32, logfile: File) -> Nes {
         Nes { 
             cpu: Cpu::new(),
             ppu: Ppu::new(),
@@ -31,6 +33,7 @@ impl Nes {
 
             // RGBA image (4 channels)
             frame: vec![0u8; 256usize * 240 * 4], 
+            logfile
         }
     }
 }
