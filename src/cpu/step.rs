@@ -186,11 +186,11 @@ pub fn step_cpu(nes: &mut Nes) {
                 _ => unreachable!(),
             }}
             (JSR, _) => { match cyc {
-                1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
+                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
                 2 => {none(nes);}
                 3 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
                 4 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
-                5 => {fetch_upper_address_from_pc(nes); copy_address_to_pc(nes); nes.cpu.instruction_done = true;} 
+                5 => {take_operand_as_high_address_byte(nes); copy_address_to_pc(nes); nes.cpu.instruction_done = true;} 
                 _ => unreachable!(),
             }}
             (PHA, _) => { match cyc {
@@ -216,15 +216,15 @@ pub fn step_cpu(nes: &mut Nes) {
                 _ => unreachable!(),
             }}
             (JMP, Absolute) => { match cyc {
-                1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
-                2 => {fetch_upper_address_from_pc(nes); copy_address_to_pc(nes); nes.cpu.instruction_done = true;}
+                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
+                2 => {take_operand_as_high_address_byte(nes); copy_address_to_pc(nes); nes.cpu.instruction_done = true;}
                 _ => unreachable!(),
             }}
             (JMP, AbsoluteI) => { match cyc {
-                1 => {fetch_lower_pointer_address_from_pc(nes); increment_pc(nes);}
-                2 => {fetch_upper_pointer_address_from_pc(nes); increment_pc(nes);}
-                3 => {fetch_lower_address_from_pointer(nes); increment_lower_pointer(nes);}
-                4 => {fetch_upper_address_from_pointer(nes); copy_address_to_pc(nes); nes.cpu.instruction_done = true;}
+                1 => {take_operand_as_low_indirect_address_byte(nes); increment_pc(nes);}
+                2 => {take_operand_as_high_indirect_address_byte(nes); increment_pc(nes);}
+                3 => {fetch_low_address_byte_using_indirect_address(nes);}
+                4 => {fetch_high_address_byte_using_indirect_address(nes); copy_address_to_pc(nes); nes.cpu.instruction_done = true;}
                 _ => unreachable!(),
             }}
             _ => unreachable!(),
@@ -293,76 +293,45 @@ pub fn step_cpu(nes: &mut Nes) {
 
         match nes.cpu.instruction.mode {
             ZeroPage => { match cyc {
-                1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
+                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
                 _ => unreachable!(),
             }}
             ZeroPageX => { match cyc {
-                1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
-                2 => {dummy_read_from_address(nes); add_x_to_lower_address(nes);}
+                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
+                2 => {dummy_read_from_address(nes); add_x_to_low_address_byte(nes);}
                 _ => unreachable!(),
             }}
             ZeroPageY => { match cyc {
-                1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
-                2 => {dummy_read_from_address(nes); add_y_to_lower_address(nes);}
+                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
+                2 => {dummy_read_from_address(nes); add_y_to_low_address_byte(nes);}
                 _ => unreachable!(),
             }}
             Absolute => { match cyc {
-                1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
-                2 => {fetch_upper_address_from_pc(nes); increment_pc(nes);}
+                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
+                2 => {take_operand_as_high_address_byte(nes); increment_pc(nes);}
                 _ => unreachable!(),
             }}
             AbsoluteX => { match cyc {
-                1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
-                2 => {fetch_upper_address_from_pc(nes); add_x_to_lower_address(nes); increment_pc(nes);}
+                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
+                2 => {take_operand_as_high_address_byte(nes); add_x_to_low_address_byte(nes); increment_pc(nes);}
                 _ => unreachable!(),
             }}
             AbsoluteY => { match cyc {
-                1 => {fetch_lower_address_from_pc(nes); increment_pc(nes);}
-                2 => {fetch_upper_address_from_pc(nes); add_y_to_lower_address(nes); increment_pc(nes);}
+                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
+                2 => {take_operand_as_high_address_byte(nes); add_y_to_low_address_byte(nes); increment_pc(nes);}
                 _ => unreachable!(),
             }}
-
-            /*
-            
-                confusing naming here
-
-                "pointer address" could either mean:
-                    - the location in memory of a pointer
-                    - the value of the pointer itself (the address that the pointer points to)
-
-                I think things should be renamed like this:
-
-                    - fetch_lower_address_from_pc
-                    - take_operand_as_low_address_byte
-                
-                    - fetch_upper_address_from_pc
-                    - take_operand_as_high_address_byte
-
-                    - dummy_read_from_address
-                    - dummy_read_from_stored_address
-                    
-                    - fetch_lower_pointer_address_from_pc
-                    - take_operand_as_low_pointer_byte
-
-                    - fetch_upper_pointer_address_from_pc
-                    - take_operand_as_high_pointer_byte
-                    
-                    
-
-            
-             */
-
             IndirectX => { match cyc {
-                1 => {fetch_lower_pointer_address_from_pc(nes); increment_pc(nes);}
-                2 => {DUMMY_READ_FROM_POINTER(nes); add_x_to_lower_pointer(nes);}
-                3 => {fetch_lower_address_from_pointer(nes); increment_lower_pointer(nes);}
-                4 => {fetch_upper_address_from_pointer(nes);}
+                1 => {take_operand_as_low_indirect_address_byte(nes); increment_pc(nes);}
+                2 => {DUMMY_READ_FROM_POINTER(nes); add_x_to_low_indirect_address_byte(nes);}
+                3 => {fetch_low_address_byte_using_indirect_address(nes);}
+                4 => {fetch_high_address_byte_using_indirect_address(nes);}
                 _ => unreachable!(),
             }}
             IndirectY => { match cyc {
-                1 => {fetch_lower_pointer_address_from_pc(nes); increment_pc(nes);}
-                2 => {fetch_lower_address_from_pointer(nes); increment_lower_pointer(nes);}
-                3 => {fetch_upper_address_from_pointer(nes); add_y_to_lower_address(nes);}
+                1 => {take_operand_as_low_indirect_address_byte(nes); increment_pc(nes);}
+                2 => {fetch_low_address_byte_using_indirect_address(nes);}
+                3 => {fetch_high_address_byte_using_indirect_address(nes); add_y_to_low_address_byte(nes);}
                 _ => unreachable!(),
             }}
             _ => unreachable!(),

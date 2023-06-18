@@ -1,6 +1,7 @@
 
 use crate::nes::Nes;
 use crate::mem::{read_mem, write_mem};
+use crate::util::concat_u8;
 
 /*
 
@@ -40,29 +41,29 @@ pub fn fetch_immediate_from_pc(nes: &mut Nes) {
 
 // Address
 
-pub fn fetch_lower_address_from_pc(nes: &mut Nes) {
+pub fn take_operand_as_low_address_byte(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.pc, nes);
     nes.cpu.trace_operand_1 = nes.cpu.lower_address;
 }
-pub fn fetch_upper_address_from_pc(nes: &mut Nes) {
+pub fn take_operand_as_high_address_byte(nes: &mut Nes) {
     nes.cpu.upper_address = read_mem(nes.cpu.pc, nes);
     nes.cpu.trace_operand_2 = nes.cpu.upper_address;
 }
-pub fn fetch_lower_address_from_pointer(nes: &mut Nes) {
+pub fn fetch_low_address_byte_using_indirect_address(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.get_pointer(), nes);
 }
-pub fn fetch_upper_address_from_pointer(nes: &mut Nes) {
-    nes.cpu.upper_address = read_mem(nes.cpu.get_pointer(), nes);
+pub fn fetch_high_address_byte_using_indirect_address(nes: &mut Nes) {
+    nes.cpu.upper_address = read_mem(concat_u8(nes.cpu.upper_pointer, nes.cpu.lower_pointer.wrapping_add(1)), nes);
 }
 fn add_index_to_lower_address_and_set_carry(index: u8, nes: &mut Nes) {
     let (new_val, was_overflow) = nes.cpu.lower_address.overflowing_add(index);
     nes.cpu.lower_address = new_val; 
     nes.cpu.internal_carry_out = was_overflow;
 }
-pub fn add_x_to_lower_address(nes: &mut Nes) {
+pub fn add_x_to_low_address_byte(nes: &mut Nes) {
     add_index_to_lower_address_and_set_carry(nes.cpu.x, nes);
 }
-pub fn add_y_to_lower_address(nes: &mut Nes) {
+pub fn add_y_to_low_address_byte(nes: &mut Nes) {
     add_index_to_lower_address_and_set_carry(nes.cpu.y, nes);
 }
 pub fn add_lower_address_carry_bit_to_upper_address(nes: &mut Nes) {
@@ -72,18 +73,18 @@ pub fn add_lower_address_carry_bit_to_upper_address(nes: &mut Nes) {
 
 // Pointer (indirect addressing)
 
-pub fn fetch_lower_pointer_address_from_pc(nes: &mut Nes) {
+pub fn take_operand_as_low_indirect_address_byte(nes: &mut Nes) {
     nes.cpu.lower_pointer = read_mem(nes.cpu.pc, nes);
     nes.cpu.trace_lower_pointer = nes.cpu.lower_pointer;
 }
-pub fn fetch_upper_pointer_address_from_pc(nes: &mut Nes) {
+pub fn take_operand_as_high_indirect_address_byte(nes: &mut Nes) {
     nes.cpu.upper_pointer = read_mem(nes.cpu.pc, nes);
     nes.cpu.trace_upper_pointer = nes.cpu.upper_pointer;
 }
 pub fn increment_lower_pointer(nes: &mut Nes) {
     nes.cpu.lower_pointer = nes.cpu.lower_pointer.wrapping_add(1);
 }
-pub fn add_x_to_lower_pointer(nes: &mut Nes) {
+pub fn add_x_to_low_indirect_address_byte(nes: &mut Nes) {
     nes.cpu.lower_pointer = nes.cpu.lower_pointer.wrapping_add(nes.cpu.x);
 }
 
