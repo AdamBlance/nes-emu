@@ -1,6 +1,6 @@
 use crate::nes::Nes;
 use super::addressing::*;
-use super::cycles::{control_instruction_cycles, address_resolution_cycles};
+use super::cycles::{control_instruction_cycles, address_resolution_cycles, branch_instruction_cycles, processing_cycles};
 use crate::mem::read_mem;
 use super::lookup_table::{
     INSTRUCTIONS,
@@ -8,21 +8,11 @@ use super::lookup_table::{
     Category::*,
     Name::*,
 };
-use super::operation_funcs::{update_p_nz, set_interrupt_inhibit_flag};
-use crate::util::{is_neg, concat_u8};
+use super::operation_funcs::{set_interrupt_inhibit_flag};
+use crate::util::concat_u8;
 use std::io::Write;
 
-/*
-    Because of the way the CPU is designed, it often reads data from memory when it isn't needed. 
-    This wouldn't matter for emulation if memory reads were "stateless", but unfortunately this 
-    isn't the case. Some memory addresses have side effects when they are read; for example, 
-    address 0x2007 (PPUDATA) changes the VRAM address inside the PPU when read from. Therefore, 
-    we have to do these dummy reads if we want to match the NES's behaviour exactly. 
-    
-    These aliases are just to help distinguish "useful" reads from dummy reads.
-*/
-// const dummy_read_from_address: fn(&mut Nes) = read_from_address;
-const DUMMY_READ_FROM_POINTER: fn(&mut Nes) = read_from_pointer;
+
 
 pub fn step_cpu(nes: &mut Nes) {
 
@@ -41,7 +31,6 @@ pub fn step_cpu(nes: &mut Nes) {
         nes.cpu.trace_initial_ppu_scanline_cycle = nes.ppu.scanline_cycle;
         
         if nes.cpu.nmi_pending {
-            // println!("IN NMI, cycle {}", nes.cpu.interrupt_cycle);
             match nes.cpu.interrupt_cycle {
                 0 => {dummy_read_from_pc_address(nes); nes.cpu.irq_pending = false; nes.cpu.interrupt_vector = 0xFFFA;}
                 1 => dummy_read_from_pc_address(nes),
@@ -62,7 +51,6 @@ pub fn step_cpu(nes: &mut Nes) {
 
         // Ignore IRQ until the interrupt inhibit status flag is cleared
         else if nes.cpu.irq_pending && !nes.cpu.p_i {
-            if nes.cpu.pause {println!("IN IRQ, cycle {}", nes.cpu.interrupt_cycle);}
             match nes.cpu.interrupt_cycle {
                 0 => {dummy_read_from_pc_address(nes); nes.cpu.interrupt_vector = 0xFFFE;}
                 1 => dummy_read_from_pc_address(nes),
@@ -81,7 +69,6 @@ pub fn step_cpu(nes: &mut Nes) {
             nes.cpu.interrupt_cycle += 1;
         }
         
-        // If no interrupts are pending, start executing next instruction
         else {
             let opcode = read_mem(nes.cpu.pc, nes);
             nes.cpu.trace_opc = opcode;
@@ -89,29 +76,7 @@ pub fn step_cpu(nes: &mut Nes) {
             if nes.cpu.instruction.category == Unimplemented {
                 unimplemented!("Unofficial instruction {:?} not implemented!", nes.cpu.instruction.name);
             }
-            if nes.cpu.pause {
-                println!(
-                    "Instruction {:?}, opcode {:02X},  PC {:04X} cycles {} regs a {:02X} x {:02X} y {:02X} inhibit {} line {} cycle {}", 
-                    nes.cpu.instruction.name, 
-                    opcode, 
-                    nes.cpu.pc, 
-                    nes.cpu.cycles, 
-                    nes.cpu.a, 
-                    nes.cpu.x, 
-                    nes.cpu.y,
-                    nes.cpu.p_i,
-                    nes.ppu.scanline,
-                    nes.ppu.scanline_cycle,
-                    // nes.cart.get_counter(),
-                );
-            }
-            if nes.cpu.cycles == nes.cpu.target && nes.cpu.pause {
-                let mut line = String::new();
-                std::io::stdin().read_line(&mut line);
-                let step_by: u64 = line.trim().parse().unwrap_or(1);
-        
-                nes.cpu.target = step_by;
-            }
+
             increment_pc(nes);
         
             // acknowledge interrupts on opcode fetch cycle for 2 cycle instructions
@@ -122,27 +87,11 @@ pub fn step_cpu(nes: &mut Nes) {
 
             end_cycle(nes);
         }
-
         return
     }
 
-    // if nes.cpu.cycles == nes.cpu.target && nes.cpu.pause {
-    //     let mut line = String::new();
-    //     std::io::stdin().read_line(&mut line);
-    //     let step_by: u64 = line.trim().parse().unwrap_or(1);
-
-    //     nes.cpu.target = step_by;
-    // }
-
-    /*
-        The second instruction cycle (cycle 1) is when instructions start to do things. 
-        
-        First, we deal with all of the 2-cycle insrtuctions. The first cycle is spent fetching 
-        the opcode, so these only take one additional cycle. 
-    */
 
     let instr = nes.cpu.instruction;
-    let cyc = nes.cpu.instruction_cycle;
     let cat = nes.cpu.instruction.category; 
     let func = nes.cpu.instruction.get_associated_function();
     
@@ -154,7 +103,7 @@ pub fn step_cpu(nes: &mut Nes) {
         nes.cpu.instruction_done = true;
     }
     else if cat == Register || instr.name == NOP {
-        dummy_read_from_pc_address(nes);
+        dummy_read_from_pc_address(nes); // CLC is doing a read when it shouldn't
         func(nes);
         nes.cpu.instruction_done = true;
     }
@@ -165,68 +114,13 @@ pub fn step_cpu(nes: &mut Nes) {
         nes.cpu.instruction_done = true;
     }
 
-    // Next, deal with control instructions. These need special handling. 
-
     else if cat == Control {
         control_instruction_cycles(nes, nes.cpu.instruction_cycle);
     }
 
-    // Next, deal with branches, which behave differently from other instructions.
-
     else if cat == Branch {
-        match cyc {
-            1 => {
-                fetch_branch_offset_from_pc(nes); 
-                increment_pc(nes); 
-                nes.cpu.branching = match nes.cpu.instruction.name {
-                    BCC => !nes.cpu.p_c,
-                    BCS =>  nes.cpu.p_c,
-                    BVC => !nes.cpu.p_v,
-                    BVS =>  nes.cpu.p_v,
-                    BNE => !nes.cpu.p_z,
-                    BEQ =>  nes.cpu.p_z,
-                    BPL => !nes.cpu.p_n,
-                    BMI =>  nes.cpu.p_n,
-                    _   =>  unreachable!(),
-                };
-                // Continue to next instruction if branch was not taken
-                if !nes.cpu.branching {
-                    nes.cpu.instruction_done = true;
-                }
-            }
-            2 => {
-                let prev_pcl = nes.cpu.pc as u8;
-                let (new_pcl, overflow) = prev_pcl.overflowing_add_signed(nes.cpu.branch_offset as i8);
-                nes.cpu.internal_carry_out = overflow;
-                nes.cpu.set_lower_pc(new_pcl);
-                // If branch didn't cross page boundary, continue to next instruction
-                if !nes.cpu.internal_carry_out {
-                    nes.cpu.instruction_done = true;
-                }
-            }
-            3 => {
-                // Fix upper PC if page was crossed
-                if is_neg(nes.cpu.branch_offset) {
-                    nes.cpu.pc = nes.cpu.pc.wrapping_sub(1 << 8);
-                } else {
-                    nes.cpu.pc = nes.cpu.pc.wrapping_add(1 << 8);
-                }
-                nes.cpu.instruction_done = true;
-            }
-            _ => unreachable!(),
-        }
+        branch_instruction_cycles(nes, nes.cpu.instruction_cycle)
     }
-    
-    /*
-        Instructions that aren't control or branch instructions read from and/or write to memory. 
-        Each of these instructions has an addressing mode. This determines what location in memory
-        the instruction works with. This is called the "effective address". Calculating the 
-        effective address takes a different number of cycles depending on the addressing mode used. 
-        The table at the top of instr_defs.rs summarises each mode.
-
-        The next else-if tells the instruction what operations to do during each address resolution
-        cycle. This can take between 1 and 4 cycles.
-    */
 
     else if (cat == Read || cat == Write || cat == ReadModifyWrite) 
             && (nes.cpu.instruction_cycle <= instr.mode.address_resolution_cycles()) {
@@ -235,87 +129,20 @@ pub fn step_cpu(nes: &mut Nes) {
 
     }
 
-    /*
-        This final else-if block tells the instruction what to do after it has calculated the 
-        effective address. 
-        There are 3 main types of instruction: read, write, and read-modify-write.
-        
-        Read instructions read a value from memory, optionally operate on it, and modify the CPU's 
-        internal state by writing the value to a register, or updating a flag. 
-        Some examples are LDX, AND, and SUB.
-
-        Write instructions write a value from a register to memory. The only write instructions are 
-        STA, STX, STY. 
-
-        Read-modify-write instructions load a value into the CPU, modify the value, and write it 
-        back to memory. These update flags like read instructions, but the value is never stored
-        in a register. Some examples are ASL, ROR, and DEC.
-
-        The instruction's addressing mode, along with whether the instruction is read, write, 
-        or read-modify-write, determine what cycles are executed after the effective address 
-        has been resolved. 
-    */
-
     else if (cat == Read || cat == Write || cat == ReadModifyWrite) 
             && (nes.cpu.instruction_cycle > instr.mode.address_resolution_cycles()) {
         
-        // This is the number of cycles that has elapsed since resolving the effective address
-        let mut eac = nes.cpu.instruction_cycle - nes.cpu.instruction.mode.address_resolution_cycles();
-
+        let eac = nes.cpu.instruction_cycle - nes.cpu.instruction.mode.address_resolution_cycles();
         match nes.cpu.instruction.mode {
             Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => {
-                eac += 1;
+                processing_cycles(nes, eac, true);
             }
-            _ => ()
-        }
-
-        match nes.cpu.instruction.mode {
-
-            // Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => { match (cat, eac) {
-
-            //     (Read, 1) => {read_from_address(nes); func(nes); nes.cpu.instruction_done = true;}
-
-            //     (Write, 1) => {func(nes); write_to_address(nes); nes.cpu.instruction_done = true;}  // the way this works is pretty stupid
-
-            //     (ReadModifyWrite, 1) => read_from_address(nes),
-            //     (ReadModifyWrite, 2) => {write_to_address(nes); func(nes);}
-            //     (ReadModifyWrite, 3) => {write_to_address(nes); nes.cpu.instruction_done = true;}
-
-            //     _ => unreachable!(),
-            // }}
-
-            AbsoluteX | AbsoluteY | IndirectY | Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => { match (cat, eac) {
-            // _ => { match (cat, eac) {
-                (Read, 1) => {
-                    read_from_address(nes); 
-                    add_lower_address_carry_bit_to_upper_address(nes);
-                    // Continue to next instruction if page wasn't crossed
-                    if !nes.cpu.internal_carry_out {
-                        func(nes);
-                        nes.cpu.instruction_done = true;
-                    }
-                }
-                (Read, 2) => {read_from_address(nes); func(nes); nes.cpu.instruction_done = true;}
-
-                (Write, 1) => {dummy_read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
-                (Write, 2) => {func(nes); write_to_address(nes); nes.cpu.instruction_done = true;}
-
-                (ReadModifyWrite, 1) => {dummy_read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
-                (ReadModifyWrite, 2) => read_from_address(nes),
-                (ReadModifyWrite, 3) => {write_to_address(nes); func(nes);}
-                (ReadModifyWrite, 4) => {write_to_address(nes); nes.cpu.instruction_done = true;}
-
-                _ => unreachable!(),
-            }}
-            _ => unreachable!(),
+            AbsoluteX | AbsoluteY | IndirectY => {
+                processing_cycles(nes, eac, false);
+            }
+            _ => unreachable!()
         }
     }
-
-    /*
-        At this point, the instruction is at the end of one of its cycles. 
-        If the instruction just completed its last cycle, it will have called end_instr().
-        This resets the instruction_cycle counter to -1, so it will be incremented here to 0. 
-    */
 
     if nes.cpu.instruction_done {
         end_instr(nes);
@@ -330,7 +157,6 @@ fn end_cycle(nes: &mut Nes) {
         nes.cpu.nmi_edge_detector_output = true;
     }
     nes.cpu.prev_nmi_signal = nes.ppu.nmi_line;
-    if nes.cpu.pause {println!("cart irq {} pending {}", nes.cart.asserting_irq(), nes.cpu.irq_pending);}
     nes.cpu.prev_irq_signal = nes.apu.asserting_irq() || nes.cart.asserting_irq();
 
     nes.cpu.cycles += 1;
@@ -339,7 +165,7 @@ fn end_cycle(nes: &mut Nes) {
 }
 
 fn end_instr(nes: &mut Nes) {
-    writeln!(nes.logfile, "{}", create_log_line(nes)).unwrap();
+    // writeln!(nes.logfile, "{}", create_log_line(nes)).unwrap();
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;

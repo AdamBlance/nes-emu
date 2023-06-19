@@ -1,7 +1,8 @@
 use crate::nes::Nes;
-use crate::cpu::lookup_table::{Name::*, Mode::*};
+use crate::cpu::lookup_table::{Name::*, Mode::*, Category::*};
 use crate::cpu::addressing::*;
 use crate::cpu::operation_funcs::{set_interrupt_inhibit_flag, update_p_nz};
+use crate::util::is_neg;
 
 
 pub fn control_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
@@ -122,5 +123,82 @@ pub fn address_resolution_cycles(nes: &mut Nes, instruction_cycle: i8) {
             _ => unreachable!(),
         }}
         _ => unreachable!(),
+    }
+}
+
+pub fn branch_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
+    match instruction_cycle {
+        1 => {
+            fetch_branch_offset_from_pc(nes); 
+            increment_pc(nes); 
+            nes.cpu.branching = match nes.cpu.instruction.name {
+                BCC => !nes.cpu.p_c,
+                BCS =>  nes.cpu.p_c,
+                BVC => !nes.cpu.p_v,
+                BVS =>  nes.cpu.p_v,
+                BNE => !nes.cpu.p_z,
+                BEQ =>  nes.cpu.p_z,
+                BPL => !nes.cpu.p_n,
+                BMI =>  nes.cpu.p_n,
+                _   =>  unreachable!(),
+            };
+            // Continue to next instruction if branch was not taken
+            if !nes.cpu.branching {
+                nes.cpu.instruction_done = true;
+            }
+        }
+        2 => {
+            let prev_pcl = nes.cpu.pc as u8;
+            let (new_pcl, overflow) = prev_pcl.overflowing_add_signed(nes.cpu.branch_offset as i8);
+            nes.cpu.internal_carry_out = overflow;
+            nes.cpu.set_lower_pc(new_pcl);
+            // If branch didn't cross page boundary, continue to next instruction
+            if !nes.cpu.internal_carry_out {
+                nes.cpu.instruction_done = true;
+            }
+        }
+        3 => {
+            // Fix upper PC if page was crossed
+            if is_neg(nes.cpu.branch_offset) {
+                nes.cpu.pc = nes.cpu.pc.wrapping_sub(1 << 8);
+            } else {
+                nes.cpu.pc = nes.cpu.pc.wrapping_add(1 << 8);
+            }
+            nes.cpu.instruction_done = true;
+        }
+        _ => unreachable!(),
+    }
+}
+
+pub fn processing_cycles(nes: &mut Nes, instruction_cycle: i8, skip_high_address_correction_cycle: bool) {
+    let func = nes.cpu.instruction.get_associated_function();
+    let adjusted_cycle = instruction_cycle + (skip_high_address_correction_cycle as i8);
+    match nes.cpu.instruction.category {
+        Read => match adjusted_cycle {
+            1 => {
+                read_from_address(nes); 
+                add_lower_address_carry_bit_to_upper_address(nes);
+                // Continue to next instruction if page wasn't crossed
+                if !nes.cpu.internal_carry_out {
+                    func(nes);
+                    nes.cpu.instruction_done = true;
+                }
+            }
+            2 => {read_from_address(nes); func(nes); nes.cpu.instruction_done = true;}
+            _ => unreachable!()
+        }
+        Write => match adjusted_cycle {
+            1 => {dummy_read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
+            2 => {func(nes); write_to_address(nes); nes.cpu.instruction_done = true;}
+            _ => unreachable!()
+        }
+        ReadModifyWrite => match adjusted_cycle {
+            1 => {dummy_read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
+            2 => read_from_address(nes),
+            3 => {write_to_address(nes); func(nes);}
+            4 => {write_to_address(nes); nes.cpu.instruction_done = true;}
+            _ => unreachable!()
+        }
+        _ => unreachable!()
     }
 }
