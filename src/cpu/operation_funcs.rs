@@ -217,6 +217,8 @@ pub fn set_interrupt_inhibit_flag(nes: &mut Nes) {
 
 pub fn nop(_nes: &mut Nes) {}
 
+pub fn none(_nes: &mut Nes) {}
+
 // unofficial
 
 pub fn las(nes: &mut Nes) {

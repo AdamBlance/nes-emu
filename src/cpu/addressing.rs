@@ -180,7 +180,3 @@ pub fn increment_s(nes: &mut Nes) {
 pub fn decrement_s(nes: &mut Nes) {
     nes.cpu.s = nes.cpu.s.wrapping_sub(1);
 }
-
-// No op
-
-pub fn none(_nes: &mut Nes) {}

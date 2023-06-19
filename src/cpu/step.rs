@@ -93,7 +93,7 @@ pub fn step_cpu(nes: &mut Nes) {
 
     let instr = nes.cpu.instruction;
     let cat = nes.cpu.instruction.category; 
-    let func = nes.cpu.instruction.get_associated_function();
+    let func = nes.cpu.instruction.operation;
     
     if instr.mode == Accumulator {
         dummy_read_from_pc_address(nes);

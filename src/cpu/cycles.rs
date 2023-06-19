@@ -34,7 +34,7 @@ pub fn control_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
         }}
         (JSR, _) => { match instruction_cycle {
             1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
-            2 => {none(nes);}
+            2 => {}
             3 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
             4 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
             5 => {take_operand_as_high_address_byte(nes); copy_address_to_pc(nes); nes.cpu.instruction_done = true;} 
@@ -171,7 +171,7 @@ pub fn branch_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
 }
 
 pub fn processing_cycles(nes: &mut Nes, instruction_cycle: i8, skip_high_address_correction_cycle: bool) {
-    let func = nes.cpu.instruction.get_associated_function();
+    let func = nes.cpu.instruction.operation;
     let adjusted_cycle = instruction_cycle + (skip_high_address_correction_cycle as i8);
     match nes.cpu.instruction.category {
         Read => match adjusted_cycle {
