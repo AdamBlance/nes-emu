@@ -269,8 +269,8 @@ fn create_log_line(nes: &Nes) -> String {
         IndirectY => format!(
             "(${:02X}),Y = {:04X} @ {:04X} = {:02X}", 
             nes.cpu.trace_operand_1, 
-            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address),  // ok problem is trace_operand_1 and 2 don't get populated with the instructions that do stuff with indirect address
-            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address).wrapping_add(nes.cpu.y as u16),  // maybe get rid of trace indirect, just use operand 1 and 2
+            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address),
+            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address).wrapping_add(nes.cpu.y as u16),
             nes.cpu.trace_data
         ),
         AbsoluteI => format!(
