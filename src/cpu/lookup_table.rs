@@ -30,6 +30,8 @@ pub struct Instruction {
     pub name: Name,
     pub mode: Mode,
     pub category: Category,
+    // pub function: fn(&mut Nes),
+    // pub cycles: u8,
     pub is_unofficial: bool,
 }
 

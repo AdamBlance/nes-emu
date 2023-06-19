@@ -1,5 +1,6 @@
 use crate::nes::Nes;
 use super::addressing::*;
+use super::cycles::{control_instruction_cycles, address_resolution_cycles};
 use crate::mem::read_mem;
 use super::lookup_table::{
     INSTRUCTIONS,
@@ -20,7 +21,6 @@ use std::io::Write;
     
     These aliases are just to help distinguish "useful" reads from dummy reads.
 */
-const DUMMY_READ_FROM_PC:      fn(&mut Nes) = read_from_pc;
 // const dummy_read_from_address: fn(&mut Nes) = read_from_address;
 const DUMMY_READ_FROM_POINTER: fn(&mut Nes) = read_from_pointer;
 
@@ -43,8 +43,8 @@ pub fn step_cpu(nes: &mut Nes) {
         if nes.cpu.nmi_pending {
             // println!("IN NMI, cycle {}", nes.cpu.interrupt_cycle);
             match nes.cpu.interrupt_cycle {
-                0 => {DUMMY_READ_FROM_PC(nes); nes.cpu.irq_pending = false; nes.cpu.interrupt_vector = 0xFFFA;}
-                1 => DUMMY_READ_FROM_PC(nes),
+                0 => {dummy_read_from_pc_address(nes); nes.cpu.irq_pending = false; nes.cpu.interrupt_vector = 0xFFFA;}
+                1 => dummy_read_from_pc_address(nes),
                 2 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
                 3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
                 4 => {push_p_to_stack(nes); decrement_s(nes);}
@@ -64,8 +64,8 @@ pub fn step_cpu(nes: &mut Nes) {
         else if nes.cpu.irq_pending && !nes.cpu.p_i {
             if nes.cpu.pause {println!("IN IRQ, cycle {}", nes.cpu.interrupt_cycle);}
             match nes.cpu.interrupt_cycle {
-                0 => {DUMMY_READ_FROM_PC(nes); nes.cpu.interrupt_vector = 0xFFFE;}
-                1 => DUMMY_READ_FROM_PC(nes),
+                0 => {dummy_read_from_pc_address(nes); nes.cpu.interrupt_vector = 0xFFFE;}
+                1 => dummy_read_from_pc_address(nes),
                 2 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
                 3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
                 4 => {push_p_to_stack(nes); decrement_s(nes);}
@@ -147,14 +147,14 @@ pub fn step_cpu(nes: &mut Nes) {
     let func = nes.cpu.instruction.get_associated_function();
     
     if instr.mode == Accumulator {
-        DUMMY_READ_FROM_PC(nes);
+        dummy_read_from_pc_address(nes);
         nes.cpu.data = nes.cpu.a;
         func(nes);
         nes.cpu.a = nes.cpu.data;
         nes.cpu.instruction_done = true;
     }
     else if cat == Register || instr.name == NOP {
-        DUMMY_READ_FROM_PC(nes);
+        dummy_read_from_pc_address(nes);
         func(nes);
         nes.cpu.instruction_done = true;
     }
@@ -168,76 +168,7 @@ pub fn step_cpu(nes: &mut Nes) {
     // Next, deal with control instructions. These need special handling. 
 
     else if cat == Control {
-        match (instr.name, instr.mode) {
-            (BRK, _) => { match cyc {
-                1 => {DUMMY_READ_FROM_PC(nes); increment_pc(nes); nes.cpu.interrupt_vector = 0xFFFE;}
-                2 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
-                3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
-                4 => {push_p_to_stack_during_break(nes); decrement_s(nes);}
-                5 => {fetch_lower_pc_from_interrupt_vector(nes); set_interrupt_inhibit_flag(nes);}
-                6 => {fetch_upper_pc_from_interrupt_vector(nes); nes.cpu.instruction_done = true;}
-                _ => unreachable!(),
-            }}
-            (RTI, _) => { match cyc {
-                1 => {DUMMY_READ_FROM_PC(nes);}
-                2 => {increment_s(nes);}
-                3 => {pull_p_from_stack(nes); increment_s(nes);}
-                4 => {pull_lower_pc_from_stack(nes); increment_s(nes);}
-                5 => {pull_upper_pc_from_stack(nes); nes.cpu.instruction_done = true;}
-                _ => unreachable!(),
-            }}
-            (RTS, _) => { match cyc {
-                1 => {DUMMY_READ_FROM_PC(nes);}
-                2 => {increment_s(nes);}
-                3 => {pull_lower_pc_from_stack(nes); increment_s(nes);}
-                4 => {pull_upper_pc_from_stack(nes);}
-                5 => {increment_pc(nes); nes.cpu.instruction_done = true;}
-                _ => unreachable!(),
-            }}
-            (JSR, _) => { match cyc {
-                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
-                2 => {none(nes);}
-                3 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
-                4 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
-                5 => {take_operand_as_high_address_byte(nes); copy_address_to_pc(nes); nes.cpu.instruction_done = true;} 
-                _ => unreachable!(),
-            }}
-            (PHA, _) => { match cyc {
-                1 => {DUMMY_READ_FROM_PC(nes);}
-                2 => {push_a_to_stack(nes); decrement_s(nes); nes.cpu.instruction_done = true;}
-                _ => unreachable!(),
-            }}
-            (PHP, _) => { match cyc {
-                1 => {DUMMY_READ_FROM_PC(nes);}
-                2 => {push_p_to_stack(nes); decrement_s(nes); nes.cpu.instruction_done = true;}
-                _ => unreachable!(),
-            }}
-            (PLA, _) => { match cyc {
-                1 => {DUMMY_READ_FROM_PC(nes);}
-                2 => {increment_s(nes);}
-                3 => {pull_a_from_stack(nes); update_p_nz(nes, nes.cpu.a); nes.cpu.instruction_done = true;}
-                _ => unreachable!(),
-            }}
-            (PLP, _) => { match cyc {
-                1 => {DUMMY_READ_FROM_PC(nes);}
-                2 => {increment_s(nes);}
-                3 => {pull_p_from_stack(nes); nes.cpu.instruction_done = true;}
-                _ => unreachable!(),
-            }}
-            (JMP, Absolute) => { match cyc {
-                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
-                2 => {take_operand_as_high_address_byte(nes); copy_address_to_pc(nes); nes.cpu.instruction_done = true;}
-                _ => unreachable!(),
-            }}
-            (JMP, AbsoluteI) => { match cyc {
-                1 => {take_operand_as_low_indirect_address_byte(nes); increment_pc(nes);}
-                2 => {take_operand_as_high_indirect_address_byte(nes); increment_pc(nes);}
-                3 => {fetch_low_address_byte_using_indirect_address(nes);}
-                4 => {fetch_high_address_byte_using_indirect_address(nes); copy_address_to_pc(nes); nes.cpu.instruction_done = true;}
-                _ => unreachable!(),
-            }}
-            _ => unreachable!(),
-        };
+        control_instruction_cycles(nes, nes.cpu.instruction_cycle);
     }
 
     // Next, deal with branches, which behave differently from other instructions.
@@ -300,51 +231,7 @@ pub fn step_cpu(nes: &mut Nes) {
     else if (cat == Read || cat == Write || cat == ReadModifyWrite) 
             && (nes.cpu.instruction_cycle <= instr.mode.address_resolution_cycles()) {
 
-        match nes.cpu.instruction.mode {
-            ZeroPage => { match cyc {
-                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
-                _ => unreachable!(),
-            }}
-            ZeroPageX => { match cyc {
-                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
-                2 => {dummy_read_from_address(nes); add_x_to_low_address_byte(nes);}
-                _ => unreachable!(),
-            }}
-            ZeroPageY => { match cyc {
-                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
-                2 => {dummy_read_from_address(nes); add_y_to_low_address_byte(nes);}
-                _ => unreachable!(),
-            }}
-            Absolute => { match cyc {
-                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
-                2 => {take_operand_as_high_address_byte(nes); increment_pc(nes);}
-                _ => unreachable!(),
-            }}
-            AbsoluteX => { match cyc {
-                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
-                2 => {take_operand_as_high_address_byte(nes); add_x_to_low_address_byte(nes); increment_pc(nes);}
-                _ => unreachable!(),
-            }}
-            AbsoluteY => { match cyc {
-                1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
-                2 => {take_operand_as_high_address_byte(nes); add_y_to_low_address_byte(nes); increment_pc(nes);}
-                _ => unreachable!(),
-            }}
-            IndirectX => { match cyc {
-                1 => {take_operand_as_low_indirect_address_byte(nes); increment_pc(nes);}
-                2 => {DUMMY_READ_FROM_POINTER(nes); add_x_to_low_indirect_address_byte(nes);}
-                3 => {fetch_low_address_byte_using_indirect_address(nes);}
-                4 => {fetch_high_address_byte_using_indirect_address(nes);}
-                _ => unreachable!(),
-            }}
-            IndirectY => { match cyc {
-                1 => {take_operand_as_low_indirect_address_byte(nes); increment_pc(nes);}
-                2 => {fetch_low_address_byte_using_indirect_address(nes);}
-                3 => {fetch_high_address_byte_using_indirect_address(nes); add_y_to_low_address_byte(nes);}
-                _ => unreachable!(),
-            }}
-            _ => unreachable!(),
-        }
+        address_resolution_cycles(nes, nes.cpu.instruction_cycle)
 
     }
 
@@ -373,25 +260,32 @@ pub fn step_cpu(nes: &mut Nes) {
             && (nes.cpu.instruction_cycle > instr.mode.address_resolution_cycles()) {
         
         // This is the number of cycles that has elapsed since resolving the effective address
-        let eac = nes.cpu.instruction_cycle - nes.cpu.instruction.mode.address_resolution_cycles();
+        let mut eac = nes.cpu.instruction_cycle - nes.cpu.instruction.mode.address_resolution_cycles();
+
+        match nes.cpu.instruction.mode {
+            Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => {
+                eac += 1;
+            }
+            _ => ()
+        }
 
         match nes.cpu.instruction.mode {
 
-            Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => { match (cat, eac) {
+            // Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => { match (cat, eac) {
 
-                (Read, 1) => {read_from_address(nes); func(nes); nes.cpu.instruction_done = true;}
+            //     (Read, 1) => {read_from_address(nes); func(nes); nes.cpu.instruction_done = true;}
 
-                (Write, 1) => {func(nes); write_to_address(nes); nes.cpu.instruction_done = true;}  // the way this works is pretty stupid
+            //     (Write, 1) => {func(nes); write_to_address(nes); nes.cpu.instruction_done = true;}  // the way this works is pretty stupid
 
-                (ReadModifyWrite, 1) => read_from_address(nes),
-                (ReadModifyWrite, 2) => {write_to_address(nes); func(nes);}
-                (ReadModifyWrite, 3) => {write_to_address(nes); nes.cpu.instruction_done = true;}
+            //     (ReadModifyWrite, 1) => read_from_address(nes),
+            //     (ReadModifyWrite, 2) => {write_to_address(nes); func(nes);}
+            //     (ReadModifyWrite, 3) => {write_to_address(nes); nes.cpu.instruction_done = true;}
 
-                _ => unreachable!(),
-            }}
+            //     _ => unreachable!(),
+            // }}
 
-            AbsoluteX | AbsoluteY | IndirectY => { match (cat, eac) {
-
+            AbsoluteX | AbsoluteY | IndirectY | Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => { match (cat, eac) {
+            // _ => { match (cat, eac) {
                 (Read, 1) => {
                     read_from_address(nes); 
                     add_lower_address_carry_bit_to_upper_address(nes);
@@ -445,9 +339,6 @@ fn end_cycle(nes: &mut Nes) {
 }
 
 fn end_instr(nes: &mut Nes) {
-    // let log_str = log(nes);
-    // println!("{}", log_str);
-
     writeln!(nes.logfile, "{}", create_log_line(nes)).unwrap();
 
     nes.cpu.data = 0;
@@ -463,7 +354,6 @@ fn end_instr(nes: &mut Nes) {
     // Two cycle instructions do the polling at the end of the first cycle instead
     // PLP also? It's not a two cycle instruction though.
 
-    // 
     if !nes.cpu.instruction.does_interrupt_poll_early() {
         nes.cpu.nmi_pending = nes.cpu.nmi_edge_detector_output;
         nes.cpu.irq_pending = nes.cpu.prev_irq_signal && !nes.cpu.p_i;
@@ -473,9 +363,6 @@ fn end_instr(nes: &mut Nes) {
     nes.cpu.instruction_done = false;
 
     nes.cpu.instruction_count += 1;
-
-    // if nes.cpu.instruction_count == 1717875 { nes.logfile.sync_all().unwrap(); panic!() }
-
 
 }
 

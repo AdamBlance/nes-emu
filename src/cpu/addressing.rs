@@ -92,9 +92,6 @@ pub fn add_x_to_low_indirect_address_byte(nes: &mut Nes) {
 
 // Data read
 
-pub fn read_from_pc(nes: &mut Nes) {
-    nes.cpu.data = read_mem(nes.cpu.pc, nes);
-}
 pub fn read_from_address(nes: &mut Nes) {
     let addr = nes.cpu.get_address();
     nes.cpu.data = read_mem(addr, nes);
@@ -107,6 +104,12 @@ pub fn dummy_read_from_address(nes: &mut Nes) {
 pub fn read_from_pointer(nes: &mut Nes) {
     let addr = nes.cpu.get_pointer();
     nes.cpu.data = read_mem(addr, nes);
+}
+pub fn dummy_read_from_pc_address(nes: &mut Nes) {
+    nes.cpu.data = read_mem(nes.cpu.pc, nes);
+}
+pub fn dummy_read_from_indirect_address(nes: &mut Nes) {
+    nes.cpu.data = read_mem(nes.cpu.get_pointer(), nes);
 }
 
 // Write data
