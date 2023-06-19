@@ -172,7 +172,7 @@ impl EventHandler for Emulator {
 
 
 
-fn main() -> std::io::Result<()>{
+fn main() {
     let commandline_args: Vec<String> = std::env::args().collect();
 
     if commandline_args.len() != 3 {
@@ -255,7 +255,7 @@ fn main() -> std::io::Result<()>{
 
 
 
-     let mut logfile = File::create("emulator.log")?;
+     let logfile = File::create("emulator.log").unwrap();
 
      
     let cartridge = new_cartridge(ines_data);

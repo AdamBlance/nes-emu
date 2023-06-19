@@ -30,8 +30,8 @@ pub struct Cpu {
     pub data:               u8,
     pub lower_address:      u8,
     pub upper_address:      u8,
-    pub lower_pointer:      u8,
-    pub upper_pointer:      u8,
+    pub low_indirect_address:      u8,
+    pub high_indirect_address:      u8,
     pub branch_offset:      u8,
     pub branching:          bool,
     pub internal_carry_out: bool,
@@ -42,12 +42,22 @@ pub struct Cpu {
     pub target: u64,
     pub pause: bool,
 
+    pub trace_opc: u8,
     pub trace_opc_addr: u16,
     pub trace_operand_1: u8,
     pub trace_operand_2: u8,
-    pub trace_lower_pointer: u8,
-    pub trace_upper_pointer: u8,
+    pub trace_low_address: u8,
+    pub trace_high_address: u8,
     pub trace_data: u8,
+    pub trace_initial_cycle: u64,
+    pub trace_a: u8,
+    pub trace_x: u8,
+    pub trace_y: u8,
+    pub trace_p: u8,
+    pub trace_s: u8,
+    pub trace_initial_ppu_scanline: i32,
+    pub trace_initial_ppu_scanline_cycle: i32,
+    pub trace_value_before_store: u8,
     
 }
 
@@ -85,6 +95,6 @@ impl Cpu {
         concat_u8(self.upper_address, self.lower_address)
     }
     pub fn get_pointer(&self) -> u16 {
-        concat_u8(self.upper_pointer, self.lower_pointer)
+        concat_u8(self.high_indirect_address, self.low_indirect_address)
     }
 }

@@ -31,6 +31,14 @@ pub fn step_cpu(nes: &mut Nes) {
     if nes.cpu.instruction_cycle == 0 {
 
         nes.cpu.trace_opc_addr = nes.cpu.pc;
+        nes.cpu.trace_a = nes.cpu.a;
+        nes.cpu.trace_x = nes.cpu.x;
+        nes.cpu.trace_y = nes.cpu.y;
+        nes.cpu.trace_p = nes.cpu.get_p();
+        nes.cpu.trace_s = nes.cpu.s;
+        nes.cpu.trace_initial_cycle = nes.cpu.cycles;
+        nes.cpu.trace_initial_ppu_scanline = nes.ppu.scanline;
+        nes.cpu.trace_initial_ppu_scanline_cycle = nes.ppu.scanline_cycle;
         
         if nes.cpu.nmi_pending {
             // println!("IN NMI, cycle {}", nes.cpu.interrupt_cycle);
@@ -76,6 +84,7 @@ pub fn step_cpu(nes: &mut Nes) {
         // If no interrupts are pending, start executing next instruction
         else {
             let opcode = read_mem(nes.cpu.pc, nes);
+            nes.cpu.trace_opc = opcode;
             nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
             if nes.cpu.instruction.category == Unimplemented {
                 unimplemented!("Unofficial instruction {:?} not implemented!", nes.cpu.instruction.name);
@@ -372,7 +381,7 @@ pub fn step_cpu(nes: &mut Nes) {
 
                 (Read, 1) => {read_from_address(nes); func(nes); nes.cpu.instruction_done = true;}
 
-                (Write, 1) => {func(nes); nes.cpu.instruction_done = true;}
+                (Write, 1) => {func(nes); write_to_address(nes); nes.cpu.instruction_done = true;}  // the way this works is pretty stupid
 
                 (ReadModifyWrite, 1) => read_from_address(nes),
                 (ReadModifyWrite, 2) => {write_to_address(nes); func(nes);}
@@ -395,7 +404,7 @@ pub fn step_cpu(nes: &mut Nes) {
                 (Read, 2) => {read_from_address(nes); func(nes); nes.cpu.instruction_done = true;}
 
                 (Write, 1) => {dummy_read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
-                (Write, 2) => {func(nes); nes.cpu.instruction_done = true;}
+                (Write, 2) => {func(nes); write_to_address(nes); nes.cpu.instruction_done = true;}
 
                 (ReadModifyWrite, 1) => {dummy_read_from_address(nes); add_lower_address_carry_bit_to_upper_address(nes);}
                 (ReadModifyWrite, 2) => read_from_address(nes),
@@ -439,16 +448,13 @@ fn end_instr(nes: &mut Nes) {
     // let log_str = log(nes);
     // println!("{}", log_str);
 
-    // writeln!(nes.logfile, "{:04X}  {:?}", nes.cpu.trace_pc_at_opc, nes.cpu.instruction.name).unwrap();
-    
-    
-
+    writeln!(nes.logfile, "{}", create_log_line(nes)).unwrap();
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
     nes.cpu.upper_address = 0;
-    nes.cpu.lower_pointer = 0;
-    nes.cpu.upper_pointer = 0;
+    nes.cpu.low_indirect_address = 0;
+    nes.cpu.high_indirect_address = 0;
     nes.cpu.internal_carry_out = false;
     nes.cpu.branch_offset = 0;
     nes.cpu.branching = false;
@@ -468,23 +474,24 @@ fn end_instr(nes: &mut Nes) {
 
     nes.cpu.instruction_count += 1;
 
-    if nes.cpu.instruction_count == 1717875 { nes.logfile.sync_all().unwrap(); panic!() }
+    // if nes.cpu.instruction_count == 1717875 { nes.logfile.sync_all().unwrap(); panic!() }
 
 
 }
 
-fn create_log_line(nes: &mut Nes) {
+fn create_log_line(nes: &Nes) -> String {
     
     let part1 = match nes.cpu.instruction.number_of_operands() {
-        0 => format!("{:02X}", nes.cpu.trace_opc_addr),
-        1 => format!("{:02X} {:02X}", nes.cpu.trace_opc_addr, nes.cpu.trace_operand_1),
-        2 => format!("{:02X} {:02X} {:02X}", nes.cpu.trace_opc_addr, nes.cpu.trace_operand_1, nes.cpu.trace_operand_2)
+        0 => format!("{:02X}", nes.cpu.trace_opc),
+        1 => format!("{:02X} {:02X}", nes.cpu.trace_opc, nes.cpu.trace_operand_1),
+        2 => format!("{:02X} {:02X} {:02X}", nes.cpu.trace_opc, nes.cpu.trace_operand_1, nes.cpu.trace_operand_2),
+        _ => unreachable!()
     };
 
     let part2 = if nes.cpu.instruction.is_unofficial {
         format!("*{:?}", nes.cpu.instruction.name)
     } else {
-        format!(" {:?}", nes.cpu.instruction.name)
+        format!("{:?}", nes.cpu.instruction.name)
     };
 
     let part3 = match nes.cpu.instruction.mode {
@@ -514,17 +521,16 @@ fn create_log_line(nes: &mut Nes) {
             nes.cpu.trace_data
         ),
         Absolute => {
-            if nes.cpu.instruction.category != Control {
-                format!(
+            match nes.cpu.instruction.category {
+                Control => format!(
+                    "${:04X}", 
+                    concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1)
+                ),
+                _ => format!(
                     "${:04X} = {:02X}", 
                     concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1), 
                     nes.cpu.trace_data
-                )
-            } else {
-                format!(
-                    "${:04X}", 
-                    concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1)
-                )
+                ),
             }
         }
 
@@ -544,25 +550,48 @@ fn create_log_line(nes: &mut Nes) {
             "(${:02X},X) @ {:02X} = {:04X} = {:02X}", 
             nes.cpu.trace_operand_1, 
             nes.cpu.trace_operand_1.wrapping_add(nes.cpu.x), 
-            concat_u8(nes.cpu.trace_upper_pointer, nes.cpu.trace_lower_pointer),
+            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address),
             nes.cpu.trace_data
         ),
         IndirectY => format!(
-            "(${:02X}),Y = {:04x} @ {:04x} = {:02x}", 
-            nes.cpu.trace_byte2, 
-            concat_u8(nes.cpu.upper_pointer, nes.cpu.lower_pointer),
-            nes.cpu.get_address(), 
-            nes.cpu.trace_stored_val
+            "(${:02X}),Y = {:04X} @ {:04X} = {:02X}", 
+            nes.cpu.trace_operand_1, 
+            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address),  // ok problem is trace_operand_1 and 2 don't get populated with the instructions that do stuff with indirect address
+            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address).wrapping_add(nes.cpu.y as u16),  // maybe get rid of trace indirect, just use operand 1 and 2
+            nes.cpu.trace_data
         ),
         AbsoluteI => format!(
             "(${:04X}) = {:04X}",
-            concat_u8(nes.cpu.upper_pointer, nes.cpu.lower_pointer),
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1),
             nes.cpu.pc,
         ),
         Relative => format!(
             "${:04X}",
-            nes.cpu.pc,
+            nes.cpu.trace_opc_addr.wrapping_add(2).wrapping_add_signed((nes.cpu.trace_operand_1 as i8) as i16),
         ),
     };
+
+    let part4 = format!(
+        "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{:3},{:3} CYC:{}", 
+        nes.cpu.trace_a,
+        nes.cpu.trace_x,
+        nes.cpu.trace_y,
+        nes.cpu.trace_p,
+        nes.cpu.trace_s,
+        nes.cpu.trace_initial_ppu_scanline,
+        nes.cpu.trace_initial_ppu_scanline_cycle,
+        nes.cpu.trace_initial_cycle
+    );
+
+    let log_line = format!(
+        "{:04X}  {:8} {:>4} {:27} {}", 
+        nes.cpu.trace_opc_addr,
+        part1,
+        part2,
+        part3,
+        part4
+    );
+
+    log_line
 
 }

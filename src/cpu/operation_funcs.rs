@@ -42,6 +42,14 @@ fn compare_data_with_register(reg_val: u8, nes: &mut Nes) {
     nes.cpu.p_c = nes.cpu.data <= reg_val;
 }
 
+fn safe_read_mem(addr: u16, nes: &mut Nes) -> u8 {
+    if (0x0000..=0x0FFF).contains(&addr) {
+        read_mem(addr, nes)
+    } else {
+        0x00
+    }
+}
+
 
 
 
@@ -59,16 +67,23 @@ pub fn load_y(nes: &mut Nes) {
 }
 
 
+// This is a pretty crap way of doing things for the tracing
+
 pub fn store_a(nes: &mut Nes) {
-    write_mem(nes.cpu.get_address(), nes.cpu.a, nes);
+    nes.cpu.data = nes.cpu.a;
+    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    // write_mem(nes.cpu.get_address(), nes.cpu.a, nes);
 }
 pub fn store_x(nes: &mut Nes) {
-    write_mem(nes.cpu.get_address(), nes.cpu.x, nes);
+    nes.cpu.data = nes.cpu.x;
+    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    // write_mem(nes.cpu.get_address(), nes.cpu.x, nes);
 }
 pub fn store_y(nes: &mut Nes) {
-    write_mem(nes.cpu.get_address(), nes.cpu.y, nes);
+    nes.cpu.data = nes.cpu.y;
+    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    // write_mem(nes.cpu.get_address(), nes.cpu.y, nes);
 }
-
 
 pub fn xor(nes: &mut Nes) {
     nes.cpu.a ^= nes.cpu.data;
