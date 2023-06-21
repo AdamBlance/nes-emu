@@ -82,45 +82,45 @@ pub fn address_resolution_cycles(nes: &mut Nes, instruction_cycle: i8) {
     match nes.cpu.instruction.mode {
         ZeroPage => { match  instruction_cycle  {
             1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
-            _ => unreachable!(),
+            _ => ()
         }}
         ZeroPageX => { match  instruction_cycle  {
             1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
             2 => {dummy_read_from_address(nes); add_x_to_low_address_byte(nes);}
-            _ => unreachable!(),
+            _ => ()
         }}
         ZeroPageY => { match  instruction_cycle  {
             1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
             2 => {dummy_read_from_address(nes); add_y_to_low_address_byte(nes);}
-            _ => unreachable!(),
+            _ => ()
         }}
         Absolute => { match  instruction_cycle  {
             1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
             2 => {take_operand_as_high_address_byte(nes); increment_pc(nes);}
-            _ => unreachable!(),
+            _ => ()
         }}
         AbsoluteX => { match  instruction_cycle  {
             1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
             2 => {take_operand_as_high_address_byte(nes); add_x_to_low_address_byte(nes); increment_pc(nes);}
-            _ => unreachable!(),
+            _ => ()
         }}
         AbsoluteY => { match  instruction_cycle  {
             1 => {take_operand_as_low_address_byte(nes); increment_pc(nes);}
             2 => {take_operand_as_high_address_byte(nes); add_y_to_low_address_byte(nes); increment_pc(nes);}
-            _ => unreachable!(),
+            _ => ()
         }}
         IndirectX => { match  instruction_cycle  {
             1 => {take_operand_as_low_indirect_address_byte(nes); increment_pc(nes);}
             2 => {dummy_read_from_indirect_address(nes); add_x_to_low_indirect_address_byte(nes);}
             3 => {fetch_low_address_byte_using_indirect_address(nes);}
             4 => {fetch_high_address_byte_using_indirect_address(nes);}
-            _ => unreachable!(),
+            _ => ()
         }}
         IndirectY => { match  instruction_cycle  {
             1 => {take_operand_as_low_indirect_address_byte(nes); increment_pc(nes);}
             2 => {fetch_low_address_byte_using_indirect_address(nes);}
             3 => {fetch_high_address_byte_using_indirect_address(nes); add_y_to_low_address_byte(nes);}
-            _ => unreachable!(),
+            _ => ()
         }}
         _ => unreachable!(),
     }
@@ -170,9 +170,13 @@ pub fn branch_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
     }
 }
 
-pub fn processing_cycles(nes: &mut Nes, instruction_cycle: i8, skip_high_address_correction_cycle: bool) {
+pub fn processing_cycles(nes: &mut Nes, instruction_cycle: i8) {
     let func = nes.cpu.instruction.operation;
-    let adjusted_cycle = instruction_cycle + (skip_high_address_correction_cycle as i8);
+    let offset = match nes.cpu.instruction.mode {
+        Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX | Immediate => 1,
+        _ => 0,
+    };
+    let adjusted_cycle = instruction_cycle + offset;
     match nes.cpu.instruction.category {
         Read => match adjusted_cycle {
             1 => {

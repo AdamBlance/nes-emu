@@ -146,19 +146,19 @@ pub fn rotate_right(nes: &mut Nes) {
     update_p_nz(nes, nes.cpu.data);
 }
 pub fn arithmetic_shift_left_accumulator(nes: &mut Nes) {
-    nes.cpu.a = shift_left(nes.cpu.data, false, nes);
+    nes.cpu.a = shift_left(nes.cpu.a, false, nes);
     update_p_nz(nes, nes.cpu.a);
 }
 pub fn logical_shift_right_accumulator(nes: &mut Nes) {
-    nes.cpu.a = shift_right(nes.cpu.data, false, nes);
+    nes.cpu.a = shift_right(nes.cpu.a, false, nes);
     update_p_nz(nes, nes.cpu.a);
 }
 pub fn rotate_left_accumulator(nes: &mut Nes) {
-    nes.cpu.a = shift_left(nes.cpu.data, true, nes);
+    nes.cpu.a = shift_left(nes.cpu.a, true, nes);
     update_p_nz(nes, nes.cpu.a);
 }
 pub fn rotate_right_accumulator(nes: &mut Nes) {
-    nes.cpu.a = shift_right(nes.cpu.data, true, nes);
+    nes.cpu.a = shift_right(nes.cpu.a, true, nes);
     update_p_nz(nes, nes.cpu.a);
 }
 

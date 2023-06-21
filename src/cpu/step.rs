@@ -95,53 +95,20 @@ pub fn step_cpu(nes: &mut Nes) {
     let cat = nes.cpu.instruction.category; 
     let func = nes.cpu.instruction.operation;
     
-    if instr.mode == Accumulator {
-        dummy_read_from_pc_address(nes);
-        nes.cpu.data = nes.cpu.a;
-        func(nes);
-        nes.cpu.a = nes.cpu.data;
-        nes.cpu.instruction_done = true;
-    }
-    else if cat == Register || instr.name == NOP {
-        dummy_read_from_pc_address(nes); // CLC is doing a read when it shouldn't
-        func(nes);
-        nes.cpu.instruction_done = true;
-    }
-    else if instr.mode == Immediate {
-        fetch_immediate_from_pc(nes);
-        increment_pc(nes);
-        func(nes);
-        nes.cpu.instruction_done = true;
-    }
 
-    else if cat == Control {
-        control_instruction_cycles(nes, nes.cpu.instruction_cycle);
-    }
-
-    else if cat == Branch {
-        branch_instruction_cycles(nes, nes.cpu.instruction_cycle)
-    }
-
-    else if (cat == Read || cat == Write || cat == ReadModifyWrite) 
-            && (nes.cpu.instruction_cycle <= instr.mode.address_resolution_cycles()) {
-
-        address_resolution_cycles(nes, nes.cpu.instruction_cycle)
-
-    }
-
-    else if (cat == Read || cat == Write || cat == ReadModifyWrite) 
-            && (nes.cpu.instruction_cycle > instr.mode.address_resolution_cycles()) {
-        
-        let eac = nes.cpu.instruction_cycle - nes.cpu.instruction.mode.address_resolution_cycles();
-        match nes.cpu.instruction.mode {
-            Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX => {
-                processing_cycles(nes, eac, true);
+    match instr.category {
+        Control => control_instruction_cycles(nes, nes.cpu.instruction_cycle),
+        Branch => branch_instruction_cycles(nes, nes.cpu.instruction_cycle),
+        Imm => {fetch_immediate_from_pc(nes); func(nes); increment_pc(nes); nes.cpu.instruction_done = true;}
+        Read | Write | ReadModifyWrite => {
+            address_resolution_cycles(nes, nes.cpu.instruction_cycle);
+            let offset_cycles = nes.cpu.instruction_cycle - instr.address_resolution_cycles();
+            if offset_cycles > 0 {
+                processing_cycles(nes, offset_cycles);
             }
-            AbsoluteX | AbsoluteY | IndirectY => {
-                processing_cycles(nes, eac, false);
-            }
-            _ => unreachable!()
         }
+        NonMemory => {func(nes); dummy_read_from_pc_address(nes); nes.cpu.instruction_done = true;}
+        _ => unreachable!()
     }
 
     if nes.cpu.instruction_done {
