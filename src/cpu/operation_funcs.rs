@@ -245,13 +245,19 @@ pub fn las(nes: &mut Nes) {
     update_p_nz(nes, nes.cpu.a);
 }
 
-pub fn lax(nes: &mut Nes) {
+pub fn load_a_and_x(nes: &mut Nes) {
     nes.cpu.a = nes.cpu.data;
     nes.cpu.x = nes.cpu.data;
     update_p_nz(nes, nes.cpu.a);
 }
 
-pub fn sax(nes: &mut Nes) {
-    let result = nes.cpu.a & nes.cpu.x;
-    write_mem(nes.cpu.get_address(), result, nes);
+pub fn store_a_and_x(nes: &mut Nes) {
+    nes.cpu.data = nes.cpu.a & nes.cpu.x;
+    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+}
+
+pub fn dec_then_compare(nes: &mut Nes) {
+    nes.cpu.data = nes.cpu.data.wrapping_sub(1);
+    // nes.cpu.a = nes.cpu.a.wrapping_sub(nes.cpu.data);
+    compare_memory_with_a(nes);
 }

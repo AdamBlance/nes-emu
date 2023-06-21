@@ -132,7 +132,7 @@ fn end_cycle(nes: &mut Nes) {
 }
 
 fn end_instr(nes: &mut Nes) {
-    // writeln!(nes.logfile, "{}", create_log_line(nes)).unwrap();
+    writeln!(nes.logfile, "{}", create_log_line(nes)).unwrap();
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
@@ -191,13 +191,13 @@ fn create_log_line(nes: &Nes) -> String {
         ZeroPageX => format!(
             "${:02X},X @ {:02X} = {:02X}", 
             nes.cpu.trace_operand_1, 
-            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.x), 
+            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.trace_x), 
             nes.cpu.trace_data
         ),
         ZeroPageY => format!(
             "${:02X},Y @ {:02X} = {:02X}", 
             nes.cpu.trace_operand_1, 
-            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.y), 
+            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.trace_y), 
             nes.cpu.trace_data
         ),
         Absolute => {
@@ -217,19 +217,19 @@ fn create_log_line(nes: &Nes) -> String {
         AbsoluteX => format!(
             "${:04X},X @ {:04X} = {:02X}", 
             concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1),
-            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1).wrapping_add(nes.cpu.x as u16),
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1).wrapping_add(nes.cpu.trace_x as u16),
             nes.cpu.trace_data
         ),
         AbsoluteY => format!(
             "${:04X},Y @ {:04X} = {:02X}", 
             concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1),
-            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1).wrapping_add(nes.cpu.y as u16),
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1).wrapping_add(nes.cpu.trace_y as u16),
             nes.cpu.trace_data
         ),
         IndirectX => format!(
             "(${:02X},X) @ {:02X} = {:04X} = {:02X}", 
             nes.cpu.trace_operand_1, 
-            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.x), 
+            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.trace_x), 
             concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address),
             nes.cpu.trace_data
         ),
@@ -237,7 +237,7 @@ fn create_log_line(nes: &Nes) -> String {
             "(${:02X}),Y = {:04X} @ {:04X} = {:02X}", 
             nes.cpu.trace_operand_1, 
             concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address),
-            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address).wrapping_add(nes.cpu.y as u16),
+            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address).wrapping_add(nes.cpu.trace_y as u16),
             nes.cpu.trace_data
         ),
         AbsoluteI => format!(
