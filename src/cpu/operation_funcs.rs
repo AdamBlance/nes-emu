@@ -231,11 +231,14 @@ pub fn set_interrupt_inhibit_flag(nes: &mut Nes) {
     nes.cpu.p_i = true;
 }
 
-pub fn nop(_nes: &mut Nes) {}
 
 pub fn none(_nes: &mut Nes) {}
 
 // unofficial
+
+pub fn jam(_nes: &mut Nes) {
+    panic!("JAM instruction encountered!");
+}
 
 pub fn las(nes: &mut Nes) {
     let result = nes.cpu.data & nes.cpu.s;
@@ -260,4 +263,96 @@ pub fn dec_then_compare(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.data.wrapping_sub(1);
     // nes.cpu.a = nes.cpu.a.wrapping_sub(nes.cpu.data);
     compare_memory_with_a(nes);
+}
+
+pub fn isc(nes: &mut Nes) {
+    nes.cpu.data = nes.cpu.data.wrapping_add(1);
+    add_value_to_a_with_carry(!nes.cpu.data, nes);
+    update_p_nz(nes, nes.cpu.a);
+}
+
+pub fn slo(nes: &mut Nes) {
+    nes.cpu.data = shift_left(nes.cpu.data, false, nes);
+    nes.cpu.a |= nes.cpu.data;
+    update_p_nz(nes, nes.cpu.a);
+}
+
+pub fn rla(nes: &mut Nes) {
+    nes.cpu.data = shift_left(nes.cpu.data, true, nes);
+    nes.cpu.a &= nes.cpu.data;
+    update_p_nz(nes, nes.cpu.a);
+}
+
+pub fn sre(nes: &mut Nes) {
+    nes.cpu.data = shift_right(nes.cpu.data, false, nes);
+    nes.cpu.a ^= nes.cpu.data;
+    update_p_nz(nes, nes.cpu.a);
+}
+
+pub fn rra(nes: &mut Nes) {
+    nes.cpu.data = shift_right(nes.cpu.data, true, nes);
+    add_value_to_a_with_carry(nes.cpu.data, nes);
+    update_p_nz(nes, nes.cpu.a);
+}
+
+pub fn anc(nes: &mut Nes) {
+    nes.cpu.a = nes.cpu.a & nes.cpu.data;
+    update_p_nz(nes, nes.cpu.a);
+    nes.cpu.p_c = nes.cpu.p_n;
+}
+
+pub fn sbx(nes: &mut Nes) {
+    nes.cpu.x &= nes.cpu.a;
+    let (result, carry) = nes.cpu.x.overflowing_add(!nes.cpu.data);
+    nes.cpu.p_c = carry;
+    nes.cpu.x = result;      
+    update_p_nz(nes, nes.cpu.x);
+}
+
+pub fn asr(nes: &mut Nes) {
+    nes.cpu.a &= nes.cpu.data;
+    nes.cpu.a = shift_right(nes.cpu.a, false, nes);
+    update_p_nz(nes, nes.cpu.a);
+}
+
+pub fn arr(nes: &mut Nes) {
+    let initial_a = nes.cpu.a;
+    nes.cpu.a &= nes.cpu.data;
+    nes.cpu.a = shift_right(nes.cpu.a, true, nes);
+    nes.cpu.p_v = match nes.cpu.p_d {
+        false => get_bit(nes.cpu.a, 5) ^ get_bit(nes.cpu.a, 6),
+        true => get_bit(nes.cpu.a, 6) ^ get_bit(initial_a, 6),
+    };
+    nes.cpu.p_c = match nes.cpu.p_d {
+        false => get_bit(nes.cpu.a, 6),
+        true => (nes.cpu.data & 0xF0).wrapping_add(nes.cpu.data & 0x10) > 0x50,
+    };
+    update_p_nz(nes, nes.cpu.a);
+}
+
+// I think some of these are slightly wrong but nestest doesn't test them
+
+pub fn shs(nes: &mut Nes) {
+    nes.cpu.s = nes.cpu.a & nes.cpu.x;
+    nes.cpu.data = (nes.cpu.s & nes.cpu.upper_address).wrapping_add(1);
+}
+
+pub fn shy(nes: &mut Nes) {
+    nes.cpu.data = (nes.cpu.y & nes.cpu.upper_address).wrapping_add(1);
+    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+}
+
+pub fn shx(nes: &mut Nes) {
+    nes.cpu.data = (nes.cpu.x & nes.cpu.upper_address).wrapping_add(1);
+    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+}
+
+pub fn sha_indirect(nes: &mut Nes) {
+    nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.low_indirect_address;
+    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+}
+
+pub fn sha_absolute(nes: &mut Nes) {
+    nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.upper_address;
+    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
 }
