@@ -44,8 +44,15 @@ const CONTROLLER_2_AND_FRAME_COUNTER_REG: u16 = 0x4017;
 
 const PPU_WARMUP: u64 = 29658;
 
-
 pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
+    read_mem_with_safety(nes, addr, false)
+}
+
+pub fn read_mem_safe(addr: u16, nes: &mut Nes) -> u8 {
+    read_mem_with_safety(nes, addr, true)
+}
+
+pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
     match addr {
 
         // Main memory, mirrored 4 times
@@ -88,8 +95,10 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
 
                 let status = nes.ppu.get_ppustatus_byte();
 
-                nes.ppu.in_vblank = false;
-                nes.ppu.w = false;
+                if !safe_read {
+                    nes.ppu.in_vblank = false;
+                    nes.ppu.w = false;
+                }
                 status
             }
             OAMDATA => nes.ppu.oam_addr,
@@ -98,17 +107,21 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
                 if addr < 0x3F00 {
                     // Read what was already in the buffer
                     let prev_data_in_buffer = nes.ppu.ppudata_buffer;
-                    // Fill the buffer with the value read from VRAM
-                    nes.ppu.ppudata_buffer = ppu::read_vram(nes.ppu.v, nes);
-                    ppu::increment_v_after_ppudata_access(nes);
+                    if !safe_read {
+                        // Fill the buffer with the value read from VRAM
+                        nes.ppu.ppudata_buffer = ppu::read_vram(nes.ppu.v, nes);
+                        ppu::increment_v_after_ppudata_access(nes);
+                    }
                     // Return what was in the buffer before memory read
                     prev_data_in_buffer
                 } else {
                     // Get palette data from memory
                     let data_in_memory = ppu::read_vram(nes.ppu.v, nes);
-                    // Fill the buffer with the data at v - 0x1000
-                    nes.ppu.ppudata_buffer = ppu::read_vram(nes.ppu.v.wrapping_sub(0x1000), nes);
-                    ppu::increment_v_after_ppudata_access(nes);
+                    if !safe_read {
+                        // Fill the buffer with the data at v - 0x1000
+                        nes.ppu.ppudata_buffer = ppu::read_vram(nes.ppu.v.wrapping_sub(0x1000), nes);
+                        ppu::increment_v_after_ppudata_access(nes);
+                    }
                     // Return palette data from memory
                     data_in_memory
                 }
@@ -124,7 +137,9 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
                        | ((nes.apu.sample.remaining_sample_bytes.min(1) as u8) << 4)
                        | ((nes.apu.interrupt_request as u8) << 6)
                        | ((nes.apu.sample.interrupt_request as u8) << 7);
-            nes.apu.interrupt_request = false;
+            if !safe_read {
+                nes.apu.interrupt_request = false;
+            }
             result
         },
 

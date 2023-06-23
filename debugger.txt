@@ -55,3 +55,10 @@ Also do a little review of how the interrupt stuff is working.
 Might be nice to create a (mostly) exhaustive flowchart.
 Also, try not to get stuck on refactoring. Focus on just implementing all the opcodes. 
 
+Test roms passed:
+    branch_timing_tests
+    cpu_dummy_reads
+
+
+
+    [ByteCode,10][Disassembly][EffectiveAddress] [MemoryValue,h][Align,50] A:[A,2h] X:[X,2h] Y:[Y,2h] P:[P,2h] SP:[SP,2h] PPU:[Scanline],[Cycle] CYC:[CycleCount]

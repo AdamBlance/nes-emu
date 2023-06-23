@@ -10,8 +10,8 @@ pub fn run_to_vblank(nes: &mut Nes) {
     if nes.cpu.cycles == 0 {
         nes.cpu.pc = concat_u8(read_mem(0xFFFD, nes), read_mem(0xFFFC, nes));
         // nes.cpu.pc = 0xC000;
-        nes.cpu.cycles = 7;
-        nes.ppu.scanline_cycle = 21;
+        nes.cpu.cycles = 8;
+        nes.ppu.scanline_cycle = 27;
         nes.cpu.p_i = true;
         nes.cpu.s = 0xFD;
         nes.cpu.target = 100;

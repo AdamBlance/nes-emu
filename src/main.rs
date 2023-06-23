@@ -4,7 +4,7 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
 use ggez::{Context, ContextBuilder, GameResult, timer};
-use ggez::event::{self, EventHandler, KeyCode, KeyMods, Button, Axis};
+use ggez::event::{self, EventHandler, KeyCode, KeyMods, Button, Axis, quit};
 use ggez::conf::{WindowMode, WindowSetup};
 use ggez::graphics::{self, DrawParam, Image};
 use ggez::mint::{Vector2, Point2};
@@ -75,7 +75,7 @@ impl EventHandler for Emulator {
         Ok(())
     }
 
-    fn key_down_event(&mut self, _ctx: &mut Context, keycode: KeyCode, _keymods: KeyMods, _repeat: bool) {
+    fn key_down_event(&mut self, ctx: &mut Context, keycode: KeyCode, _keymods: KeyMods, _repeat: bool) {
         match keycode {
             KeyCode::W        => self.nes.con1.button_state |= UP,
             KeyCode::R        => self.nes.con1.button_state |= DOWN,
@@ -88,7 +88,8 @@ impl EventHandler for Emulator {
             KeyCode::Space => {
                 self.nes.cpu.pause = true;
                 self.nes.cpu.target = self.nes.cpu.instruction_count + 10;
-            }
+            },
+            KeyCode::Escape => quit(ctx),
             _ => ()
         }   
     }

@@ -42,14 +42,6 @@ fn compare_data_with_register(reg_val: u8, nes: &mut Nes) {
     nes.cpu.p_c = nes.cpu.data <= reg_val;
 }
 
-fn safe_read_mem(addr: u16, nes: &mut Nes) -> u8 {
-    if (0x0000..=0x0FFF).contains(&addr) {
-        read_mem(addr, nes)
-    } else {
-        0x00
-    }
-}
-
 
 
 
@@ -71,17 +63,17 @@ pub fn load_y(nes: &mut Nes) {
 
 pub fn store_a(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a;
-    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
     // write_mem(nes.cpu.get_address(), nes.cpu.a, nes);
 }
 pub fn store_x(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.x;
-    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
     // write_mem(nes.cpu.get_address(), nes.cpu.x, nes);
 }
 pub fn store_y(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.y;
-    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
     // write_mem(nes.cpu.get_address(), nes.cpu.y, nes);
 }
 
@@ -256,7 +248,7 @@ pub fn load_a_and_x(nes: &mut Nes) {
 
 pub fn store_a_and_x(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a & nes.cpu.x;
-    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn dec_then_compare(nes: &mut Nes) {
@@ -339,20 +331,20 @@ pub fn shs(nes: &mut Nes) {
 
 pub fn shy(nes: &mut Nes) {
     nes.cpu.data = (nes.cpu.y & nes.cpu.upper_address).wrapping_add(1);
-    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn shx(nes: &mut Nes) {
     nes.cpu.data = (nes.cpu.x & nes.cpu.upper_address).wrapping_add(1);
-    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn sha_indirect(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.low_indirect_address;
-    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn sha_absolute(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.upper_address;
-    nes.cpu.trace_data = safe_read_mem(nes.cpu.get_address(), nes);
+    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }

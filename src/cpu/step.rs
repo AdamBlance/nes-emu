@@ -132,7 +132,7 @@ fn end_cycle(nes: &mut Nes) {
 }
 
 fn end_instr(nes: &mut Nes) {
-    // writeln!(nes.logfile, "{}", create_log_line(nes)).unwrap();
+    writeln!(nes.logfile, "{}", create_log_line_mesen(nes)).unwrap();
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
@@ -159,7 +159,7 @@ fn end_instr(nes: &mut Nes) {
 
 }
 
-fn create_log_line(nes: &Nes) -> String {
+fn create_log_line_nintendulator(nes: &Nes) -> String {
     
     let part1 = match nes.cpu.instruction.number_of_operands() {
         0 => format!("{:02X}", nes.cpu.trace_opc),
@@ -264,7 +264,123 @@ fn create_log_line(nes: &Nes) -> String {
     );
 
     let log_line = format!(
-        "{:04X}  {:8} {:>4} {:27} {}", 
+        "{:04X}  {:8} {:>4} {:30} {}", 
+        nes.cpu.trace_opc_addr,
+        part1,
+        part2,
+        part3,
+        part4
+    );
+
+    log_line
+
+}
+
+fn create_log_line_mesen(nes: &Nes) -> String {
+    
+    let part1 = match nes.cpu.instruction.number_of_operands() {
+        0 => format!("{:02X}", nes.cpu.trace_opc),
+        1 => format!("{:02X} {:02X}", nes.cpu.trace_opc, nes.cpu.trace_operand_1),
+        2 => format!("{:02X} {:02X} {:02X}", nes.cpu.trace_opc, nes.cpu.trace_operand_1, nes.cpu.trace_operand_2),
+        _ => unreachable!()
+    };
+
+    let part2 = if nes.cpu.instruction.is_unofficial {
+        format!("*{:?}", nes.cpu.instruction.name)
+    } else {
+        format!("{:?}", nes.cpu.instruction.name)
+    };
+
+    let part3 = match nes.cpu.instruction.mode {
+        Implied => String::from(""),
+        Accumulator => format!(
+            "A"
+        ),
+        Immediate => format!(
+            "#${:02X}", 
+            nes.cpu.trace_operand_1
+        ),
+        ZeroPage => format!(
+            "${:02X} = ${:02X}", 
+            nes.cpu.trace_operand_1, 
+            nes.cpu.trace_data
+        ),
+        ZeroPageX => format!(
+            "${:02X},X [${:04X}] = ${:02X}", 
+            nes.cpu.trace_operand_1, 
+            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.trace_x), 
+            nes.cpu.trace_data
+        ),
+        ZeroPageY => format!(
+            "${:02X},Y [${:04X}] = ${:02X}", 
+            nes.cpu.trace_operand_1, 
+            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.trace_y), 
+            nes.cpu.trace_data
+        ),
+        Absolute => {
+            match nes.cpu.instruction.category {
+                Control => format!(
+                    "${:04X}", 
+                    concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1)
+                ),
+                _ => format!(
+                    "${:04X} = ${:02X}", 
+                    concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1), 
+                    nes.cpu.trace_data
+                ),
+            }
+        }
+
+        AbsoluteX => format!(
+            "${:04X},X [${:04X}] = ${:02X}", 
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1),
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1).wrapping_add(nes.cpu.trace_x as u16),
+            nes.cpu.trace_data
+        ),
+        AbsoluteY => format!(
+            "${:04X},Y [${:04X}] = ${:02X}", 
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1),
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1).wrapping_add(nes.cpu.trace_y as u16),
+            nes.cpu.trace_data
+        ),
+        IndirectX => format!(
+            "(${:02X},X) {:02X} = {:04X} = ${:02X}", 
+            nes.cpu.trace_operand_1, 
+            nes.cpu.trace_operand_1.wrapping_add(nes.cpu.trace_x), 
+            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address),
+            nes.cpu.trace_data
+        ),
+        IndirectY => format!(
+            "(${:02X}),Y = [${:04X}] = ${:02X}", 
+            nes.cpu.trace_operand_1, 
+            concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address).wrapping_add(nes.cpu.trace_y as u16),
+            nes.cpu.trace_data
+        ),
+        AbsoluteI => format!(
+            "(${:04X}) = ${:04X}",
+            concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1),
+            nes.cpu.pc,
+        ),
+        Relative => format!(
+            "${:04X}",
+            nes.cpu.trace_opc_addr.wrapping_add(2).wrapping_add_signed((nes.cpu.trace_operand_1 as i8) as i16),
+        ),
+    };
+
+    let part4 = format!(
+        "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{},{} CYC:{}", 
+        nes.cpu.trace_a,
+        nes.cpu.trace_x,
+        nes.cpu.trace_y,
+        nes.cpu.trace_p,
+        nes.cpu.trace_s,
+        nes.cpu.trace_initial_ppu_scanline,
+        nes.cpu.trace_initial_ppu_scanline_cycle,
+        nes.cpu.trace_initial_cycle
+    );
+
+    let log_line = format!(
+        "{:04X}  {:8} {:>4} {:30} {}", 
         nes.cpu.trace_opc_addr,
         part1,
         part2,
