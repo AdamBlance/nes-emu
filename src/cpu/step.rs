@@ -132,7 +132,7 @@ fn end_cycle(nes: &mut Nes) {
 }
 
 fn end_instr(nes: &mut Nes) {
-    writeln!(nes.logfile, "{}", create_log_line(nes)).unwrap();
+    // writeln!(nes.logfile, "{}", create_log_line(nes)).unwrap();
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;

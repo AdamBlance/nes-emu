@@ -8,8 +8,8 @@ use crate::apu::{self, };
 pub fn run_to_vblank(nes: &mut Nes) {
 
     if nes.cpu.cycles == 0 {
-        // nes.cpu.pc = concat_u8(read_mem(0xFFFD, nes), read_mem(0xFFFC, nes));
-        nes.cpu.pc = 0xC000;
+        nes.cpu.pc = concat_u8(read_mem(0xFFFD, nes), read_mem(0xFFFC, nes));
+        // nes.cpu.pc = 0xC000;
         nes.cpu.cycles = 7;
         nes.ppu.scanline_cycle = 21;
         nes.cpu.p_i = true;
@@ -18,7 +18,6 @@ pub fn run_to_vblank(nes: &mut Nes) {
         // nes.cpu.pause = true;
     }
     
-
     loop {
         cpu::step_cpu(nes);
 
@@ -42,8 +41,6 @@ pub fn run_to_vblank(nes: &mut Nes) {
             }
         }
 
-
-
         // So, after 3 ppu cycles, when reaching end of frame, ppu should land somewhere inside 
         // the 3 cycle range after the frame ends
         // After 3 more ppu cycles, it should leave this range
@@ -56,8 +53,6 @@ pub fn run_to_vblank(nes: &mut Nes) {
 
         // if nes.cpu.instruction_count == target {break;}
     }
-
-
 
 }
 
@@ -104,4 +99,3 @@ fn do_sample(nes: &mut Nes) {
         
     nes.apu.audio_queue.send(output_val).expect("something wrong happened when appending to audio queue");
 }
-

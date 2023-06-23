@@ -43,9 +43,6 @@ const B:      u8 = 0b0000_0010;
 const FRAMERATE: u32 = 60;
 const JOY_DEADZONE: f32 = 0.4;
 
-
-
-
 impl EventHandler for Emulator {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         if timer::check_update_time(ctx, FRAMERATE) {
@@ -166,17 +163,11 @@ impl EventHandler for Emulator {
 
 }
 
-
-
-
-
-
-
 fn main() {
     let commandline_args: Vec<String> = std::env::args().collect();
 
-    if commandline_args.len() != 3 {
-        panic!("Invalid number of arguments");
+    if commandline_args.len() < 2 {
+        panic!("Missing path to rom file");
     }
 
     let ines_data = std::fs::read(&commandline_args[1])
@@ -192,9 +183,11 @@ fn main() {
         panic!("Not a valid iNES file");
     }
 
-
-
-    let scaling = (&commandline_args[2]).parse::<f32>().expect("Invalid scaling value");
+    let scaling = if commandline_args.len() > 2 {
+        (&commandline_args[2]).parse::<f32>().expect("Invalid scaling value")
+    } else {
+        3.0
+    };
 
     // Queue used to send values from the APU to the audio thread
     // Although this is a multiple producer single consumer queue, there is only one producer
@@ -248,16 +241,10 @@ fn main() {
         |_err| {
             panic!();
         },
-     ).expect("Problem creating the stream");
+    ).expect("Problem creating the stream");
 
-
-
-
-
-
-     let logfile = File::create("emulator.log").unwrap();
-
-     
+    let logfile = File::create("emulator.log").unwrap();
+    
     let cartridge = new_cartridge(ines_data);
     let nes       = Nes::new(cartridge, audio_queue_producer, config.sample_rate.0, logfile);
     let emulator  = Emulator {nes, frames: 0, scaling};
