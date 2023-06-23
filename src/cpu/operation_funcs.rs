@@ -265,7 +265,7 @@ pub fn dec_then_compare(nes: &mut Nes) {
     compare_memory_with_a(nes);
 }
 
-pub fn isc(nes: &mut Nes) {
+pub fn isb(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.data.wrapping_add(1);
     add_value_to_a_with_carry(!nes.cpu.data, nes);
     update_p_nz(nes, nes.cpu.a);
