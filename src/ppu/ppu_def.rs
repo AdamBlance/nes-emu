@@ -64,6 +64,8 @@ pub struct Ppu {
     pub ppudata_buffer: u8,
     pub cycles:         u64, 
     pub addr_bus:   u16,
+
+    pub dynamic_latch: u8,
 }
 
 impl Ppu {
@@ -130,6 +132,8 @@ impl Ppu {
             ppudata_buffer: 0,
             cycles: 0,
             addr_bus: 0,
+
+            dynamic_latch: 0,
         }
     }
 
@@ -157,6 +161,6 @@ impl Ppu {
     pub fn get_ppustatus_byte(&self) -> u8 {
         (self.in_vblank as u8)       << 7 | 
         (self.sprite_zero_hit as u8) << 6 |
-        (self.sprite_overflow as u8) << 3
+        (self.sprite_overflow as u8) << 5
     }
 }

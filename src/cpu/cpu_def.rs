@@ -58,7 +58,8 @@ pub struct Cpu {
     pub trace_initial_ppu_scanline: i32,
     pub trace_initial_ppu_scanline_cycle: i32,
     pub trace_value_before_store: u8,
-    
+    pub trace_read_absolute_addr_first_cycle: u8,
+    pub trace_vblank: bool,
 }
 
 impl Cpu {

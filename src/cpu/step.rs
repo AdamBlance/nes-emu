@@ -1,7 +1,7 @@
 use crate::nes::Nes;
 use super::addressing::*;
 use super::cycles::{control_instruction_cycles, address_resolution_cycles, branch_instruction_cycles, processing_cycles};
-use crate::mem::read_mem;
+use crate::mem::{read_mem, read_mem_safe};
 use super::lookup_table::{
     INSTRUCTIONS,
     Mode::*,
@@ -29,7 +29,13 @@ pub fn step_cpu(nes: &mut Nes) {
         nes.cpu.trace_initial_cycle = nes.cpu.cycles;
         nes.cpu.trace_initial_ppu_scanline = nes.ppu.scanline;
         nes.cpu.trace_initial_ppu_scanline_cycle = nes.ppu.scanline_cycle;
-        
+        nes.cpu.trace_vblank = nes.ppu.in_vblank;
+
+        let op1 = read_mem_safe(nes.cpu.pc.wrapping_add(1), nes);
+        let op2 = read_mem_safe(nes.cpu.pc.wrapping_add(2), nes);
+        nes.cpu.trace_read_absolute_addr_first_cycle = read_mem_safe(concat_u8(op2, op1), nes);
+
+
         if nes.cpu.nmi_pending {
             match nes.cpu.interrupt_cycle {
                 0 => {dummy_read_from_pc_address(nes); nes.cpu.irq_pending = false; nes.cpu.interrupt_vector = 0xFFFA;}
@@ -133,6 +139,10 @@ fn end_cycle(nes: &mut Nes) {
 
 fn end_instr(nes: &mut Nes) {
     writeln!(nes.logfile, "{}", create_log_line_mesen(nes)).unwrap();
+
+    if nes.cpu.trace_initial_cycle == 235712 {
+        panic!();
+    }
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
@@ -326,6 +336,7 @@ fn create_log_line_mesen(nes: &Nes) -> String {
                 _ => format!(
                     "${:04X} = ${:02X}", 
                     concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1), 
+                    // nes.cpu.trace_read_absolute_addr_first_cycle,
                     nes.cpu.trace_data
                 ),
             }
@@ -351,7 +362,7 @@ fn create_log_line_mesen(nes: &Nes) -> String {
             nes.cpu.trace_data
         ),
         IndirectY => format!(
-            "(${:02X}),Y = [${:04X}] = ${:02X}", 
+            "(${:02X}),Y [${:04X}] = ${:02X}", 
             nes.cpu.trace_operand_1, 
             concat_u8(nes.cpu.trace_high_address, nes.cpu.trace_low_address).wrapping_add(nes.cpu.trace_y as u16),
             nes.cpu.trace_data
@@ -369,6 +380,7 @@ fn create_log_line_mesen(nes: &Nes) -> String {
 
     let part4 = format!(
         "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{},{} CYC:{}", 
+        // "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{},{} CYC:{} VBLANK:{} TRACE_2002:{:08b}", 
         nes.cpu.trace_a,
         nes.cpu.trace_x,
         nes.cpu.trace_y,
@@ -376,7 +388,9 @@ fn create_log_line_mesen(nes: &Nes) -> String {
         nes.cpu.trace_s,
         nes.cpu.trace_initial_ppu_scanline,
         nes.cpu.trace_initial_ppu_scanline_cycle,
-        nes.cpu.trace_initial_cycle
+        nes.cpu.trace_initial_cycle,
+        // nes.cpu.trace_vblank,
+        // nes.cpu.trace_read_absolute_addr_first_cycle,
     );
 
     let log_line = format!(

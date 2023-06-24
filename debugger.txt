@@ -62,3 +62,5 @@ Test roms passed:
 
 
     [ByteCode,10][Disassembly][EffectiveAddress] [MemoryValue,h][Align,50] A:[A,2h] X:[X,2h] Y:[Y,2h] P:[P,2h] SP:[SP,2h] PPU:[Scanline],[Cycle] CYC:[CycleCount]
+
+    [ByteCode,10][Disassembly][EffectiveAddress] [Align,50] A:[A,2h] X:[X,2h] Y:[Y,2h] P:[P,2h] SP:[SP,2h] PPU:[Scanline],[Cycle] CYC:[CycleCount]

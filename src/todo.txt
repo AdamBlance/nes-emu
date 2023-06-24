@@ -14,3 +14,6 @@ High priority:
 Low priority: 
     - Make APU and OAM DMA suspend CPU for correct number of cycles
 
+
+
+look into open bus behaviour? with ppu 

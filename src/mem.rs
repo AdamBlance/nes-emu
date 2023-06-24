@@ -60,6 +60,8 @@ pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
 
         // PPU memory mapped registers are mirrored through this range
         0x2000..=0x3FFF => match 0x2000 + (addr % 8) {
+            PPUCTRL | PPUMASK | OAMADDR | PPUSCROLL | PPUADDR => nes.ppu.dynamic_latch,
+            
             // Reading PPUSTATUS clears flags
             PPUSTATUS => {
                 /*
@@ -93,15 +95,22 @@ pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
 
 
 
-                let status = nes.ppu.get_ppustatus_byte();
+                let status = nes.ppu.get_ppustatus_byte() | (nes.ppu.dynamic_latch & 0b0001_1111);
 
                 if !safe_read {
                     nes.ppu.in_vblank = false;
                     nes.ppu.w = false;
+                    nes.ppu.dynamic_latch = status
                 }
                 status
             }
-            OAMDATA => nes.ppu.oam_addr,
+            OAMDATA => {
+                let addr = nes.ppu.oam_addr;
+                if !safe_read {
+                    nes.ppu.dynamic_latch = addr;
+                }
+                addr
+            }
             PPUDATA => {
                 // PPUDATA latch behaves differently when reading palette data
                 if addr < 0x3F00 {
@@ -111,6 +120,7 @@ pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
                         // Fill the buffer with the value read from VRAM
                         nes.ppu.ppudata_buffer = ppu::read_vram(nes.ppu.v, nes);
                         ppu::increment_v_after_ppudata_access(nes);
+                        nes.ppu.dynamic_latch = prev_data_in_buffer;
                     }
                     // Return what was in the buffer before memory read
                     prev_data_in_buffer
@@ -121,6 +131,7 @@ pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
                         // Fill the buffer with the data at v - 0x1000
                         nes.ppu.ppudata_buffer = ppu::read_vram(nes.ppu.v.wrapping_sub(0x1000), nes);
                         ppu::increment_v_after_ppudata_access(nes);
+                        nes.ppu.dynamic_latch = data_in_memory;
                     }
                     // Return palette data from memory
                     data_in_memory
@@ -166,60 +177,63 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
         0x0000..=0x1FFF => nes.wram[(addr % 0x800) as usize] = val,
 
         // PPU memory mapped registers are mirrored through this range
-        0x2000..=0x3FFF => match 0x2000 + (addr % 8) {
-            PPUCTRL => {
-                if nes.cpu.cycles < PPU_WARMUP {return};
-                nes.ppu.set_ppuctrl_from_byte(val);
-                nes.ppu.t &= !ppu::NAMETABLE;
-                nes.ppu.t |= (val_u16 & 0b11) << 10;
-                // println!("nmi {}", nes.ppu.nmi_enable);
-            }
-            PPUMASK => {
-                if nes.cpu.cycles < PPU_WARMUP {return};
-                nes.ppu.set_ppumask_from_byte(val);
-            }
-            OAMADDR => nes.ppu.oam_addr = val,
-            OAMDATA => {
-                nes.ppu.oam[nes.ppu.oam_addr as usize] = val;
-                nes.ppu.oam_addr = nes.ppu.oam_addr.wrapping_add(1);
-            }
-            PPUSCROLL => {
-                if nes.cpu.cycles < PPU_WARMUP {return};
-                if !nes.ppu.w {
-                    // Put x-scroll into t, x after first write
-                    nes.ppu.t &= !ppu::COARSE_X;
-                    nes.ppu.t |= val_u16 >> 3;
-                    nes.ppu.x = val & 0b111;
-                } else {
-                    // Put y-scroll into, t after second write
-                    nes.ppu.t &= !(ppu::COARSE_Y | ppu::FINE_Y);
-                    nes.ppu.t |= (val_u16 & 0b11111_000) << 2;
-                    nes.ppu.t |= (val_u16 & 0b00000_111) << 12;
+        0x2000..=0x3FFF => {
+            nes.ppu.dynamic_latch = val;
+            match 0x2000 + (addr % 8) {
+                PPUCTRL => {
+                    if nes.cpu.cycles < PPU_WARMUP {return};
+                    nes.ppu.set_ppuctrl_from_byte(val);
+                    nes.ppu.t &= !ppu::NAMETABLE;
+                    nes.ppu.t |= (val_u16 & 0b11) << 10;
+                    // println!("nmi {}", nes.ppu.nmi_enable);
                 }
-                nes.ppu.w = !nes.ppu.w;
-            }
-            PPUADDR => {
-                if nes.cpu.cycles < PPU_WARMUP {return};
-                if !nes.ppu.w {
-                    // Write into upper 6 bits of t
-                    nes.ppu.t &= 0b000000_11111111;
-                    nes.ppu.t |= (val_u16 & 0b111111) << 8;
-                } else {
-                    // Write into lower 8 bits of t
-                    nes.ppu.t &= 0b111111_00000000;
-                    nes.ppu.t |= val_u16;
-                    // Copy t into v
-                    nes.ppu.v = nes.ppu.t;
-                    nes.ppu.addr_bus = nes.ppu.v;
-                    // println!("new ppu addr {:013b} {:04X}", nes.ppu.v, nes.ppu.v);
+                PPUMASK => {
+                    if nes.cpu.cycles < PPU_WARMUP {return};
+                    nes.ppu.set_ppumask_from_byte(val);
                 }
-                nes.ppu.w = !nes.ppu.w;
-            }
-            PPUDATA => {
-                ppu::write_vram(nes.ppu.v, val, nes);
-                ppu::increment_v_after_ppudata_access(nes);
-            }
+                OAMADDR => nes.ppu.oam_addr = val,
+                OAMDATA => {
+                    nes.ppu.oam[nes.ppu.oam_addr as usize] = val;
+                    nes.ppu.oam_addr = nes.ppu.oam_addr.wrapping_add(1);
+                }
+                PPUSCROLL => {
+                    if nes.cpu.cycles < PPU_WARMUP {return};
+                    if !nes.ppu.w {
+                        // Put x-scroll into t, x after first write
+                        nes.ppu.t &= !ppu::COARSE_X;
+                        nes.ppu.t |= val_u16 >> 3;
+                        nes.ppu.x = val & 0b111;
+                    } else {
+                        // Put y-scroll into, t after second write
+                        nes.ppu.t &= !(ppu::COARSE_Y | ppu::FINE_Y);
+                        nes.ppu.t |= (val_u16 & 0b11111_000) << 2;
+                        nes.ppu.t |= (val_u16 & 0b00000_111) << 12;
+                    }
+                    nes.ppu.w = !nes.ppu.w;
+                }
+                PPUADDR => {
+                    if nes.cpu.cycles < PPU_WARMUP {return};
+                    if !nes.ppu.w {
+                        // Write into upper 6 bits of t
+                        nes.ppu.t &= 0b000000_11111111;
+                        nes.ppu.t |= (val_u16 & 0b111111) << 8;
+                    } else {
+                        // Write into lower 8 bits of t
+                        nes.ppu.t &= 0b111111_00000000;
+                        nes.ppu.t |= val_u16;
+                        // Copy t into v
+                        nes.ppu.v = nes.ppu.t;
+                        nes.ppu.addr_bus = nes.ppu.v;
+                        // println!("new ppu addr {:013b} {:04X}", nes.ppu.v, nes.ppu.v);
+                    }
+                    nes.ppu.w = !nes.ppu.w;
+                }
+                PPUDATA => {
+                    ppu::write_vram(nes.ppu.v, val, nes);
+                    ppu::increment_v_after_ppudata_access(nes);
+                }
             _ => (),
+            }
         },
 
         OAMDMA => {
