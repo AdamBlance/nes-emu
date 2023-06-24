@@ -58,6 +58,13 @@ Also, try not to get stuck on refactoring. Focus on just implementing all the op
 Test roms passed:
     branch_timing_tests
     cpu_dummy_reads
+    cpu_dummy_writes
+    cpu_exec_space/test_cpu_exec_space_ppuio
+    cpu_timing_test6 (no video output for some reason but passes)
+    instr_misc
+    
+    
+    
 
 
 

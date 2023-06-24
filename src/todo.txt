@@ -17,3 +17,5 @@ Low priority:
 
 
 look into open bus behaviour? with ppu 
+
+have a look at the correct interrupt behaviour

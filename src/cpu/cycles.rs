@@ -11,7 +11,7 @@ pub fn control_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
             1 => {dummy_read_from_pc_address(nes); increment_pc(nes); nes.cpu.interrupt_vector = 0xFFFE;}
             2 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
             3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
-            4 => {push_p_to_stack_during_break(nes); decrement_s(nes);}
+            4 => {push_p_to_stack_during_break_or_php(nes); decrement_s(nes);}
             5 => {fetch_lower_pc_from_interrupt_vector(nes); set_interrupt_inhibit_flag(nes);}
             6 => {fetch_upper_pc_from_interrupt_vector(nes); nes.cpu.instruction_done = true;}
             _ => unreachable!(),
@@ -47,7 +47,7 @@ pub fn control_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
         }}
         (PHP, _) => { match instruction_cycle {
             1 => {dummy_read_from_pc_address(nes);}
-            2 => {push_p_to_stack(nes); decrement_s(nes); nes.cpu.instruction_done = true;}
+            2 => {push_p_to_stack_during_break_or_php(nes); decrement_s(nes); nes.cpu.instruction_done = true;}
             _ => unreachable!(),
         }}
         (PLA, _) => { match instruction_cycle {

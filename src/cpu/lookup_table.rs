@@ -219,7 +219,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {name:  PHA, mode: Implied,     category: Control, is_unofficial: false, operation: none},
     Instruction {name:  EOR, mode: Immediate,   category: Imm, is_unofficial: false, operation: xor},
     Instruction {name:  LSR, mode: Accumulator, category: NonMemory, is_unofficial: false, operation: logical_shift_right_accumulator},
-    Instruction {name: ASR, mode: Immediate,   category: Read, is_unofficial: true, operation: asr},
+    Instruction {name: ASR, mode: Immediate,   category: Imm, is_unofficial: true, operation: asr},
     Instruction {name:  JMP, mode: Absolute,    category: Control, is_unofficial: false, operation: none},
     Instruction {name:  EOR, mode: Absolute,    category: Read, is_unofficial: false, operation: xor},
     Instruction {name:  LSR, mode: Absolute,    category: ReadModifyWrite, is_unofficial: false, operation: logical_shift_right},

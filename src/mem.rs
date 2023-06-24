@@ -176,6 +176,8 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
         // Main memory, mirrored 4 times
         0x0000..=0x1FFF => nes.wram[(addr % 0x800) as usize] = val,
 
+        // Open bus behaviour here is incorrect, dynamic latch and bus are the same? 
+
         // PPU memory mapped registers are mirrored through this range
         0x2000..=0x3FFF => {
             nes.ppu.dynamic_latch = val;

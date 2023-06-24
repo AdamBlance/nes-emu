@@ -42,7 +42,7 @@ pub fn step_cpu(nes: &mut Nes) {
                 1 => dummy_read_from_pc_address(nes),
                 2 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
                 3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
-                4 => {push_p_to_stack(nes); decrement_s(nes);}
+                4 => {push_p_to_stack_during_interrupt(nes); decrement_s(nes);}
                 5 => {fetch_lower_pc_from_interrupt_vector(nes); set_interrupt_inhibit_flag(nes)}
                 6 => {
                     fetch_upper_pc_from_interrupt_vector(nes);
@@ -62,7 +62,7 @@ pub fn step_cpu(nes: &mut Nes) {
                 1 => dummy_read_from_pc_address(nes),
                 2 => {push_upper_pc_to_stack(nes); decrement_s(nes);}
                 3 => {push_lower_pc_to_stack(nes); decrement_s(nes);}
-                4 => {push_p_to_stack(nes); decrement_s(nes);}
+                4 => {push_p_to_stack_during_interrupt(nes); decrement_s(nes);}
                 5 => {fetch_lower_pc_from_interrupt_vector(nes);}
                 6 => {
                     set_interrupt_inhibit_flag(nes);
@@ -138,11 +138,11 @@ fn end_cycle(nes: &mut Nes) {
 }
 
 fn end_instr(nes: &mut Nes) {
-    writeln!(nes.logfile, "{}", create_log_line_mesen(nes)).unwrap();
+    // writeln!(nes.logfile, "{}", create_log_line_mesen(nes)).unwrap();
 
-    if nes.cpu.trace_initial_cycle == 235712 {
-        panic!();
-    }
+    // if nes.cpu.trace_initial_cycle == 6519436 {
+    //     panic!();
+    // }
 
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
@@ -336,8 +336,7 @@ fn create_log_line_mesen(nes: &Nes) -> String {
                 _ => format!(
                     "${:04X} = ${:02X}", 
                     concat_u8(nes.cpu.trace_operand_2, nes.cpu.trace_operand_1), 
-                    // nes.cpu.trace_read_absolute_addr_first_cycle,
-                    nes.cpu.trace_data
+                    nes.cpu.trace_read_absolute_addr_first_cycle,
                 ),
             }
         }
@@ -379,15 +378,16 @@ fn create_log_line_mesen(nes: &Nes) -> String {
     };
 
     let part4 = format!(
-        "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{},{} CYC:{}", 
+        "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}", 
+        // "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{},{} CYC:{}", 
         // "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{},{} CYC:{} VBLANK:{} TRACE_2002:{:08b}", 
         nes.cpu.trace_a,
         nes.cpu.trace_x,
         nes.cpu.trace_y,
         nes.cpu.trace_p,
         nes.cpu.trace_s,
-        nes.cpu.trace_initial_ppu_scanline,
-        nes.cpu.trace_initial_ppu_scanline_cycle,
+        // nes.cpu.trace_initial_ppu_scanline,
+        // nes.cpu.trace_initial_ppu_scanline_cycle,
         nes.cpu.trace_initial_cycle,
         // nes.cpu.trace_vblank,
         // nes.cpu.trace_read_absolute_addr_first_cycle,

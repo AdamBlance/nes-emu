@@ -295,7 +295,7 @@ pub fn anc(nes: &mut Nes) {
 
 pub fn sbx(nes: &mut Nes) {
     nes.cpu.x &= nes.cpu.a;
-    let (result, carry) = nes.cpu.x.overflowing_add(!nes.cpu.data);
+    let (result, carry) = nes.cpu.x.carrying_add(!nes.cpu.data, true);
     nes.cpu.p_c = carry;
     nes.cpu.x = result;      
     update_p_nz(nes, nes.cpu.x);
@@ -311,14 +311,16 @@ pub fn arr(nes: &mut Nes) {
     let initial_a = nes.cpu.a;
     nes.cpu.a &= nes.cpu.data;
     nes.cpu.a = shift_right(nes.cpu.a, true, nes);
-    nes.cpu.p_v = match nes.cpu.p_d {
-        false => get_bit(nes.cpu.a, 5) ^ get_bit(nes.cpu.a, 6),
-        true => get_bit(nes.cpu.a, 6) ^ get_bit(initial_a, 6),
-    };
-    nes.cpu.p_c = match nes.cpu.p_d {
-        false => get_bit(nes.cpu.a, 6),
-        true => (nes.cpu.data & 0xF0).wrapping_add(nes.cpu.data & 0x10) > 0x50,
-    };
+    // nes.cpu.p_v = match nes.cpu.p_d {
+    //     false => get_bit(nes.cpu.a, 5) ^ get_bit(nes.cpu.a, 6),
+    //     true => get_bit(nes.cpu.a, 6) ^ get_bit(initial_a, 6),
+    // };
+    // nes.cpu.p_c = match nes.cpu.p_d {
+    //     false => get_bit(nes.cpu.a, 6),
+    //     true => (nes.cpu.data & 0xF0).wrapping_add(nes.cpu.data & 0x10) > 0x50,
+    // };
+    nes.cpu.p_c = get_bit(nes.cpu.a, 6);
+    nes.cpu.p_v = get_bit(nes.cpu.a, 6) ^ get_bit(nes.cpu.a, 5);
     update_p_nz(nes, nes.cpu.a);
 }
 
@@ -330,7 +332,7 @@ pub fn shs(nes: &mut Nes) {
 }
 
 pub fn shy(nes: &mut Nes) {
-    nes.cpu.data = (nes.cpu.y & nes.cpu.upper_address).wrapping_add(1);
+    nes.cpu.data = (nes.cpu.y & (nes.cpu.upper_address.wrapping_add(1).wrapping_sub(nes.cpu.y)));
     nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
@@ -348,3 +350,5 @@ pub fn sha_absolute(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.upper_address;
     nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
+
+

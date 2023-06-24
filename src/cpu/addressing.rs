@@ -138,10 +138,10 @@ pub fn push_lower_pc_to_stack(nes: &mut Nes) {
 pub fn push_upper_pc_to_stack(nes: &mut Nes) {
     push_to_stack((nes.cpu.pc >> 8) as u8, nes);    
 }
-pub fn push_p_to_stack(nes: &mut Nes) {
+pub fn push_p_to_stack_during_break_or_php(nes: &mut Nes) {
     push_to_stack(nes.cpu.get_p() | 0b0011_0000, nes);
 }
-pub fn push_p_to_stack_during_break(nes: &mut Nes) {
+pub fn push_p_to_stack_during_interrupt(nes: &mut Nes) {
     push_to_stack(nes.cpu.get_p() | 0b0010_0000, nes);
 }
 pub fn push_a_to_stack(nes: &mut Nes) {
