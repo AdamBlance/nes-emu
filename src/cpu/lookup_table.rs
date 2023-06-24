@@ -18,6 +18,8 @@
 +------+-------------------+---+--------------------------------------------------------------+
 */
 
+use std::{fmt::{Formatter, self}, fmt::Error};
+
 use Mode::*;
 use Category::*;
 use Name::*;
@@ -38,6 +40,17 @@ pub struct Instruction {
 impl Default for Instruction {
     fn default() -> Self {
         Instruction {name: NOP, mode: Implied, category: Unimplemented, is_unofficial: false, operation: none}    
+    }
+}
+
+impl fmt::Debug for Instruction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.debug_struct("Instruction")
+            .field("name", &self.name)
+            .field("mode", &self.mode)
+            .field("category", &self.category)
+            .field("is_unofficial", &self.is_unofficial)
+            .finish()
     }
 }
 

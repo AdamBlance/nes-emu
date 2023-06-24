@@ -5,6 +5,7 @@ use crate::controller::Controller;
 use crate::cartridge::Cartridge;
 use std::fs::File;
 use std::sync::mpsc::Sender;
+use crate::util::concat_u8;
 
 pub struct Nes {
     // Hardware
@@ -23,7 +24,10 @@ pub struct Nes {
 impl Nes {
     pub fn new(cartridge: Box<dyn Cartridge>, audio_queue: Sender<(f32, f32)>, sample_rate: u32, logfile: File) -> Nes {
         Nes { 
-            cpu: Cpu::new(),
+            cpu: Cpu::new(concat_u8(
+                cartridge.read_prg_rom(0xFFFD), 
+                cartridge.read_prg_rom(0xFFFC)
+            )),
             ppu: Ppu::new(),
             apu: Apu::new(audio_queue, sample_rate),
             wram: [0; 2048],

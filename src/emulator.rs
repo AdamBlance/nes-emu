@@ -5,18 +5,29 @@ use crate::ppu;
 use crate::cpu;
 use crate::apu::{self, };
 
-pub fn run_to_vblank(nes: &mut Nes) {
-
-    if nes.cpu.cycles == 0 {
-        nes.cpu.pc = concat_u8(read_mem(0xFFFD, nes), read_mem(0xFFFC, nes));
-        // nes.cpu.pc = 0xC000;
-        nes.cpu.cycles = 8;
-        nes.ppu.scanline_cycle = 27;
-        nes.cpu.p_i = true;
-        nes.cpu.s = 0xFD;
-        nes.cpu.target = 100;
-        // nes.cpu.pause = true;
+pub fn run_one_ppu_cycle_in_screen_bounds(nes: &mut Nes) {
+    loop {
+        run_one_ppu_cycle(nes);
+        if (0..=239).contains(&nes.ppu.scanline) && (1..=256).contains(&nes.ppu.scanline_cycle) {break;}
     }
+}
+
+fn run_one_ppu_cycle(nes: &mut Nes) {
+    match (nes.ppu.cycles) % 3 {
+        0 => {
+            cpu::step_cpu(nes);
+            ppu::step_ppu(nes);
+        }
+        1 => ppu::step_ppu(nes),
+        2 => {
+            ppu::step_ppu(nes);
+            apu::step_apu(nes);
+        }
+        _ => unreachable!()
+    }
+}
+
+pub fn run_to_vblank(nes: &mut Nes) {
     
     loop {
         cpu::step_cpu(nes);

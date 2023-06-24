@@ -6,7 +6,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use ggez::{Context, ContextBuilder, GameResult, timer};
 use ggez::event::{self, EventHandler, KeyCode, KeyMods, Button, Axis, quit};
 use ggez::conf::{WindowMode, WindowSetup};
-use ggez::graphics::{self, DrawParam, Image};
+use ggez::graphics::{self, DrawParam, Image, Color, DrawMode};
 use ggez::mint::{Vector2, Point2};
 
 use std::sync::mpsc;
@@ -29,6 +29,10 @@ struct Emulator {
     nes: Nes,
     frames: u64,
     scaling: f32,
+    pause: bool,
+    zoom: bool,
+    step_ppu: bool,
+    step_frame: bool,
 }
 
 const UP:     u8 = 0b0001_0000;
@@ -40,13 +44,29 @@ const SELECT: u8 = 0b0000_0100;
 const A:      u8 = 0b0000_0001;
 const B:      u8 = 0b0000_0010;
 
-const FRAMERATE: u32 = 60;
+const FRAMERATE: u32 = 120;
 const JOY_DEADZONE: f32 = 0.4;
 
 impl EventHandler for Emulator {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         if timer::check_update_time(ctx, FRAMERATE) {
-            emulator::run_to_vblank(&mut self.nes);
+            if !self.pause {
+                emulator::run_to_vblank(&mut self.nes);
+            } else {
+                if self.step_ppu {
+                    self.step_ppu = false;
+                    if self.zoom {
+                        for _ in 0..100 {
+                            emulator::run_one_ppu_cycle_in_screen_bounds(&mut self.nes);
+                        }
+                    } else {
+                        emulator::run_one_ppu_cycle_in_screen_bounds(&mut self.nes);
+                    }
+                } else if self.step_frame {
+                    self.step_frame = false;
+                    emulator::run_to_vblank(&mut self.nes);
+                }
+            }
         }
         if self.frames % 100 == 0 {
             println!("FPS = {}", timer::fps(ctx));
@@ -56,6 +76,19 @@ impl EventHandler for Emulator {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         // Draw emulator output
+        if self.pause {
+            let ahead = (4 * (self.nes.ppu.scanline.clamp(0, 239)*256 + (0 + self.nes.ppu.scanline_cycle).clamp(0, 255))) as usize;
+            self.nes.frame[ahead] = 255;
+            self.nes.frame[ahead+1] = 255;
+            self.nes.frame[ahead+2] = 0;
+            self.nes.frame[ahead+3] = 255;
+        }
+        let debug_text = graphics::Text::new(
+            graphics::TextFragment::new(format!("{:#?}", self.nes.cpu)).scale(12.0),
+        );
+        let debug_text_ppu = graphics::Text::new(
+            graphics::TextFragment::new(format!("{:#?}", self.nes.ppu)).scale(12.0),
+        );
         let image = Image::from_rgba8(
             ctx, 
             256, 
@@ -64,8 +97,13 @@ impl EventHandler for Emulator {
         )?;
         let dp = DrawParam::default()
             .scale(Vector2{x: self.scaling, y: self.scaling})
-            .dest(Point2{x: 0.0, y: -8.0*self.scaling});
+            .dest(Point2{x: 0.0, y: 0.0});
         graphics::draw(ctx, &image, dp)?;
+
+        let rect = graphics::Mesh::new_rectangle(ctx, DrawMode::fill(), graphics::Rect::new(256.0*self.scaling, 0.0, 256.0*self.scaling, self.scaling*240.0),Color::BLACK)?;
+        graphics::draw(ctx, &rect, DrawParam::default())?;
+        graphics::draw(ctx, &debug_text, DrawParam::default().dest(Point2{x: 256.0*self.scaling, y: 0.0}))?;
+        graphics::draw(ctx, &debug_text_ppu, DrawParam::default().dest(Point2{x: 384.0*self.scaling, y: 0.0}))?;
 
         // Push image to screen
         graphics::present(ctx)?;
@@ -75,7 +113,7 @@ impl EventHandler for Emulator {
         Ok(())
     }
 
-    fn key_down_event(&mut self, ctx: &mut Context, keycode: KeyCode, _keymods: KeyMods, _repeat: bool) {
+    fn key_down_event(&mut self, ctx: &mut Context, keycode: KeyCode, keymods: KeyMods, _repeat: bool) {
         match keycode {
             KeyCode::W        => self.nes.con1.button_state |= UP,
             KeyCode::R        => self.nes.con1.button_state |= DOWN,
@@ -86,15 +124,20 @@ impl EventHandler for Emulator {
             KeyCode::E        => self.nes.con1.button_state |= A,
             KeyCode::N        => self.nes.con1.button_state |= B,
             KeyCode::Space => {
-                self.nes.cpu.pause = true;
-                self.nes.cpu.target = self.nes.cpu.instruction_count + 10;
+                self.pause = !self.pause;
             },
             KeyCode::Escape => quit(ctx),
+            KeyCode::Right => self.step_ppu = true,
+            KeyCode::Down => self.step_frame = true,
             _ => ()
-        }   
+        }
+        match keymods {
+            KeyMods::SHIFT => self.zoom = true,
+            _ => ()
+        }
     }
 
-    fn key_up_event(&mut self, _ctx: &mut Context, keycode: KeyCode, _keymods: KeyMods) {
+    fn key_up_event(&mut self, _ctx: &mut Context, keycode: KeyCode, keymods: KeyMods) {
         match keycode {
             KeyCode::W        => self.nes.con1.button_state &= !UP,
             KeyCode::R        => self.nes.con1.button_state &= !DOWN,
@@ -105,7 +148,11 @@ impl EventHandler for Emulator {
             KeyCode::E        => self.nes.con1.button_state &= !A,
             KeyCode::N        => self.nes.con1.button_state &= !B,
             _ => ()
-        }   
+        }
+        match keymods {
+            KeyMods::SHIFT => self.zoom = false,
+            _ => ()
+        }
     }
 
     fn gamepad_button_down_event(&mut self, _ctx: &mut Context, btn: Button, _id: event::GamepadId) {
@@ -220,23 +267,14 @@ fn main() {
                     prev_sample = new;
                     new
                 } else {
-                    // println!("NOT FED");
                     prev_sample
                 };
 
                 let cpal_l_sample = cpal::Sample::from::<f32>(&new_sample.0);
                 let cpal_r_sample = cpal::Sample::from::<f32>(&new_sample.1);
 
-                // let cpal_sample = cpal::Sample::from::<f32>(&new_sample);
-
                 frame[0] = cpal_l_sample;
                 frame[1] = cpal_r_sample;
-
-                // for sample in frame.iter_mut() {
-                    // *sample = cpal_sample;
-                // }
-
-
             }
         },
         |_err| {
@@ -248,10 +286,10 @@ fn main() {
     
     let cartridge = new_cartridge(ines_data);
     let nes       = Nes::new(cartridge, audio_queue_producer, config.sample_rate.0, logfile);
-    let emulator  = Emulator {nes, frames: 0, scaling};
+    let emulator  = Emulator {nes, frames: 0, scaling, pause: false, zoom: false, step_ppu: false, step_frame: false};
 
     let cb = ContextBuilder::new("nes-emu", "Adam Blance")
-        .window_mode(WindowMode::default().dimensions(256.0*scaling, 224.0*scaling))
+        .window_mode(WindowMode::default().dimensions(256.0*scaling*2.0, 224.0*scaling))
         .window_setup(WindowSetup::default().title("R-nemUST"));
 
     let (mut ctx, event_loop) = cb.build().unwrap();
@@ -303,7 +341,4 @@ fn new_cartridge(ines_data: Vec<u8>) -> Box<dyn Cartridge> {
         7 => Box::new(CartridgeM7::new(prg_rom)),
         _ => unimplemented!("Mapper {} not implemented", mapper_id),
     }
-
-
-
 }

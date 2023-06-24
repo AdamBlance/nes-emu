@@ -1,7 +1,7 @@
-use crate::util::{concat_u8, get_bit};
+use crate::{util::{concat_u8, get_bit}, mem::read_mem};
 use super::lookup_table::Instruction;
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct Cpu {
     // Registers
     pub a:   u8,
@@ -39,8 +39,6 @@ pub struct Cpu {
     pub ppustatus_read_time: (i32, i32),
     // Debugging
     pub instruction_count: u64,
-    pub target: u64,
-    pub pause: bool,
 
     pub trace_opc: u8,
     pub trace_opc_addr: u16,
@@ -63,7 +61,16 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new() -> Cpu {Default::default()}
+    pub fn new(initial_pc: u16) -> Cpu {
+        Cpu {
+            pc: initial_pc,
+            // nes.cpu.pc = 0xC000,
+            cycles: 8,
+            p_i: true,
+            s: 0xFD,
+            ..Default::default()
+        }
+    }
 
     pub fn set_upper_pc(&mut self, byte: u8) {
         self.pc &= 0b00000000_11111111;

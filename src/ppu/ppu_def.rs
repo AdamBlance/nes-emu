@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::util::get_bit;
 
 #[derive(Copy, Clone)]
@@ -68,6 +70,14 @@ pub struct Ppu {
     pub dynamic_latch: u8,
 }
 
+impl fmt::Debug for Ppu {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        f.debug_struct("Ppu")
+            .field("sprite_zero_hit", &self.sprite_zero_hit)
+            .finish()
+    }
+}
+
 impl Ppu {
     pub fn new() -> Ppu {
         Ppu {
@@ -104,7 +114,7 @@ impl Ppu {
             x: 0,
             w: false,
             scanline: 0,
-            scanline_cycle: 0,
+            scanline_cycle: 27,
             odd_frame: false,
 
             bg_ntable_tmp: 0,

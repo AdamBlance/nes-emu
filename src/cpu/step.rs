@@ -140,10 +140,6 @@ fn end_cycle(nes: &mut Nes) {
 fn end_instr(nes: &mut Nes) {
     // writeln!(nes.logfile, "{}", create_log_line_mesen(nes)).unwrap();
 
-    // if nes.cpu.trace_initial_cycle == 6519436 {
-    //     panic!();
-    // }
-
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
     nes.cpu.upper_address = 0;

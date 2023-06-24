@@ -33,7 +33,6 @@ const PATTERN_MSB_READ: i32 = 7;
 pub fn step_ppu(nes: &mut Nes) {
 
     nes.cart.ppu_tick(nes.ppu.addr_bus);
-    if nes.cpu.pause{println!("addr bus {:016b} ({:04X}) dot {}", nes.ppu.addr_bus, nes.ppu.addr_bus, nes.ppu.scanline_cycle);}
 
     // Aliases
     let cycle = nes.ppu.scanline_cycle;
@@ -199,9 +198,6 @@ pub fn step_ppu(nes: &mut Nes) {
             else if (bg_transparent && !sprite_transparent)
                  || (!bg_transparent && !sprite_transparent && !draw_sprite_behind) {
 
-                // println!("scanline {}, cycle {}, bg_transparent {}, sprite_transparent {}, draw_sprite_behind {}", nes.ppu.scanline, nes.ppu.scanline_cycle, bg_transparent, sprite_transparent, draw_sprite_behind);
-                // println!("sprite msb {} lsb {}", sprite_patt_msb, sprite_patt_lsb);
-                // println!("secondary oam {:X?}", nes.ppu.s_oam);
                 0x3F10 | (sprite_palette_number << 2)   // fuckin gross looking
                        | ((sprite_patt_msb as u16) << 1)
                        |  (sprite_patt_lsb as u16)
@@ -228,8 +224,6 @@ pub fn step_ppu(nes: &mut Nes) {
         let frame_index = ((nes.ppu.scanline * 256 + nes.ppu.scanline_cycle - 1) * 4) as usize;
 
         // Finally, palette index will point to the colour to be drawn
-
-        // println!("palette index {:04X}", palette_index);
 
         // this isn't a normal memory access I don't think
         // I think palette memory can be accessed internally without a proper memory read
@@ -260,7 +254,7 @@ pub fn step_ppu(nes: &mut Nes) {
         // Draw the pixel!
         nes.frame[frame_index    ] = pixel_rgb.0;  // R
         nes.frame[frame_index + 1] = pixel_rgb.1;  // G
-        // nes.frame[frame_index + 1] = if nes.ppu.sprite_zero_in_latches && sprite_number == 0 {255} else {pixel_rgb.1};  // G
+        nes.frame[frame_index + 1] = if nes.ppu.sprite_zero_in_latches && sprite_number == 0 {255} else {pixel_rgb.1};  // G
         nes.frame[frame_index + 2] = pixel_rgb.2;  // B
         nes.frame[frame_index + 3] =         255;  // A
 
@@ -330,14 +324,12 @@ pub fn step_ppu(nes: &mut Nes) {
         match cycle % 8 {
             
             NAMETABLE_READ => {
-                if nes.cpu.pause{println!("nametable read");}
                 let ntable_address = 0x2000 | (nes.ppu.v & !FINE_Y);
                 nes.ppu.bg_ntable_tmp = read_vram(ntable_address, nes);
 
             }
 
             ATTRIBUTE_READ => {
-                if nes.cpu.pause{println!("attribute read");}
                 let attribute_addr = 0x23C0 | (nes.ppu.v & NAMETABLE) 
                                             | ((nes.ppu.v & 0b11100_00000) >> 4)
                                             | ((nes.ppu.v & 0b00000_11100) >> 2);
@@ -345,7 +337,6 @@ pub fn step_ppu(nes: &mut Nes) {
             }
 
             PATTERN_LSB_READ => {
-                if nes.cpu.pause{println!("lower pattern read");}
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
                               | ((nes.ppu.bg_ntable_tmp as u16) << 4) 
                               | ((nes.ppu.v & FINE_Y) >> 12);
@@ -353,7 +344,6 @@ pub fn step_ppu(nes: &mut Nes) {
             }
 
             PATTERN_MSB_READ => {
-                if nes.cpu.pause{println!("upper pattern read");}
                 let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12) 
                                 | ((nes.ppu.bg_ntable_tmp as u16) << 4) 
                                 | ((nes.ppu.v & FINE_Y) >> 12)
@@ -378,8 +368,6 @@ pub fn step_ppu(nes: &mut Nes) {
             nes.ppu.sprite_zero_in_latches = true;
         }
 
-        // println!("current sprite during fetch {}", current_sprite);
-
         let sprite_y              = nes.ppu.s_oam[current_sprite * 4];
         let mut sprite_tile_index = nes.ppu.s_oam[current_sprite * 4 + 1];
         let sprite_properties     = nes.ppu.s_oam[current_sprite * 4 + 2];
@@ -399,11 +387,7 @@ pub fn step_ppu(nes: &mut Nes) {
             nes.ppu.sprite_ptable_select
         };
 
-        
-
-
-
-
+    
         /*
         
         I think we need a match for calculating the tile addr
@@ -411,11 +395,6 @@ pub fn step_ppu(nes: &mut Nes) {
     
         
         */
-
-
-
-
-
 
         let vertically_flipped = (sprite_properties >> 7) == 1;
 
@@ -530,6 +509,7 @@ pub fn step_ppu(nes: &mut Nes) {
             nes.ppu.odd_frame = !nes.ppu.odd_frame;
         }
     }
+    nes.ppu.cycles += 1;
 
 }
 
