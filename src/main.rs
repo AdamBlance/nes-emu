@@ -1,0 +1,281 @@
+#![feature(array_chunks)]
+
+
+// use eframe::egui;
+
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use eframe::egui::load::SizedTexture;
+use eframe::egui::ImageSource::Texture;
+use eframe::egui::{Color32, ColorImage, ImageData, ImageSource, Key, TextBuffer, TextureFilter, TextureHandle, TextureOptions, Vec2};
+use eframe::{egui, CreationContext, WindowBuilderHook, WindowBuilder};
+use std::error::Error;
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
+use std::{env, fs};
+use std::collections::HashSet;
+use std::env::args;
+use std::time::Duration;
+use cpal::SupportedStreamConfigRange;
+use eframe::egui::SizeHint::Size;
+
+use nes_emu_egui::emulator;
+use nes_emu_egui::emulator::{AudioStream, Emulator};
+use nes_emu_egui::nes::cartridge::Mirroring;
+use nes_emu_egui::nes::controller::ButtonState;
+
+
+fn main() -> eframe::Result<()> {
+
+    let options = eframe::NativeOptions {
+        initial_window_size: Some(egui::vec2(1000.0, 1000.0)),
+        ..Default::default()
+    };
+    eframe::run_native(
+        "nes-emu-egui",
+        options,
+        Box::new(|cc| Box::new(MyApp::new(cc))),
+    )
+}
+
+fn get_rom_from_file(path: &str) -> Result<emulator::RomData, Box<dyn Error>> {
+    const INES_HEADER_SIZE: usize = 16;
+    const KB: usize = 1024;
+
+    let ines_data = fs::read(path)?;
+
+    if ines_data.len() < INES_HEADER_SIZE || !ines_data.starts_with(b"NES\x1A") {
+        return Err(format!("{path} is not a vaild iNES rom file (header doesn't fit)").into());
+    }
+
+    let prg_rom_end = INES_HEADER_SIZE + 16 * KB * ines_data[4] as usize;
+    let chr_rom_end = prg_rom_end + 8 * KB * ines_data[5] as usize;
+
+    if (ines_data.len()) < chr_rom_end {
+        return Err(format!("{path} is not a vaild iNES rom file (file not long enough)").into());
+    }
+
+    Ok(emulator::RomData {
+        prg_rom: ines_data[INES_HEADER_SIZE..prg_rom_end].to_owned(),
+        chr_rom: ines_data[prg_rom_end..chr_rom_end].to_owned(),
+        mapper_id: (ines_data[7] & 0xF0) | (ines_data[6] >> 4),
+        chr_rom_is_ram: prg_rom_end == chr_rom_end,
+        mirroring_config: match ines_data[6] & 0b1 {
+            1 => Mirroring::Vertical,
+            0 => Mirroring::Horizontal,
+            _ => unreachable!(),
+        },
+    })
+}
+
+fn create_audio_stream() -> Result<AudioStream, Box<dyn Error>> {
+    let (tx, rx) = mpsc::sync_channel::<(f32, f32)>(4096);
+    let device = cpal::default_host()
+        .default_output_device()
+        .ok_or(cpal::BuildStreamError::DeviceNotAvailable)?;
+    let config = device.default_output_config()?.config();
+
+    let mut output = Ok(
+        AudioStream {
+            sender: tx,
+            sample_rate: config.sample_rate.0 as f32,
+        }
+    );
+
+    std::thread::spawn(move || {
+        let mut prev_sample = (0.0, 0.0);
+        let output_stream = device
+            .build_output_stream(
+                &config,
+                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    // Uses const generics to magically infer that we want &[f32; 2], wow!
+                    for [l_channel, r_channel] in data.array_chunks_mut() {
+                        (*l_channel, *r_channel) = match rx.try_recv() {
+                            Ok(sample) => {
+                                prev_sample = sample;
+                                sample
+                            }
+                            Err(_) => {
+                                println!("not enough samples");
+                                prev_sample
+                            },
+                        };
+                    }
+
+                },
+                |_err| panic!("Audio stream encountered an error: {_err}"),
+                None,
+            ).unwrap();
+        output_stream.play().unwrap();
+        // std::thread::sleep(Duration::from_secs(1000));
+        std::thread::park();
+
+    });
+    // dbg!(output.as_mut().unwrap().sender.send((5.0, 5.0)).unwrap_err().to_string());
+
+    output
+
+
+
+
+
+}
+
+fn new_button_state(keys_down: &HashSet<egui::Key>, key_mapping: &KeyMapping) -> (ButtonState, ButtonState) {
+    let con1 = ButtonState {
+        up: keys_down.contains(&key_mapping.con1_up),
+        down: keys_down.contains(&key_mapping.con1_down),
+        left: keys_down.contains(&key_mapping.con1_left),
+        right: keys_down.contains(&key_mapping.con1_right),
+        a: keys_down.contains(&key_mapping.con1_a),
+        b: keys_down.contains(&key_mapping.con1_b),
+        start: keys_down.contains(&key_mapping.con1_start),
+        select: keys_down.contains(&key_mapping.con1_select),
+    };
+    let con2 = ButtonState {
+        up: keys_down.contains(&key_mapping.con2_up),
+        down: keys_down.contains(&key_mapping.con2_down),
+        left: keys_down.contains(&key_mapping.con2_left),
+        right: keys_down.contains(&key_mapping.con2_right),
+        a: keys_down.contains(&key_mapping.con2_a),
+        b: keys_down.contains(&key_mapping.con2_b),
+        start: keys_down.contains(&key_mapping.con2_start),
+        select: keys_down.contains(&key_mapping.con2_select),
+    };
+    (con1, con2)
+}
+
+struct KeyMapping {
+    con1_up: Key,
+    con1_down: Key,
+    con1_left: Key,
+    con1_right: Key,
+    con1_a: Key,
+    con1_b: Key,
+    con1_start: Key,
+    con1_select: Key,
+    con2_up: Key,
+    con2_down: Key,
+    con2_left: Key,
+    con2_right: Key,
+    con2_a: Key,
+    con2_b: Key,
+    con2_start: Key,
+    con2_select: Key,
+}
+impl Default for KeyMapping {
+    fn default() -> Self {
+        KeyMapping {
+            con1_up: Key::W,
+            con1_down: Key::R,
+            con1_left: Key::A,
+            con1_right: Key::S,
+            con1_a: Key::E,
+            con1_b: Key::N,
+            con1_start: Key::J,
+            con1_select: Key::G,
+            con2_up: Key::Num1,
+            con2_down: Key::Num2,
+            con2_left: Key::Num3,
+            con2_right: Key::Num4,
+            con2_a: Key::Num5,
+            con2_b: Key::Num6,
+            con2_start: Key::Num7,
+            con2_select: Key::Num8,
+        }
+    }
+}
+
+struct MyApp {
+    emulator: Emulator,
+    key_mapping: KeyMapping,
+}
+
+impl MyApp {
+    fn new(eframe_creation_ctx: &CreationContext) -> Self {
+        let screen_texture = eframe_creation_ctx.egui_ctx.load_texture(
+            "emu",
+            ColorImage::new([256, 240], Color32::BLACK),
+            TextureOptions {
+                magnification: TextureFilter::Nearest,
+                minification: TextureFilter::Nearest,
+            },
+        );
+
+        let mut audio_stream = match create_audio_stream() {
+            Ok(stream) => Some(stream),
+            Err(e) => {
+                println!("Failed to create stream, emulator will have no audio output: {e}");
+                None
+            }
+        };
+
+        // dbg!(audio_stream.as_mut().unwrap().sender.send((5.0, 5.0)).unwrap_err().to_string());
+
+
+
+        // let rompath: Vec<String> = std::env::args().collect();
+        let rompath = vec!["", "roms/Super Mario Bros. (World).nes"];
+
+        let mut app = Self {
+            emulator: Emulator::new(screen_texture, audio_stream),
+            key_mapping: KeyMapping::default()
+        };
+
+        app.emulator.load_game(get_rom_from_file(&rompath[1]).unwrap());
+
+        app
+
+    }
+}
+
+impl eframe::App for MyApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+
+        ctx.request_repaint();
+
+
+        let (con1, con2) = ctx.input(|input| new_button_state(&input.keys_down, &self.key_mapping));
+
+        self.emulator.update_controller(1, con1);
+        self.emulator.update_controller(2, con2);
+
+        let time = ctx.input(|input| input.time);
+        // println!("Hello! {time}");
+
+        // let predicted = ctx.input(|input| input.predicted_dt);
+        // dbg!(predicted);
+
+        self.emulator.update(time);
+
+        // it's stuck up there ^^^
+
+        // dbg!("finished input handling");
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+
+            ui.add(
+                egui::Image::from_texture(SizedTexture::from_handle(&self.emulator.video_output))
+                    .shrink_to_fit()
+            );
+
+            ui.add(egui::Slider::from_get_set(0.1..=2.0, |val: Option<f64>| {
+                match val {
+                    Some(speed) => {
+                        self.emulator.set_speed(speed);
+                        speed
+                    }
+                    None => self.emulator.game_speed
+                }
+            }));
+
+            // ui.add(egui::Slider::new(&mut self.emulator.game_speed, 0.1..=6.0));
+
+
+        });
+
+
+        // ctx.request_repaint();
+
+
+    }
+}
