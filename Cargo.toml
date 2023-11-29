@@ -6,9 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-eframe = "0.23.0"
-egui_extras = { version = "0.23.0", features = ["all_loaders"] }
-image = { version = "0.24", features = ["jpeg", "png"] }
+eframe = "0.24.0"
+egui_extras = { version = "0.24.0", features = ["image"]}
+image = { version = "0.24", features = ["png"] }
 rfd = "0.12.1"
 fastrand = "2.0.1"
 cpal = "0.15.2"
+serde = { version = "1.0.193", features = ["derive"] }
+serde_cbor = "0.11.2"

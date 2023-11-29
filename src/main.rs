@@ -2,21 +2,26 @@
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use eframe::egui::load::SizedTexture;
-use eframe::egui::{Color32, ColorImage, Key, TextureFilter, TextureOptions};
-use eframe::{egui, CreationContext};
+use eframe::egui::{Align, Color32, ColorImage, FontDefinitions, Image, include_image, Key, Label, RichText, TextureFilter, TextureOptions, Vec2, ViewportBuilder, ViewportId};
+use eframe::{egui, CreationContext, Theme};
 use std::collections::HashSet;
 use std::error::Error;
 use std::fs;
+use std::path::Path;
 use std::sync::mpsc;
+use egui_extras::{Column, install_image_loaders, TableBuilder};
 
 use nes_emu_egui::emulator;
 use nes_emu_egui::emulator::{AudioStream, Emulator};
 use nes_emu_egui::nes::cartridge::Mirroring;
 use nes_emu_egui::nes::controller::ButtonState;
+use nes_emu_egui::nes::Nes;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(1000.0, 1000.0)),
+        viewport: ViewportBuilder::default().with_inner_size([550.0, 567.0]),
+        follow_system_theme: false,
+        default_theme: Theme::Dark,
         ..Default::default()
     };
     eframe::run_native(
@@ -26,21 +31,23 @@ fn main() -> eframe::Result<()> {
     )
 }
 
-fn get_rom_from_file(path: &str) -> Result<emulator::RomData, Box<dyn Error>> {
+fn get_rom_from_file(path: &Path) -> Result<emulator::RomData, Box<dyn Error>> {
     const INES_HEADER_SIZE: usize = 16;
     const KB: usize = 1024;
+
+    // TODO: Do proper path checks
 
     let ines_data = fs::read(path)?;
 
     if ines_data.len() < INES_HEADER_SIZE || !ines_data.starts_with(b"NES\x1A") {
-        return Err(format!("{path} is not a vaild iNES rom file (header doesn't fit)").into());
+        return Err(format!("{} is not a vaild iNES rom file (header doesn't fit)", path.to_str().unwrap()).into());
     }
 
     let prg_rom_end = INES_HEADER_SIZE + 16 * KB * ines_data[4] as usize;
     let chr_rom_end = prg_rom_end + 8 * KB * ines_data[5] as usize;
 
     if (ines_data.len()) < chr_rom_end {
-        return Err(format!("{path} is not a vaild iNES rom file (file not long enough)").into());
+        return Err(format!("{} is not a vaild iNES rom file (file not long enough)", path.to_str().unwrap()).into());
     }
 
     let chr_rom_is_ram = prg_rom_end == chr_rom_end;
@@ -171,6 +178,9 @@ impl Default for KeyMapping {
 struct MyApp {
     emulator: Emulator,
     key_mapping: KeyMapping,
+    show_cpu_debugger: bool,
+    show_ppu_debugger: bool,
+    show_apu_debugger: bool,
 }
 
 impl MyApp {
@@ -192,24 +202,58 @@ impl MyApp {
             }
         };
 
+        egui_extras::install_image_loaders(&eframe_creation_ctx.egui_ctx);
+
         Self {
             emulator: Emulator::new(screen_texture, audio_stream),
             key_mapping: KeyMapping::default(),
+            show_cpu_debugger: false,
+            show_ppu_debugger: false,
+            show_apu_debugger: false,
         }
     }
 }
 
 impl eframe::App for MyApp {
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint();
 
         let (con1, con2) = ctx.input(|input| new_button_state(&input.keys_down, &self.key_mapping));
-
         self.emulator.update_controller(1, con1);
         self.emulator.update_controller(2, con2);
+        self.emulator.update(ctx.input(|input| input.time));
 
-        let time = ctx.input(|input| input.time);
-        self.emulator.update(time);
+        egui::TopBottomPanel::top("my_panel").show(ctx, |ui| {
+            ui.horizontal_centered(|ui| {
+                if ui.button("Load ROM").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        if let Ok(rom) = get_rom_from_file(path.as_path()) {
+                            self.emulator.load_game(rom);
+                        }
+                    }
+                }
+                ui.separator();
+
+                ui.button("Save");
+                ui.button("Load");
+                ui.button("Load...");
+                ui.separator();
+
+                ui.add_enabled_ui(self.emulator.nes.is_some(), |ui| {
+                    if ui.button("CPU Debugger").clicked() {
+                        self.show_cpu_debugger = !self.show_cpu_debugger;
+                    }
+                    if ui.button("PPU Debugger").clicked() {
+                        self.show_ppu_debugger = !self.show_ppu_debugger;
+                    }
+                    if ui.button("CPU Debugger").clicked() {
+                        self.show_apu_debugger = !self.show_apu_debugger;
+                    }
+                });
+
+            });
+        });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add(
@@ -217,26 +261,67 @@ impl eframe::App for MyApp {
                     .shrink_to_fit(),
             );
 
-            ui.add(egui::Slider::from_get_set(
-                0.1..=2.0,
-                |val: Option<f64>| match val {
-                    Some(speed) => {
-                        self.emulator.set_speed(speed);
-                        speed
-                    }
-                    None => self.emulator.target_speed,
-                },
-            ));
 
-            ui.add(egui::Checkbox::new(&mut self.emulator.paused, "paused"));
 
-            if ui.button("Load ROM").clicked() {
-                if let Some(path) = rfd::FileDialog::new().pick_file() {
-                    if let Ok(rom) = get_rom_from_file(path.as_os_str().to_str().unwrap()) {
-                        self.emulator.load_game(rom);
-                    }
-                }
-            }
         });
+
+        egui::TopBottomPanel::bottom("bottom?").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Speed:");
+                ui.add(
+                    egui::DragValue::from_get_set(
+                        |val: Option<f64>| match val {
+                            Some(speed) => {
+                                self.emulator.set_speed(speed);
+                                speed
+                            }
+                            None => self.emulator.target_speed,
+                        },
+
+                    ).clamp_range(0.1..=2.0).speed(0.005));
+
+                ui.add(egui::Slider::from_get_set(0.0..=100.0, |val| {
+                    match val {
+                        None => 50.0,
+                        Some(x) => x
+                    }
+                }));
+
+                let playpause = match self.emulator.paused {
+                    true => ui.add(egui::Button::image(Image::new(include_image!("../resources/play_light.png")))),
+                    false => ui.add(egui::Button::image(Image::new(include_image!("../resources/pause_light.png")))),
+                };
+
+                if playpause.clicked() {
+                    self.emulator.paused = !self.emulator.paused;
+                }
+
+            });
+        });
+
+        if self.show_cpu_debugger {
+            ctx.show_viewport_immediate(
+                ViewportId::from_hash_of("cpu_debugger"),
+                ViewportBuilder::default().with_inner_size([300.0, 300.0]),
+                |ctx, class| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ui.label("Hello from immediate viewport");
+
+                        egui::ScrollArea::vertical().show_rows(ui, 10.0, 100, |ui, row_range| {
+                            for row in row_range {
+                                let text = format!("Row {}/{}", row + 1, 100);
+                                ui.label(text);
+                            }
+                        });
+
+                    });
+
+                    if ctx.input(|i| i.viewport().close_requested()) {
+                        // Tell parent viewport that we should not show next frame:
+                        self.show_cpu_debugger = false;
+                    }
+                },
+            )
+        }
     }
 }

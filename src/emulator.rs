@@ -7,6 +7,7 @@ use std::sync::mpsc::SyncSender;
 
 use crate::nes::apu;
 use crate::nes::cpu;
+use crate::nes::cpu::lookup_table::{Instruction, INSTRUCTIONS};
 use crate::nes::ppu;
 // use crate::nes::apu::{self, };
 //
@@ -14,6 +15,13 @@ use crate::nes::ppu;
 pub struct AudioStream {
     pub sender: SyncSender<(f32, f32)>,
     pub sample_rate: f32,
+}
+
+pub struct InstructionAndOperands {
+    pub address: u16,
+    pub instruction: Instruction,
+    pub operand_1: Option<u8>,
+    pub operand_2: Option<u8>,
 }
 
 pub struct Emulator {
@@ -33,6 +41,8 @@ pub struct Emulator {
     cpu_cycle_at_last_sample: u64,
     cached_cycles_per_sample: f32,
     stereo_pan: f32,
+
+    pub debug_instructions: Vec<InstructionAndOperands>,
 }
 
 pub struct RomData {
@@ -67,6 +77,7 @@ impl Emulator {
             stereo_pan: 0.0,
             frame: 0,
             time: 0.0,
+            debug_instructions: Vec::new(),
         }
     }
 
@@ -145,6 +156,19 @@ impl Emulator {
         }
     }
 
+    pub fn run_one_cpu_cycle(&mut self) {
+        self.try_audio_sample();
+        if let Some(nes) = self.nes.as_mut() {
+            cpu::step_cpu(nes);
+
+            ppu::step_ppu(nes);
+            ppu::step_ppu(nes);
+            ppu::step_ppu(nes);
+
+            apu::step_apu(nes);
+        }
+    }
+
     fn try_audio_sample(&mut self) {
         if let Some(nes) = self.nes.as_mut() {
             let cycle_diff = (nes.cpu.cycles - self.cpu_cycle_at_last_sample);
@@ -191,5 +215,33 @@ impl Emulator {
             self.cpu_cycle_at_last_sample = nes.cpu.cycles;
             self.avg_sample_rate = rolling_average;
         }
+    }
+
+    pub fn instructions_for_debug(&self) -> Vec<InstructionAndOperands> {
+        let mut instrs: Vec<InstructionAndOperands> = Vec::with_capacity(0xFFFF - 0x8000);
+        if let Some(nes) = self.nes.as_ref() {
+            let mut address = 0x8000;
+            while address >= 0x8000 {
+                let opc = nes.cart.read_prg_rom(address);
+                let op1 = nes.cart.read_prg_rom(address.wrapping_add(1));
+                let op2 = nes.cart.read_prg_rom(address.wrapping_add(2));
+
+                let instruction = INSTRUCTIONS[opc as usize];
+                let len = instruction.number_of_operands();
+
+                assert!(instrs.len() <= 0xFFFF - 0x8000);
+
+                instrs.push(
+                    InstructionAndOperands {
+                            address,
+                            instruction,
+                            operand_1: if len > 0 {Some(op1)} else {None},
+                            operand_2: if len > 1 {Some(op2)} else {None},
+                    }
+                );
+                address = address.wrapping_add(1 + len as u16);
+            }
+        }
+        instrs
     }
 }
