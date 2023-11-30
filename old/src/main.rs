@@ -282,7 +282,7 @@ fn main() {
         },
     ).expect("Problem creating the stream");
 
-    let logfile = File::create("emulator.log").unwrap();
+    let logfile = File::create("../old/emulator.log").unwrap();
     
     let cartridge = new_cartridge(ines_data);
     let nes       = Nes::new(cartridge, audio_queue_producer, config.sample_rate.0, logfile);
