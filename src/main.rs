@@ -240,7 +240,7 @@ impl eframe::App for MyApp {
                 ui.button("Load...");
                 ui.separator();
 
-                ui.add_enabled_ui(self.emulator.nes.is_some(), |ui| {
+                ui.add_enabled_ui(self.emulator.game_loaded(), |ui| {
                     if ui.button("CPU Debugger").clicked() {
                         self.show_cpu_debugger = !self.show_cpu_debugger;
                     }
@@ -261,39 +261,33 @@ impl eframe::App for MyApp {
                     .shrink_to_fit(),
             );
 
-
-
         });
 
         egui::TopBottomPanel::bottom("bottom?").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Speed:");
                 ui.add(
-                    egui::DragValue::from_get_set(
-                        |val: Option<f64>| match val {
-                            Some(speed) => {
-                                self.emulator.set_speed(speed);
-                                speed
-                            }
-                            None => self.emulator.target_speed,
-                        },
+                    egui::DragValue::from_get_set(|val| self.emulator.get_set_speed(val) )
+                        .clamp_range(0.1..=2.0)
+                        .speed(0.005)
+                );
 
-                    ).clamp_range(0.1..=2.0).speed(0.005));
+                ui.add_enabled_ui(self.emulator.get_set_pause(None), |ui| {
+                    let mut rewind_speed_offset = 0;
+                    ui.add(egui::Slider::new(&mut rewind_speed_offset, -10..=10));
+                    self.emulator.scrub_by(rewind_speed_offset);
+                });
 
-                ui.add(egui::Slider::from_get_set(0.0..=100.0, |val| {
-                    match val {
-                        None => 50.0,
-                        Some(x) => x
+
+                if ui.add(
+                    match self.emulator.get_set_pause(None) {
+                        true => egui::Button::image(Image::new(include_image!("../resources/play_light.png"))),
+                        false => egui::Button::image(Image::new(include_image!("../resources/pause_light.png"))),
                     }
-                }));
-
-                let playpause = match self.emulator.paused {
-                    true => ui.add(egui::Button::image(Image::new(include_image!("../resources/play_light.png")))),
-                    false => ui.add(egui::Button::image(Image::new(include_image!("../resources/pause_light.png")))),
-                };
-
-                if playpause.clicked() {
-                    self.emulator.paused = !self.emulator.paused;
+                ).clicked() {
+                    // TODO: get_set isn't a great pattern, change
+                    let temp = !self.emulator.get_set_pause(None);
+                    self.emulator.get_set_pause(Some(temp));
                 }
 
             });

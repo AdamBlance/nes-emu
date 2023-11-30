@@ -1,9 +1,10 @@
 use super::channels::*;
-use std::sync::mpsc::Sender;
+use serde::{Deserialize, Serialize};
 use crate::nes::apu;
 
 const CPU_HZ:   f64 = 1_789_773.0;
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Apu {
 
     pub frame_sequencer_mode_1: bool,
@@ -19,12 +20,6 @@ pub struct Apu {
 
     pub sample: Sample,
 
-    // pub audio_queue: Sender<(f32, f32)>,
-
-    // pub target_cycles_per_sample: f64,
-
-    // pub cycles_since_last_sample: u64,
-    // pub average_cycles_per_sample: f64,
     pub total_sample_count: u64,
 
     pub interrupt_request: bool,

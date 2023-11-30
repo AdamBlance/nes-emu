@@ -1,8 +1,9 @@
 use std::fmt;
+use serde::{Deserialize, Serialize};
 
 use crate::util::get_bit;
 
-#[derive(Copy, Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Ppu {
     // PPUCTRL register
     pub nmi_enable:           bool,
@@ -28,8 +29,8 @@ pub struct Ppu {
     // OAMADDR register
     pub oam_addr: u8,
     // Memories
-    pub vram:        [u8; 2048],
-    pub oam:         [u8; 256],
+    pub vram:        Vec<u8>,
+    pub oam:         Vec<u8>,
     pub s_oam:       [u8; 32],
     pub palette_mem: [u8; 32],
     // Rendering counters/indices/flags
@@ -104,8 +105,8 @@ impl Ppu {
 
             oam_addr: 0,
 
-            vram: [0; 2048],
-            oam: [0; 256],
+            vram: vec![0; 2048],
+            oam: vec![0; 256],
             s_oam: [0; 32],
             palette_mem: [0; 32],
 

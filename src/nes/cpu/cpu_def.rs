@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use crate::{util::{concat_u8, get_bit}, nes::mem::read_mem};
 use super::lookup_table::Instruction;
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Cpu {
     // Registers
     pub a:   u8,

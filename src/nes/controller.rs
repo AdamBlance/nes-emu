@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use crate::util::to_mask;
 
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Controller {
     pub button_state: u8,
     pub shift_register: u8,

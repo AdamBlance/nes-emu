@@ -4,7 +4,9 @@ use super::cartridge::{
     Mirroring,
     basic_nametable_mirroring,
 };
+use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM2 {
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
@@ -26,6 +28,7 @@ impl CartridgeM2 {
         }
     }
 }
+#[typetag::serde]
 impl Cartridge for CartridgeM2 {
     // UxROM doesn't have PRG RAM support
 

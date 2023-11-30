@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::cmp::{max, min};
+use std::rc::Rc;
 use crate::nes::cartridge::cartridge::new_cartridge;
 use crate::nes::cartridge::Mirroring;
 use crate::nes::controller::ButtonState;
@@ -9,8 +12,9 @@ use crate::nes::apu;
 use crate::nes::cpu;
 use crate::nes::cpu::lookup_table::{Instruction, INSTRUCTIONS};
 use crate::nes::ppu;
-// use crate::nes::apu::{self, };
-//
+use crate::util::clamp;
+
+use dyn_clone;
 
 pub struct AudioStream {
     pub sender: SyncSender<(f32, f32)>,
@@ -26,23 +30,25 @@ pub struct InstructionAndOperands {
 
 pub struct Emulator {
     // The emulator isn't gonna have a NES unless it has a game cartridge
-    // The cartridge is hardwired into the address bus so that seems fair
-    pub nes: Option<Nes>,
-    pub target_speed: f64,
-    pub game_speed: f64,
-    pub paused: bool,
-    pub video_output: TextureHandle,
-    pub frame: u64,
+    // The cartridge is hardwired into the address bus so that seems fair 
+    nes: Option<Nes>,
+    target_speed: f64,
+    game_speed: f64,
+    paused: bool,
+    pub video_output: TextureHandle,  // accessed directly in main.rs, no point in using a getter
+    frame: u64,
 
-    pub time: f64,
+    time: f64,
 
     audio_output: Option<AudioStream>,
     avg_sample_rate: f64,
     cpu_cycle_at_last_sample: u64,
     cached_cycles_per_sample: f32,
     stereo_pan: f32,
+    rewind_state_index: usize,
+    rewind_states: Vec<Nes>,
 
-    pub debug_instructions: Vec<InstructionAndOperands>,
+    nes_frame: Rc<RefCell<Vec<u8>>>,
 }
 
 pub struct RomData {
@@ -77,23 +83,54 @@ impl Emulator {
             stereo_pan: 0.0,
             frame: 0,
             time: 0.0,
-            debug_instructions: Vec::new(),
+            rewind_state_index: 0,
+            rewind_states: Vec::new(),
+            nes_frame: Rc::new(RefCell::new(vec![0u8; 256usize * 240 * 4])),
         }
     }
 
     pub fn load_game(&mut self, rom_data: RomData) {
-        self.nes = Some(Nes::new(new_cartridge(rom_data)));
+        self.nes = Some(Nes::new(new_cartridge(rom_data), Rc::clone(&self.nes_frame)));
     }
 
-    pub fn set_speed(&mut self, speed: f64) {
-        assert!(speed >= 0.0);
-        self.target_speed = speed;
+    pub fn game_loaded(&self) -> bool {
+        self.nes.is_some()
+    }
+
+    pub fn get_set_speed(&mut self, speed: Option<f64>) -> f64 {
+        if let Some(speed) = speed {
+            assert!(speed >= 0.0);
+            self.target_speed = speed;
+        }
+        self.target_speed
+    }
+
+    pub fn get_set_pause(&mut self, pause: Option<bool>) -> bool {
+        if let Some(pause) = pause {
+            if !pause {
+                while self.rewind_states.len() - 1 != self.rewind_state_index {
+                    self.rewind_states.pop();
+                }
+            }
+            self.paused = pause;
+        }
+        self.paused
+    }
+
+    pub fn scrub_by(&mut self, n_frames: i32) {
+        if self.paused && !self.rewind_states.is_empty() {
+            self.rewind_state_index = clamp(
+                self.rewind_state_index.saturating_add_signed(n_frames as isize),
+                0,
+                self.rewind_states.len() - 1
+            );
+        }
     }
 
     pub fn update(&mut self, time: f64) -> bool {
         self.time = time;
 
-        if self.paused || self.nes.is_none() {
+        if self.nes.is_none() {
             return false;
         }
 
@@ -101,6 +138,7 @@ impl Emulator {
         let frame_number = (self.time / frame_length) as u64;
 
         if frame_number > self.frame {
+
             if self.game_speed != self.target_speed {
                 self.game_speed = self.target_speed;
 
@@ -117,12 +155,23 @@ impl Emulator {
                 self.frame = frame_number;
             }
 
-            self.run_to_vblank();
+            if self.paused {
+                if !self.rewind_states.is_empty() {
+                    self.nes = Some(self.rewind_states[self.rewind_state_index].clone());
+
+                }
+                self.run_to_vblank(false);
+            } else {
+                if !self.rewind_states.is_empty() {
+                    self.rewind_state_index = self.rewind_states.len() - 1;
+                }
+                self.run_to_vblank(true);
+            }
 
             self.video_output.set(
                 ColorImage::from_rgba_unmultiplied(
                     [256, 240],
-                    self.nes.as_ref().unwrap().frame.as_slice(),
+                    self.nes_frame.borrow().as_slice()
                 ),
                 TextureOptions {
                     magnification: TextureFilter::Nearest,
@@ -135,7 +184,12 @@ impl Emulator {
         }
     }
 
-    fn run_to_vblank(&mut self) {
+    fn run_to_vblank(&mut self, create_rewind_state: bool) {
+
+        if create_rewind_state {
+            self.rewind_states.push(self.nes.as_ref().unwrap().clone());
+        }
+
         loop {
             self.try_audio_sample();
             if let Some(nes) = self.nes.as_mut() {
@@ -156,29 +210,18 @@ impl Emulator {
         }
     }
 
-    pub fn run_one_cpu_cycle(&mut self) {
-        self.try_audio_sample();
-        if let Some(nes) = self.nes.as_mut() {
-            cpu::step_cpu(nes);
-
-            ppu::step_ppu(nes);
-            ppu::step_ppu(nes);
-            ppu::step_ppu(nes);
-
-            apu::step_apu(nes);
-        }
-    }
-
     fn try_audio_sample(&mut self) {
-        if let Some(nes) = self.nes.as_mut() {
-            let cycle_diff = (nes.cpu.cycles - self.cpu_cycle_at_last_sample);
+        if !self.paused {
+            if let Some(nes) = self.nes.as_mut() {
+                let cycle_diff = (nes.cpu.cycles - self.cpu_cycle_at_last_sample);
 
-            if cycle_diff == self.cached_cycles_per_sample.floor() as u64
-                && self.avg_sample_rate > self.cached_cycles_per_sample as f64
-            {
-                self.do_sample();
-            } else if cycle_diff >= self.cached_cycles_per_sample.ceil() as u64 {
-                self.do_sample();
+                if cycle_diff == self.cached_cycles_per_sample.floor() as u64
+                    && self.avg_sample_rate > self.cached_cycles_per_sample as f64
+                {
+                    self.do_sample();
+                } else if cycle_diff >= self.cached_cycles_per_sample.ceil() as u64 {
+                    self.do_sample();
+                }
             }
         }
     }

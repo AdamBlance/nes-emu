@@ -1,8 +1,10 @@
+use dyn_clone::DynClone;
+use serde::{Deserialize, Serialize};
 use crate::emulator;
 use crate::util::get_bit_u16;
 use crate::nes::cartridge::{mapper0, mapper1, mapper2, mapper3, mapper4, mapper7};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum Mirroring {
     Vertical,
     Horizontal,
@@ -24,7 +26,8 @@ pub const KB: usize = 0x400;
 */
 
 // All cartridges must implement this
-pub trait Cartridge {
+#[typetag::serde(tag = "type")]
+pub trait Cartridge: DynClone {
     fn read_prg_ram(&mut self, addr: u16) -> u8 {0}
     fn write_prg_ram(&mut self, addr: u16, byte: u8) {}
 

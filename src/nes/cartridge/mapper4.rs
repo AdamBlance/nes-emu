@@ -6,7 +6,9 @@ use super::cartridge::{
     KB,
 };
 use crate::util::get_bit_u16;
+use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM4 {
     pub prg_ram: Vec<u8>,
     pub prg_rom: Vec<u8>,
@@ -73,6 +75,7 @@ impl CartridgeM4 {
     }
 }
 
+#[typetag::serde]
 impl Cartridge for CartridgeM4 {
 
     // MMC3 can optionally have PRG RAM

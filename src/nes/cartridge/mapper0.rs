@@ -1,4 +1,4 @@
-
+use serde::{Deserialize, Serialize};
 use super::cartridge::{
     Cartridge,
     Mirroring,
@@ -8,6 +8,7 @@ use super::cartridge::{
 
 // iNES mapper 0: NROM-128 and NROM-256
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM0 {
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
@@ -23,7 +24,7 @@ impl CartridgeM0 {
         }
     }
 }
-
+#[typetag::serde]
 impl Cartridge for CartridgeM0 {
     // NROM doesn't support PRG RAM
     // NROM has no internal registers to write to

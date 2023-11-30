@@ -251,11 +251,15 @@ pub fn step_ppu(nes: &mut Nes) {
             pixel_rgb.2 = pixel_rgb.2.saturating_add(b_delta);
         }
 
+        // TODO: Note frame thing here
         // Draw the pixel!
-        nes.frame[frame_index    ] = pixel_rgb.0;  // R
-        nes.frame[frame_index + 1] = pixel_rgb.1;  // G
-        nes.frame[frame_index + 2] = pixel_rgb.2;  // B
-        nes.frame[frame_index + 3] =         255;  // A
+
+        if let Some(frame) = nes.frame.as_ref() {
+            frame.borrow_mut()[frame_index    ] = pixel_rgb.0;  // R
+            frame.borrow_mut()[frame_index + 1] = pixel_rgb.1;  // G
+            frame.borrow_mut()[frame_index + 2] = pixel_rgb.2;  // B
+            frame.borrow_mut()[frame_index + 3] =         255;  // A
+        }
 
         if cycle == 256 {
             nes.ppu.sprite_zero_in_latches = false;

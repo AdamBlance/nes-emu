@@ -5,8 +5,9 @@ use super::cartridge::{
     basic_nametable_mirroring,
     KB,
 };
+use serde::{Deserialize, Serialize};
 
-
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM1 {
     pub prg_ram: Vec<u8>,
     pub prg_rom: Vec<u8>,
@@ -66,7 +67,7 @@ impl CartridgeM1 {
     }
 }
 
-
+#[typetag::serde]
 impl Cartridge for CartridgeM1 {
 
     // MMC1 can optionally have PRG RAM

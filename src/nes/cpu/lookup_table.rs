@@ -88,7 +88,7 @@ use Name::*;
 use super::operation_funcs::*;
 use crate::nes::Nes;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct Instruction {
     pub name: Name,
     pub mode: Mode,
@@ -302,7 +302,7 @@ impl Default for Name {
 }
 
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Mode { 
     Accumulator,
     Immediate,
@@ -323,7 +323,7 @@ impl Default for Mode {
     fn default() -> Mode {Accumulator}
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Category {
     Control,
     NonMemory,

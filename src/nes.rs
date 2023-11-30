@@ -5,6 +5,9 @@ pub mod cpu;
 mod mem;
 pub mod ppu;
 
+use std::cell::RefCell;
+use std::rc::Rc;
+use serde::{Deserialize, Serialize};
 use crate::nes::apu::Apu;
 use crate::nes::cartridge::Cartridge;
 use crate::nes::controller::Controller;
@@ -12,6 +15,8 @@ use crate::nes::cpu::Cpu;
 use crate::nes::ppu::Ppu;
 use crate::util::concat_u8;
 
+
+#[derive(Serialize, Deserialize)]
 pub struct Nes {
     // Hardware
     pub cpu: Cpu,
@@ -22,11 +27,28 @@ pub struct Nes {
     pub con1: Controller,
     pub con2: Controller,
     // External
-    pub frame: Vec<u8>,
+    // #[serde(skip)]
+    // #[serde(default = "frame_default")]
+    pub frame: Option<Rc<RefCell<Vec<u8>>>>,
+}
+
+impl Clone for Nes {
+    fn clone(&self) -> Self {
+        Nes {
+            cpu: self.cpu.clone(),
+            ppu: self.ppu.clone(),
+            apu: self.apu.clone(),
+            wram: self.wram.clone(),
+            cart: dyn_clone::clone_box(&*self.cart),
+            con1: self.con1.clone(),
+            con2: self.con2.clone(),
+            frame: Some(Rc::clone(&self.frame.as_ref().unwrap())),
+        }
+    }
 }
 
 impl Nes {
-    pub fn new(cartridge: Box<dyn Cartridge>) -> Nes {
+    pub fn new(cartridge: Box<dyn Cartridge>, frame: Rc<RefCell<Vec<u8>>>) -> Nes {
         Nes {
             cpu: Cpu::new(concat_u8(
                 cartridge.read_prg_rom(0xFFFD),
@@ -40,7 +62,7 @@ impl Nes {
             con2: Default::default(),
 
             // RGBA image (4 channels)
-            frame: vec![0u8; 256usize * 240 * 4],
+            frame: Some(frame),
         }
     }
 }
