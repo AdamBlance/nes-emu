@@ -1,6 +1,7 @@
+
 use crate::nes::Nes;
 
-use crate::mem::*;
+use crate::nes::mem::*;
 use crate::util::*;
 
 
@@ -63,18 +64,15 @@ pub fn load_y(nes: &mut Nes) {
 
 pub fn store_a(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a;
-    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
-    // write_mem(nes.cpu.get_address(), nes.cpu.a, nes);
+    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 pub fn store_x(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.x;
-    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
-    // write_mem(nes.cpu.get_address(), nes.cpu.x, nes);
+    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 pub fn store_y(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.y;
-    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
-    // write_mem(nes.cpu.get_address(), nes.cpu.y, nes);
+    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn xor(nes: &mut Nes) {
@@ -248,7 +246,7 @@ pub fn load_a_and_x(nes: &mut Nes) {
 
 pub fn store_a_and_x(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a & nes.cpu.x;
-    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
+    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn dec_then_compare(nes: &mut Nes) {
@@ -333,22 +331,22 @@ pub fn shs(nes: &mut Nes) {
 
 pub fn shy(nes: &mut Nes) {
     nes.cpu.data = (nes.cpu.y & (nes.cpu.upper_address.wrapping_add(1).wrapping_sub(nes.cpu.y)));
-    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
+    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn shx(nes: &mut Nes) {
     nes.cpu.data = (nes.cpu.x & nes.cpu.upper_address).wrapping_add(1);
-    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
+    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn sha_indirect(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.low_indirect_address;
-    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
+    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn sha_absolute(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.upper_address;
-    nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
+    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 

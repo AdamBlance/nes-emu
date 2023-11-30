@@ -1,6 +1,6 @@
 
 use crate::nes::Nes;
-use crate::mem::{read_mem, write_mem};
+use crate::nes::mem::{read_mem, write_mem};
 use crate::util::concat_u8;
 
 /*

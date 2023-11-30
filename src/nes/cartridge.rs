@@ -1,10 +1,10 @@
-mod cartridge;
-mod mapper0;
-mod mapper1;
-mod mapper2;
-mod mapper3;
-mod mapper4;
-mod mapper7;
+pub mod cartridge;
+pub mod mapper0;
+pub mod mapper1;
+pub mod mapper2;
+pub mod mapper3;
+pub mod mapper4;
+pub mod mapper7;
 
 pub use self::cartridge::Cartridge;
 pub use self::cartridge::Mirroring;

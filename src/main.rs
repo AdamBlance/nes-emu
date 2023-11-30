@@ -1,344 +1,321 @@
-#![feature(bigint_helper_methods)]
-#![feature(mixed_integer_ops)]
+#![feature(array_chunks)]
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-
-use ggez::{Context, ContextBuilder, GameResult, timer};
-use ggez::event::{self, EventHandler, KeyCode, KeyMods, Button, Axis, quit};
-use ggez::conf::{WindowMode, WindowSetup};
-use ggez::graphics::{self, DrawParam, Image, Color, DrawMode};
-use ggez::mint::{Vector2, Point2};
-
+use eframe::egui::load::SizedTexture;
+use eframe::egui::{Align, Color32, ColorImage, FontDefinitions, Image, include_image, Key, Label, RichText, TextureFilter, TextureOptions, Vec2, ViewportBuilder, ViewportId};
+use eframe::{egui, CreationContext, Theme};
+use std::collections::HashSet;
+use std::error::Error;
+use std::fs;
+use std::path::Path;
 use std::sync::mpsc;
-use std::fs::File;
+use egui_extras::{Column, install_image_loaders, TableBuilder};
 
-mod nes;
-mod controller;
-mod cpu; 
-mod ppu;
-mod apu;
-mod mem;
-mod cartridge;
-mod emulator;
-mod util;
+use nes_emu_egui::emulator;
+use nes_emu_egui::emulator::{AudioStream, Emulator};
+use nes_emu_egui::nes::cartridge::Mirroring;
+use nes_emu_egui::nes::controller::ButtonState;
+use nes_emu_egui::nes::Nes;
 
-use crate::nes::Nes;
-use crate::cartridge::*;
-
-struct Emulator {
-    nes: Nes,
-    frames: u64,
-    scaling: f32,
-    pause: bool,
-    zoom: bool,
-    step_ppu: bool,
-    step_frame: bool,
+fn main() -> eframe::Result<()> {
+    let options = eframe::NativeOptions {
+        viewport: ViewportBuilder::default().with_inner_size([550.0, 567.0]),
+        follow_system_theme: false,
+        default_theme: Theme::Dark,
+        ..Default::default()
+    };
+    eframe::run_native(
+        "nes-emu-egui",
+        options,
+        Box::new(|cc| Box::new(MyApp::new(cc))),
+    )
 }
 
-const UP:     u8 = 0b0001_0000;
-const DOWN:   u8 = 0b0010_0000;
-const LEFT:   u8 = 0b0100_0000;
-const RIGHT:  u8 = 0b1000_0000;
-const START:  u8 = 0b0000_1000;
-const SELECT: u8 = 0b0000_0100;
-const A:      u8 = 0b0000_0001;
-const B:      u8 = 0b0000_0010;
+fn get_rom_from_file(path: &Path) -> Result<emulator::RomData, Box<dyn Error>> {
+    const INES_HEADER_SIZE: usize = 16;
+    const KB: usize = 1024;
 
-const FRAMERATE: u32 = 120;
-const JOY_DEADZONE: f32 = 0.4;
+    // TODO: Do proper path checks
 
-impl EventHandler for Emulator {
-    fn update(&mut self, ctx: &mut Context) -> GameResult {
-        if timer::check_update_time(ctx, FRAMERATE) {
-            if !self.pause {
-                emulator::run_to_vblank(&mut self.nes);
-            } else {
-                if self.step_ppu {
-                    self.step_ppu = false;
-                    if self.zoom {
-                        for _ in 0..100 {
-                            emulator::run_one_ppu_cycle_in_screen_bounds(&mut self.nes);
-                        }
-                    } else {
-                        emulator::run_one_ppu_cycle_in_screen_bounds(&mut self.nes);
+    let ines_data = fs::read(path)?;
+
+    if ines_data.len() < INES_HEADER_SIZE || !ines_data.starts_with(b"NES\x1A") {
+        return Err(format!("{} is not a vaild iNES rom file (header doesn't fit)", path.to_str().unwrap()).into());
+    }
+
+    let prg_rom_end = INES_HEADER_SIZE + 16 * KB * ines_data[4] as usize;
+    let chr_rom_end = prg_rom_end + 8 * KB * ines_data[5] as usize;
+
+    if (ines_data.len()) < chr_rom_end {
+        return Err(format!("{} is not a vaild iNES rom file (file not long enough)", path.to_str().unwrap()).into());
+    }
+
+    let chr_rom_is_ram = prg_rom_end == chr_rom_end;
+
+    Ok(emulator::RomData {
+        prg_rom: ines_data[INES_HEADER_SIZE..prg_rom_end].to_owned(),
+        chr_rom: match chr_rom_is_ram {
+            false => ines_data[prg_rom_end..chr_rom_end].to_owned(),
+            true => vec![0u8; 0x2000],
+        },
+        mapper_id: (ines_data[7] & 0xF0) | (ines_data[6] >> 4),
+        chr_rom_is_ram,
+        mirroring_config: match ines_data[6] & 0b1 {
+            1 => Mirroring::Vertical,
+            0 => Mirroring::Horizontal,
+            _ => unreachable!(),
+        },
+    })
+}
+
+fn create_audio_stream() -> Result<AudioStream, Box<dyn Error>> {
+    let (tx, rx) = mpsc::sync_channel::<(f32, f32)>(4096);
+    let device = cpal::default_host()
+        .default_output_device()
+        .ok_or(cpal::BuildStreamError::DeviceNotAvailable)?;
+    let config = device.default_output_config()?.config();
+
+    let output = Ok(AudioStream {
+        sender: tx,
+        sample_rate: config.sample_rate.0 as f32,
+    });
+
+    std::thread::spawn(move || {
+        let mut prev_sample = (0.0, 0.0);
+        let output_stream = device
+            .build_output_stream(
+                &config,
+                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    // Uses const generics to magically infer that we want &[f32; 2], wow!
+                    for [l_channel, r_channel] in data.array_chunks_mut() {
+                        (*l_channel, *r_channel) = match rx.recv() {
+                            Ok(sample) => {
+                                prev_sample = sample;
+                                sample
+                            }
+                            Err(_) => prev_sample,
+                        };
                     }
-                } else if self.step_frame {
-                    self.step_frame = false;
-                    emulator::run_to_vblank(&mut self.nes);
-                }
-            }
+                },
+                |_err| panic!("Audio stream encountered an error: {_err}"),
+                None,
+            )
+            .unwrap();
+        output_stream.play().unwrap();
+        std::thread::park();
+    });
+    output
+}
+
+fn new_button_state(
+    keys_down: &HashSet<egui::Key>,
+    key_mapping: &KeyMapping,
+) -> (ButtonState, ButtonState) {
+    let con1 = ButtonState {
+        up: keys_down.contains(&key_mapping.con1_up),
+        down: keys_down.contains(&key_mapping.con1_down),
+        left: keys_down.contains(&key_mapping.con1_left),
+        right: keys_down.contains(&key_mapping.con1_right),
+        a: keys_down.contains(&key_mapping.con1_a),
+        b: keys_down.contains(&key_mapping.con1_b),
+        start: keys_down.contains(&key_mapping.con1_start),
+        select: keys_down.contains(&key_mapping.con1_select),
+    };
+    let con2 = ButtonState {
+        up: keys_down.contains(&key_mapping.con2_up),
+        down: keys_down.contains(&key_mapping.con2_down),
+        left: keys_down.contains(&key_mapping.con2_left),
+        right: keys_down.contains(&key_mapping.con2_right),
+        a: keys_down.contains(&key_mapping.con2_a),
+        b: keys_down.contains(&key_mapping.con2_b),
+        start: keys_down.contains(&key_mapping.con2_start),
+        select: keys_down.contains(&key_mapping.con2_select),
+    };
+    (con1, con2)
+}
+
+struct KeyMapping {
+    con1_up: Key,
+    con1_down: Key,
+    con1_left: Key,
+    con1_right: Key,
+    con1_a: Key,
+    con1_b: Key,
+    con1_start: Key,
+    con1_select: Key,
+    con2_up: Key,
+    con2_down: Key,
+    con2_left: Key,
+    con2_right: Key,
+    con2_a: Key,
+    con2_b: Key,
+    con2_start: Key,
+    con2_select: Key,
+}
+impl Default for KeyMapping {
+    fn default() -> Self {
+        KeyMapping {
+            con1_up: Key::W,
+            con1_down: Key::R,
+            con1_left: Key::A,
+            con1_right: Key::S,
+            con1_a: Key::E,
+            con1_b: Key::N,
+            con1_start: Key::J,
+            con1_select: Key::G,
+            con2_up: Key::Num1,
+            con2_down: Key::Num2,
+            con2_left: Key::Num3,
+            con2_right: Key::Num4,
+            con2_a: Key::Num5,
+            con2_b: Key::Num6,
+            con2_start: Key::Num7,
+            con2_select: Key::Num8,
         }
-        if self.frames % 100 == 0 {
-            println!("FPS = {}", timer::fps(ctx));
-        }
-        Ok(())
     }
+}
 
-    fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        // Draw emulator output
-        if self.pause {
-            let ahead = (4 * (self.nes.ppu.scanline.clamp(0, 239)*256 + (0 + self.nes.ppu.scanline_cycle).clamp(0, 255))) as usize;
-            self.nes.frame[ahead] = 255;
-            self.nes.frame[ahead+1] = 255;
-            self.nes.frame[ahead+2] = 0;
-            self.nes.frame[ahead+3] = 255;
-        }
-        let debug_text = graphics::Text::new(
-            graphics::TextFragment::new(format!("{:#?}", self.nes.cpu)).scale(12.0),
-        );
-        let debug_text_ppu = graphics::Text::new(
-            graphics::TextFragment::new(format!("{:#?}", self.nes.ppu)).scale(12.0),
-        );
-        let image = Image::from_rgba8(
-            ctx, 
-            256, 
-            240, 
-            &self.nes.frame
-        )?;
-        let dp = DrawParam::default()
-            .scale(Vector2{x: self.scaling, y: self.scaling})
-            .dest(Point2{x: 0.0, y: 0.0});
-        graphics::draw(ctx, &image, dp)?;
+struct MyApp {
+    emulator: Emulator,
+    key_mapping: KeyMapping,
+    show_cpu_debugger: bool,
+    show_ppu_debugger: bool,
+    show_apu_debugger: bool,
+}
 
-        let rect = graphics::Mesh::new_rectangle(ctx, DrawMode::fill(), graphics::Rect::new(256.0*self.scaling, 0.0, 256.0*self.scaling, self.scaling*240.0),Color::BLACK)?;
-        graphics::draw(ctx, &rect, DrawParam::default())?;
-        graphics::draw(ctx, &debug_text, DrawParam::default().dest(Point2{x: 256.0*self.scaling, y: 0.0}))?;
-        graphics::draw(ctx, &debug_text_ppu, DrawParam::default().dest(Point2{x: 384.0*self.scaling, y: 0.0}))?;
-
-        // Push image to screen
-        graphics::present(ctx)?;
-
-        self.frames += 1;
-
-        Ok(())
-    }
-
-    fn key_down_event(&mut self, ctx: &mut Context, keycode: KeyCode, keymods: KeyMods, _repeat: bool) {
-        match keycode {
-            KeyCode::W        => self.nes.con1.button_state |= UP,
-            KeyCode::R        => self.nes.con1.button_state |= DOWN,
-            KeyCode::A        => self.nes.con1.button_state |= LEFT,
-            KeyCode::S        => self.nes.con1.button_state |= RIGHT,
-            KeyCode::RBracket => self.nes.con1.button_state |= START,
-            KeyCode::LBracket => self.nes.con1.button_state |= SELECT,
-            KeyCode::E        => self.nes.con1.button_state |= A,
-            KeyCode::N        => self.nes.con1.button_state |= B,
-            KeyCode::Space => {
-                self.pause = !self.pause;
+impl MyApp {
+    fn new(eframe_creation_ctx: &CreationContext) -> Self {
+        let screen_texture = eframe_creation_ctx.egui_ctx.load_texture(
+            "emu",
+            ColorImage::new([256, 240], Color32::BLACK),
+            TextureOptions {
+                magnification: TextureFilter::Nearest,
+                minification: TextureFilter::Nearest,
             },
-            KeyCode::Escape => quit(ctx),
-            KeyCode::Right => self.step_ppu = true,
-            KeyCode::Down => self.step_frame = true,
-            _ => ()
-        }
-        match keymods {
-            KeyMods::SHIFT => self.zoom = true,
-            _ => ()
-        }
-    }
+        );
 
-    fn key_up_event(&mut self, _ctx: &mut Context, keycode: KeyCode, keymods: KeyMods) {
-        match keycode {
-            KeyCode::W        => self.nes.con1.button_state &= !UP,
-            KeyCode::R        => self.nes.con1.button_state &= !DOWN,
-            KeyCode::A        => self.nes.con1.button_state &= !LEFT,
-            KeyCode::S        => self.nes.con1.button_state &= !RIGHT,
-            KeyCode::RBracket => self.nes.con1.button_state &= !START,
-            KeyCode::LBracket => self.nes.con1.button_state &= !SELECT,
-            KeyCode::E        => self.nes.con1.button_state &= !A,
-            KeyCode::N        => self.nes.con1.button_state &= !B,
-            _ => ()
-        }
-        match keymods {
-            KeyMods::SHIFT => self.zoom = false,
-            _ => ()
-        }
-    }
-
-    fn gamepad_button_down_event(&mut self, _ctx: &mut Context, btn: Button, _id: event::GamepadId) {
-        match btn {
-            Button::DPadUp    => self.nes.con1.button_state |= UP,
-            Button::DPadDown  => self.nes.con1.button_state |= DOWN,
-            Button::DPadLeft  => self.nes.con1.button_state |= LEFT,
-            Button::DPadRight => self.nes.con1.button_state |= RIGHT,
-            Button::Start     => self.nes.con1.button_state |= START,
-            Button::Select    => self.nes.con1.button_state |= SELECT,
-            Button::South     => self.nes.con1.button_state |= A,
-            Button::West      => self.nes.con1.button_state |= B,
-            _ => (),
-        }
-    }
-
-    fn gamepad_button_up_event(&mut self, _ctx: &mut Context, btn: Button, _id: event::GamepadId) {
-        match btn {
-            Button::DPadUp    => self.nes.con1.button_state &= !UP,
-            Button::DPadDown  => self.nes.con1.button_state &= !DOWN,
-            Button::DPadLeft  => self.nes.con1.button_state &= !LEFT,
-            Button::DPadRight => self.nes.con1.button_state &= !RIGHT,
-            Button::Start     => self.nes.con1.button_state &= !START,
-            Button::Select    => self.nes.con1.button_state &= !SELECT,
-            Button::South     => self.nes.con1.button_state &= !A,
-            Button::West      => self.nes.con1.button_state &= !B,
-            _ => (),
-        }
-    }
-
-    fn gamepad_axis_event(&mut self, _ctx: &mut Context, axis: event::Axis, value: f32, _id: event::GamepadId) {
-        match axis {
-            Axis::LeftStickY => {
-                println!("y axis val {value}");
-                self.nes.con1.button_state &= !(UP | DOWN);
-                if value >= JOY_DEADZONE {
-                    self.nes.con1.button_state |= UP;
-                }
-                else if value <= -JOY_DEADZONE {
-                    self.nes.con1.button_state |= DOWN;
-                }
+        let audio_stream = match create_audio_stream() {
+            Ok(stream) => Some(stream),
+            Err(e) => {
+                println!("Failed to create stream, emulator will have no audio output: {e}");
+                None
             }
-            Axis::LeftStickX => {
-                println!("x axis val {value}");
-                self.nes.con1.button_state &= !(LEFT | RIGHT);
-                if value <= -JOY_DEADZONE {
-                    self.nes.con1.button_state |= LEFT;
-                }
-                else if value >= JOY_DEADZONE {
-                    self.nes.con1.button_state |= RIGHT;
-                }
-            }
-            _ => (),
+        };
+
+        egui_extras::install_image_loaders(&eframe_creation_ctx.egui_ctx);
+
+        Self {
+            emulator: Emulator::new(screen_texture, audio_stream),
+            key_mapping: KeyMapping::default(),
+            show_cpu_debugger: false,
+            show_ppu_debugger: false,
+            show_apu_debugger: false,
         }
     }
-
 }
 
-fn main() {
-    let commandline_args: Vec<String> = std::env::args().collect();
+impl eframe::App for MyApp {
 
-    if commandline_args.len() < 2 {
-        panic!("Missing path to rom file");
-    }
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.request_repaint();
 
-    let ines_data = std::fs::read(&commandline_args[1])
-        .expect("Failed to read rom");
+        let (con1, con2) = ctx.input(|input| new_button_state(&input.keys_down, &self.key_mapping));
+        self.emulator.update_controller(1, con1);
+        self.emulator.update_controller(2, con2);
+        self.emulator.update(ctx.input(|input| input.time));
 
-    // If the file isn't long enough to contain iNES header, quit
-    if ines_data.len() < 16 {
-        panic!();
-    }
-    
-    // If file doesn't contain iNES magic number, quit
-    if &ines_data[0..4] != b"NES\x1A" {
-        panic!("Not a valid iNES file");
-    }
+        egui::TopBottomPanel::top("my_panel").show(ctx, |ui| {
+            ui.horizontal_centered(|ui| {
+                if ui.button("Load ROM").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        if let Ok(rom) = get_rom_from_file(path.as_path()) {
+                            self.emulator.load_game(rom);
+                        }
+                    }
+                }
+                ui.separator();
 
-    let scaling = if commandline_args.len() > 2 {
-        (&commandline_args[2]).parse::<f32>().expect("Invalid scaling value")
-    } else {
-        3.0
-    };
+                ui.button("Save");
+                ui.button("Load");
+                ui.button("Load...");
+                ui.separator();
 
-    // Queue used to send values from the APU to the audio thread
-    // Although this is a multiple producer single consumer queue, there is only one producer
-    // (the APU)
+                ui.add_enabled_ui(self.emulator.game_loaded(), |ui| {
+                    if ui.button("CPU Debugger").clicked() {
+                        self.show_cpu_debugger = !self.show_cpu_debugger;
+                    }
+                    if ui.button("PPU Debugger").clicked() {
+                        self.show_ppu_debugger = !self.show_ppu_debugger;
+                    }
+                    if ui.button("CPU Debugger").clicked() {
+                        self.show_apu_debugger = !self.show_apu_debugger;
+                    }
+                });
 
-    // Would be good to swap this out at somepoint for something that lets me query the 
-    // queue length to deal with popping and buffer size and stuff
-    let (audio_queue_producer, audio_queue_consumer) = mpsc::channel::<(f32, f32)>();
+            });
+        });
 
-    let mut prev_sample = (0.0, 0.0);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.add(
+                egui::Image::from_texture(SizedTexture::from_handle(&self.emulator.video_output))
+                    .shrink_to_fit(),
+            );
 
-    // This is WASAPI
-    let host = cpal::default_host();
-    
-    let device = host.default_output_device().unwrap();
+        });
 
-    let config = device.default_output_config().unwrap().config();
+        egui::TopBottomPanel::bottom("bottom?").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Speed:");
+                ui.add(
+                    egui::DragValue::from_get_set(|val| self.emulator.get_set_speed(val) )
+                        .clamp_range(0.1..=2.0)
+                        .speed(0.005)
+                );
 
-    let stream = device.build_output_stream(
-        &config,
-        move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-            // For each left and right sample in the sample list
-            for frame in data.chunks_mut(2) {
+                ui.add_enabled_ui(self.emulator.get_set_pause(None), |ui| {
+                    let mut rewind_speed_offset = 0;
+                    ui.add(egui::Slider::new(&mut rewind_speed_offset, -10..=10));
+                    self.emulator.scrub_by(rewind_speed_offset);
+                });
 
-                let queue_sample = audio_queue_consumer.try_recv();
-                
-                let new_sample = if queue_sample.is_ok() {
-                    let new = queue_sample.unwrap();
-                    prev_sample = new;
-                    new
-                } else {
-                    prev_sample
-                };
 
-                let cpal_l_sample = cpal::Sample::from::<f32>(&new_sample.0);
-                let cpal_r_sample = cpal::Sample::from::<f32>(&new_sample.1);
+                if ui.add(
+                    match self.emulator.get_set_pause(None) {
+                        true => egui::Button::image(Image::new(include_image!("../resources/play_light.png"))),
+                        false => egui::Button::image(Image::new(include_image!("../resources/pause_light.png"))),
+                    }
+                ).clicked() {
+                    // TODO: get_set isn't a great pattern, change
+                    let temp = !self.emulator.get_set_pause(None);
+                    self.emulator.get_set_pause(Some(temp));
+                }
 
-                frame[0] = cpal_l_sample;
-                frame[1] = cpal_r_sample;
-            }
-        },
-        |_err| {
-            panic!();
-        },
-    ).expect("Problem creating the stream");
+            });
+        });
 
-    let logfile = File::create("emulator.log").unwrap();
-    
-    let cartridge = new_cartridge(ines_data);
-    let nes       = Nes::new(cartridge, audio_queue_producer, config.sample_rate.0, logfile);
-    let emulator  = Emulator {nes, frames: 0, scaling, pause: false, zoom: false, step_ppu: false, step_frame: false};
+        if self.show_cpu_debugger {
+            ctx.show_viewport_immediate(
+                ViewportId::from_hash_of("cpu_debugger"),
+                ViewportBuilder::default().with_inner_size([300.0, 300.0]),
+                |ctx, class| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ui.label("Hello from immediate viewport");
 
-    let cb = ContextBuilder::new("nes-emu", "Adam Blance")
-        .window_mode(WindowMode::default().dimensions(256.0*scaling*2.0, 224.0*scaling))
-        .window_setup(WindowSetup::default().title("R-nemUST"));
+                        egui::ScrollArea::vertical().show_rows(ui, 10.0, 100, |ui, row_range| {
+                            for row in row_range {
+                                let text = format!("Row {}/{}", row + 1, 100);
+                                ui.label(text);
+                            }
+                        });
 
-    let (mut ctx, event_loop) = cb.build().unwrap();
+                    });
 
-    // Nearest neighbor will prevent the frame from becoming blurry when scaling
-    graphics::set_default_filter(&mut ctx, graphics::FilterMode::Nearest);
-
-    stream.play().unwrap();
-
-    event::run(ctx, event_loop, emulator);
-
-}
-
-fn new_cartridge(ines_data: Vec<u8>) -> Box<dyn Cartridge> {
-    
-    // Information extracted from iNES header
-    let num_prg_16kb_chunks   = ines_data[4] as usize;
-    let num_chr_8kb_chunks    = ines_data[5] as usize;
-    let has_prg_ram           = (ines_data[6] & 0b0010) > 0;
-
-    let v_or_h_mirroring    = if (ines_data[6] & 0b0001) > 0 {Mirroring::Vertical} else {Mirroring::Horizontal};
-    let four_screen_mirroring = (ines_data[6] & 0b1000) > 0;
-    
-    let mapper_id             = (ines_data[6] >> 4) 
-                                | (ines_data[7] & 0b1111_0000);
-
-    let chr_rom_is_ram = num_chr_8kb_chunks == 0;
-
-    // Program ROM begins immediately after 16 byte header
-    let prg_end = 16 + (num_prg_16kb_chunks * 0x4000);
-    let chr_end = prg_end + (num_chr_8kb_chunks * 0x2000);
-
-    let chr_rom_is_ram = prg_end == chr_end;
-
-    let prg_rom = ines_data[16..prg_end].to_vec();
-
-    let chr_rom = if !chr_rom_is_ram {
-        ines_data[prg_end..chr_end].to_vec()
-    } else {
-        [0u8; 0x2000].to_vec()
-    };
-
-    match mapper_id {
-        0 => Box::new(CartridgeM0::new(prg_rom, chr_rom, v_or_h_mirroring)),
-        1 => Box::new(CartridgeM1::new(prg_rom, chr_rom, chr_rom_is_ram)),
-        2 => Box::new(CartridgeM2::new(prg_rom, chr_rom, chr_rom_is_ram, v_or_h_mirroring)),
-        3 => Box::new(CartridgeM3::new(prg_rom, chr_rom, v_or_h_mirroring)),
-        4 => Box::new(CartridgeM4::new(prg_rom, chr_rom)),
-        7 => Box::new(CartridgeM7::new(prg_rom)),
-        _ => unimplemented!("Mapper {} not implemented", mapper_id),
+                    if ctx.input(|i| i.viewport().close_requested()) {
+                        // Tell parent viewport that we should not show next frame:
+                        self.show_cpu_debugger = false;
+                    }
+                },
+            )
+        }
     }
 }

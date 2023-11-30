@@ -1,10 +1,12 @@
 
 use super::cartridge::{
-    Cartridge, 
-    Mirroring, 
-    basic_nametable_mirrroring,
+    Cartridge,
+    Mirroring,
+    basic_nametable_mirroring,
 };
+use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM2 {
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,
@@ -26,6 +28,7 @@ impl CartridgeM2 {
         }
     }
 }
+#[typetag::serde]
 impl Cartridge for CartridgeM2 {
     // UxROM doesn't have PRG RAM support
 
@@ -51,7 +54,7 @@ impl Cartridge for CartridgeM2 {
         }
     }
     fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
-        basic_nametable_mirrroring(addr, self.mirroring)
+        basic_nametable_mirroring(addr, self.mirroring)
     }
 
 }

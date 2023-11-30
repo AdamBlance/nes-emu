@@ -1,11 +1,13 @@
 
 use super::cartridge::{
-    Cartridge, 
-    Mirroring, 
-    basic_nametable_mirrroring,
+    Cartridge,
+    Mirroring,
+    basic_nametable_mirroring,
     KB,
 };
+use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM3 {
     // pub prg_ram: Vec<u8>,
     pub prg_rom: Vec<u8>,
@@ -25,6 +27,8 @@ impl CartridgeM3 {
         }
     }
 }
+
+#[typetag::serde]
 impl Cartridge for CartridgeM3 {
     // fn write_prg_ram(&mut self, addr: u16, byte: u8) {
     //     self.prg_ram[(addr - 0x6000) as usize] = byte;
@@ -44,6 +48,6 @@ impl Cartridge for CartridgeM3 {
     }
 
     fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
-        basic_nametable_mirrroring(addr, self.mirroring)
+        basic_nametable_mirroring(addr, self.mirroring)
     }
 }

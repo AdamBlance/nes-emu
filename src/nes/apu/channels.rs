@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 
 const H: bool = true;
 const L: bool = false;
@@ -30,7 +31,7 @@ pub static SAMPLE_RATE_TABLE: [u16; 16] = [
     190, 160, 142, 128, 106,  84,  72,  54,
 ];
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Serialize, Deserialize)]
 pub struct Square {
     pub enabled: bool,
     pub length_counter_mute_signal: bool,
@@ -83,7 +84,7 @@ impl Square {
 
 
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Serialize, Deserialize)]
 pub struct Triangle {
     pub enabled: bool,
     pub sequencer_stage: u8,
@@ -118,7 +119,7 @@ impl Triangle {
 
 
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Serialize, Deserialize)]
 pub struct Noise {
     pub enabled: bool,
     pub envelope_loop_and_length_counter_halt: bool,
@@ -155,7 +156,7 @@ impl Noise {
     }
 }
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Serialize, Deserialize)]
 pub struct Sample {
     pub enabled: bool,
     // 0x4010

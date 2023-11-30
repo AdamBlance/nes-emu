@@ -1,12 +1,14 @@
 
 use super::cartridge::{
-    Cartridge, 
-    Mirroring, 
-    basic_nametable_mirrroring,
+    Cartridge,
+    Mirroring,
+    basic_nametable_mirroring,
     KB,
 };
 use crate::util::get_bit_u16;
+use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM4 {
     pub prg_ram: Vec<u8>,
     pub prg_rom: Vec<u8>,
@@ -73,6 +75,7 @@ impl CartridgeM4 {
     }
 }
 
+#[typetag::serde]
 impl Cartridge for CartridgeM4 {
 
     // MMC3 can optionally have PRG RAM
@@ -193,7 +196,7 @@ impl Cartridge for CartridgeM4 {
     }
 
     fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
-        basic_nametable_mirrroring(addr, self.mirroring)
+        basic_nametable_mirroring(addr, self.mirroring)
     }
 
     fn asserting_irq(&mut self) -> bool {

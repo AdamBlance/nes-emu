@@ -1,6 +1,7 @@
+
 mod addressing;
 mod cpu_def;
-mod lookup_table;
+pub mod lookup_table;
 mod operation_funcs;
 mod step;
 mod cycles;

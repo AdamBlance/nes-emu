@@ -1,7 +1,7 @@
 use crate::nes::Nes;
-use crate::cpu::lookup_table::{Name::*, Mode::*, Category::*};
-use crate::cpu::addressing::*;
-use crate::cpu::operation_funcs::{set_interrupt_inhibit_flag, update_p_nz};
+use crate::nes::cpu::lookup_table::{Name::*, Mode::*, Category::*};
+use crate::nes::cpu::addressing::*;
+use crate::nes::cpu::operation_funcs::{set_interrupt_inhibit_flag, update_p_nz};
 use crate::util::is_neg;
 
 
@@ -171,7 +171,7 @@ pub fn branch_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
 }
 
 pub fn processing_cycles(nes: &mut Nes, instruction_cycle: i8) {
-    let func = nes.cpu.instruction.operation;
+    let func = nes.cpu.instruction.func();
     let offset = match nes.cpu.instruction.mode {
         Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX | Immediate => 1,
         _ => 0,

@@ -1,5 +1,5 @@
 use crate::nes::Nes;
-use crate::mem::read_mem;
+use crate::nes::mem::read_mem;
 use super::channels::*;
 
 

@@ -1,6 +1,6 @@
 
 use crate::nes::Nes;
-use crate::ppu;
+use crate::nes::ppu;
 
 const PPUCTRL: u16   = 0x2000;
 const PPUMASK: u16   = 0x2001;

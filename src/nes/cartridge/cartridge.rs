@@ -1,7 +1,10 @@
+use dyn_clone::DynClone;
+use serde::{Deserialize, Serialize};
+use crate::emulator;
 use crate::util::get_bit_u16;
+use crate::nes::cartridge::{mapper0, mapper1, mapper2, mapper3, mapper4, mapper7};
 
-
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum Mirroring {
     Vertical,
     Horizontal,
@@ -23,7 +26,8 @@ pub const KB: usize = 0x400;
 */
 
 // All cartridges must implement this
-pub trait Cartridge {
+#[typetag::serde(tag = "type")]
+pub trait Cartridge: DynClone {
     fn read_prg_ram(&mut self, addr: u16) -> u8 {0}
     fn write_prg_ram(&mut self, addr: u16, byte: u8) {}
 
@@ -41,8 +45,19 @@ pub trait Cartridge {
     fn ppu_tick(&mut self, addr_bus: u16) {}
 }
 
+pub fn new_cartridge(rom_data: emulator::RomData) -> Box<dyn Cartridge> {
+    match rom_data.mapper_id {
+        0 => Box::new(mapper0::CartridgeM0::new(rom_data.prg_rom, rom_data.chr_rom, rom_data.mirroring_config)),
+        1 => Box::new(mapper1::CartridgeM1::new(rom_data.prg_rom, rom_data.chr_rom, rom_data.chr_rom_is_ram)),
+        2 => Box::new(mapper2::CartridgeM2::new(rom_data.prg_rom, rom_data.chr_rom, rom_data.chr_rom_is_ram, rom_data.mirroring_config)),
+        3 => Box::new(mapper3::CartridgeM3::new(rom_data.prg_rom, rom_data.chr_rom, rom_data.mirroring_config)),
+        4 => Box::new(mapper4::CartridgeM4::new(rom_data.prg_rom, rom_data.chr_rom)),
+        7 => Box::new(mapper7::CartridgeM7::new(rom_data.prg_rom)),
+        id => unimplemented!("Mapper {id} not implemented"),
+    }
+}
 
-pub fn basic_nametable_mirrroring(addr: u16, mirroring: Mirroring) -> u16 {
+pub fn basic_nametable_mirroring(addr: u16, mirroring: Mirroring) -> u16 {
     // The physical nametables sit at 0x2000..=0x23FF and 0x2400..=0x27FF
     let vram_addr = match mirroring {
         Mirroring::Vertical => match addr {

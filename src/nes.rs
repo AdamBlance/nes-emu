@@ -1,43 +1,68 @@
-use crate::cpu::Cpu;
-use crate::ppu::Ppu;
-use crate::apu::Apu;
-use crate::controller::Controller;
-use crate::cartridge::Cartridge;
-use std::fs::File;
-use std::sync::mpsc::Sender;
+pub mod apu;
+pub mod cartridge;
+pub mod controller;
+pub mod cpu;
+mod mem;
+pub mod ppu;
+
+use std::cell::RefCell;
+use std::rc::Rc;
+use serde::{Deserialize, Serialize};
+use crate::nes::apu::Apu;
+use crate::nes::cartridge::Cartridge;
+use crate::nes::controller::Controller;
+use crate::nes::cpu::Cpu;
+use crate::nes::ppu::Ppu;
 use crate::util::concat_u8;
 
+
+#[derive(Serialize, Deserialize)]
 pub struct Nes {
     // Hardware
-    pub cpu:         Cpu,
-    pub ppu:         Ppu,
-    pub apu:         Apu,
-    pub wram:        [u8; 2048],
-    pub cart:   Box<dyn Cartridge>,
+    pub cpu: Cpu,
+    pub ppu: Ppu,
+    pub apu: Apu,
+    pub wram: Vec<u8>,
+    pub cart: Box<dyn Cartridge>,
     pub con1: Controller,
     pub con2: Controller,
     // External
-    pub frame:        Vec<u8>,
-    pub logfile: File
+    // #[serde(skip)]
+    // #[serde(default = "frame_default")]
+    pub frame: Option<Rc<RefCell<Vec<u8>>>>,
+}
+
+impl Clone for Nes {
+    fn clone(&self) -> Self {
+        Nes {
+            cpu: self.cpu.clone(),
+            ppu: self.ppu.clone(),
+            apu: self.apu.clone(),
+            wram: self.wram.clone(),
+            cart: dyn_clone::clone_box(&*self.cart),
+            con1: self.con1.clone(),
+            con2: self.con2.clone(),
+            frame: Some(Rc::clone(&self.frame.as_ref().unwrap())),
+        }
+    }
 }
 
 impl Nes {
-    pub fn new(cartridge: Box<dyn Cartridge>, audio_queue: Sender<(f32, f32)>, sample_rate: u32, logfile: File) -> Nes {
-        Nes { 
+    pub fn new(cartridge: Box<dyn Cartridge>, frame: Rc<RefCell<Vec<u8>>>) -> Nes {
+        Nes {
             cpu: Cpu::new(concat_u8(
-                cartridge.read_prg_rom(0xFFFD), 
-                cartridge.read_prg_rom(0xFFFC)
+                cartridge.read_prg_rom(0xFFFD),
+                cartridge.read_prg_rom(0xFFFC),
             )),
             ppu: Ppu::new(),
-            apu: Apu::new(audio_queue, sample_rate),
-            wram: [0; 2048],
+            apu: Apu::new(),
+            wram: vec![0; 2048],
             cart: cartridge,
             con1: Default::default(),
             con2: Default::default(),
 
             // RGBA image (4 channels)
-            frame: vec![0u8; 256usize * 240 * 4], 
-            logfile
+            frame: Some(frame),
         }
     }
 }
