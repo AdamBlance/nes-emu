@@ -3,13 +3,12 @@ use super::cartridge::{
     Cartridge,
     Mirroring,
     basic_nametable_mirroring,
-    KB,
 };
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM7 {
-    pub prg_rom: Vec<u8>,
+    pub prg_rom: Vec<u8>, // TODO: This is getting cloned every frame, use Rc
     pub chr_ram: Vec<u8>,
     pub mirroring: Mirroring,
 

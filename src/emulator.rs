@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::cmp::{max, min};
 use std::rc::Rc;
 use crate::nes::cartridge::cartridge::new_cartridge;
 use crate::nes::cartridge::Mirroring;
@@ -12,7 +11,6 @@ use crate::nes::apu;
 use crate::nes::cpu;
 use crate::nes::cpu::lookup_table::{Instruction, INSTRUCTIONS};
 use crate::nes::ppu;
-use crate::util::clamp;
 
 use dyn_clone;
 
@@ -45,7 +43,7 @@ pub struct Emulator {
     cpu_cycle_at_last_sample: u64,
     cached_cycles_per_sample: f32,
     stereo_pan: f32,
-    rewind_state_index: usize,
+    rewind_state_index: f32,
     rewind_states: Vec<Nes>,
 
     nes_frame: Rc<RefCell<Vec<u8>>>,
@@ -83,7 +81,7 @@ impl Emulator {
             stereo_pan: 0.0,
             frame: 0,
             time: 0.0,
-            rewind_state_index: 0,
+            rewind_state_index: 0.0,
             rewind_states: Vec::new(),
             nes_frame: Rc::new(RefCell::new(vec![0u8; 256usize * 240 * 4])),
         }
@@ -91,6 +89,8 @@ impl Emulator {
 
     pub fn load_game(&mut self, rom_data: RomData) {
         self.nes = Some(Nes::new(new_cartridge(rom_data), Rc::clone(&self.nes_frame)));
+
+        self.paused = false;
     }
 
     pub fn game_loaded(&self) -> bool {
@@ -108,7 +108,7 @@ impl Emulator {
     pub fn get_set_pause(&mut self, pause: Option<bool>) -> bool {
         if let Some(pause) = pause {
             if !pause {
-                while self.rewind_states.len() - 1 != self.rewind_state_index {
+                while self.rewind_states.len() - 1 != self.rewind_state_index as usize {
                     self.rewind_states.pop();
                 }
             }
@@ -117,12 +117,11 @@ impl Emulator {
         self.paused
     }
 
-    pub fn scrub_by(&mut self, n_frames: i32) {
+    pub fn scrub_by(&mut self, n_frames: f32) {
         if self.paused && !self.rewind_states.is_empty() {
-            self.rewind_state_index = clamp(
-                self.rewind_state_index.saturating_add_signed(n_frames as isize),
-                0,
-                self.rewind_states.len() - 1
+            self.rewind_state_index = (self.rewind_state_index + n_frames).clamp(
+                0.0,
+                (self.rewind_states.len() - 1) as f32
             );
         }
     }
@@ -157,13 +156,12 @@ impl Emulator {
 
             if self.paused {
                 if !self.rewind_states.is_empty() {
-                    self.nes = Some(self.rewind_states[self.rewind_state_index].clone());
-
+                    self.nes = Some(self.rewind_states[self.rewind_state_index.round() as usize].clone());
                 }
                 self.run_to_vblank(false);
             } else {
                 if !self.rewind_states.is_empty() {
-                    self.rewind_state_index = self.rewind_states.len() - 1;
+                    self.rewind_state_index = (self.rewind_states.len() - 1) as f32;
                 }
                 self.run_to_vblank(true);
             }
@@ -231,7 +229,7 @@ impl Emulator {
             match num {
                 1 => nes.con1.update_button_state(new_state),
                 2 => nes.con2.update_button_state(new_state),
-                x => panic!("Controller {x} doesn't exist"),
+                _ => panic!("Controller doesn't exist"),
             }
         }
     }

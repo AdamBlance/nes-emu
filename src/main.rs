@@ -2,14 +2,13 @@
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use eframe::egui::load::SizedTexture;
-use eframe::egui::{Align, Color32, ColorImage, FontDefinitions, Image, include_image, Key, Label, RichText, TextureFilter, TextureOptions, Vec2, ViewportBuilder, ViewportId};
+use eframe::egui::{Color32, ColorImage, Event, Image, include_image, Key, TextureFilter, TextureOptions, ViewportBuilder, ViewportId};
 use eframe::{egui, CreationContext, Theme};
 use std::collections::HashSet;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
 use std::sync::mpsc;
-use egui_extras::{Column, install_image_loaders, TableBuilder};
 
 use nes_emu_egui::emulator;
 use nes_emu_egui::emulator::{AudioStream, Emulator};
@@ -219,9 +218,23 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint();
 
+        dbg!(std::mem::size_of::<Nes>());
+
+
         let (con1, con2) = ctx.input(|input| new_button_state(&input.keys_down, &self.key_mapping));
         self.emulator.update_controller(1, con1);
         self.emulator.update_controller(2, con2);
+
+        ctx.input(|ui| {
+            for event in ui.events.iter() {
+                if let Event::Key {key: Key::Space, pressed: true, ..} = event {
+                    // TODO: get_set isn't a great pattern, change
+                    let temp = !self.emulator.get_set_pause(None);
+                    self.emulator.get_set_pause(Some(temp));
+                }
+            }
+        });
+
         self.emulator.update(ctx.input(|input| input.time));
 
         egui::TopBottomPanel::top("my_panel").show(ctx, |ui| {
@@ -270,11 +283,12 @@ impl eframe::App for MyApp {
                     egui::DragValue::from_get_set(|val| self.emulator.get_set_speed(val) )
                         .clamp_range(0.1..=2.0)
                         .speed(0.005)
+
                 );
 
                 ui.add_enabled_ui(self.emulator.get_set_pause(None), |ui| {
-                    let mut rewind_speed_offset = 0;
-                    ui.add(egui::Slider::new(&mut rewind_speed_offset, -10..=10));
+                    let mut rewind_speed_offset = 0.0;
+                    ui.add(egui::Slider::new(&mut rewind_speed_offset, -3.0..=3.0));
                     self.emulator.scrub_by(rewind_speed_offset);
                 });
 

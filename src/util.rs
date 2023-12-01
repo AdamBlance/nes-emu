@@ -1,5 +1,3 @@
-use std::cmp::{max, min};
-
 pub fn get_bit(byte: u8, idx: u8) -> bool {
         (byte & (0x01 << idx)) != 0
     }
@@ -25,8 +23,3 @@ pub fn get_bit(byte: u8, idx: u8) -> bool {
     pub fn to_mask(input: bool) -> u8 {
         !((input as u8).wrapping_sub(1))
     }
-
-    pub fn clamp<T: Ord>(x: T, lower: T, upper: T) -> T {
-        max(lower, min(x, upper))
-    }
-
