@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use serde::{Deserialize, Serialize};
 use super::cartridge::{
     Cartridge,
@@ -10,13 +11,13 @@ use super::cartridge::{
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM0 {
-    pub prg_rom: Vec<u8>,
-    pub chr_rom: Vec<u8>,
+    pub prg_rom: Rc<Vec<u8>>,
+    pub chr_rom: Rc<Vec<u8>>,
     pub mirroring: Mirroring,
 }
 
 impl CartridgeM0 {
-    pub fn new(prg_rom: Vec<u8>, chr_rom: Vec<u8>, mirroring: Mirroring) -> CartridgeM0 {
+    pub fn new(prg_rom: Rc<Vec<u8>>, chr_rom: Rc<Vec<u8>>, mirroring: Mirroring) -> CartridgeM0 {
         CartridgeM0 {
             prg_rom,
             chr_rom,

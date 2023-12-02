@@ -218,20 +218,22 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint();
 
-        dbg!(std::mem::size_of::<Nes>());
-
-
         let (con1, con2) = ctx.input(|input| new_button_state(&input.keys_down, &self.key_mapping));
         self.emulator.update_controller(1, con1);
         self.emulator.update_controller(2, con2);
 
         ctx.input(|ui| {
-            for event in ui.events.iter() {
-                if let Event::Key {key: Key::Space, pressed: true, ..} = event {
-                    // TODO: get_set isn't a great pattern, change
-                    let temp = !self.emulator.get_set_pause(None);
-                    self.emulator.get_set_pause(Some(temp));
-                }
+
+            if ui.key_pressed(Key::Space) {
+                // TODO: get_set isn't a great pattern, change
+                let temp = !self.emulator.get_set_pause(None);
+                self.emulator.get_set_pause(Some(temp));
+            }
+            if ui.key_down(Key::L) {
+                self.emulator.scrub_by(-1.0);
+            }
+            if ui.key_down(Key::U) {
+                self.emulator.scrub_by(1.0);
             }
         });
 

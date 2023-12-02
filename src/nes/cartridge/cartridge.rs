@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
 use crate::emulator;
@@ -12,7 +13,14 @@ pub enum Mirroring {
     SingleScreenUpper,
 }
 
+pub enum ChrMem {
+    Rom(Rc<Vec<u8>>),
+    Ram(Vec<u8>),
+}
+
 pub const KB: usize = 0x400;
+
+
 
 /*
 
@@ -47,7 +55,7 @@ pub trait Cartridge: DynClone {
 
 pub fn new_cartridge(rom_data: emulator::RomData) -> Box<dyn Cartridge> {
     match rom_data.mapper_id {
-        0 => Box::new(mapper0::CartridgeM0::new(rom_data.prg_rom, rom_data.chr_rom, rom_data.mirroring_config)),
+        0 => Box::new(mapper0::CartridgeM0::new(Rc::new(rom_data.prg_rom), Rc::new(rom_data.chr_rom), rom_data.mirroring_config)),
         1 => Box::new(mapper1::CartridgeM1::new(rom_data.prg_rom, rom_data.chr_rom, rom_data.chr_rom_is_ram)),
         2 => Box::new(mapper2::CartridgeM2::new(rom_data.prg_rom, rom_data.chr_rom, rom_data.chr_rom_is_ram, rom_data.mirroring_config)),
         3 => Box::new(mapper3::CartridgeM3::new(rom_data.prg_rom, rom_data.chr_rom, rom_data.mirroring_config)),
