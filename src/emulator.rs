@@ -302,7 +302,7 @@ impl Emulator {
 
             // TODO: Add volume control
 
-            let new_sample = (0.0, 0.0);
+            // let new_sample = (0.0, 0.0);
 
             let _ = self
                 .audio_output
