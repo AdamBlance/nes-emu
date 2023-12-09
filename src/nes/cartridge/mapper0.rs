@@ -1,27 +1,23 @@
-use std::rc::Rc;
 use serde::{Deserialize, Serialize};
+use crate::emulator::{CartMemory, RomConfig};
 use super::cartridge::{
     Cartridge,
     Mirroring,
-    basic_nametable_mirroring,
-    KB,
 };
 
 // iNES mapper 0: NROM-128 and NROM-256
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM0 {
-    pub prg_rom: Rc<Vec<u8>>,
-    pub chr_rom: Rc<Vec<u8>>,
-    pub mirroring: Mirroring,
+    rom_data: CartMemory,
+    mirroring: Mirroring,
 }
 
 impl CartridgeM0 {
-    pub fn new(prg_rom: Rc<Vec<u8>>, chr_rom: Rc<Vec<u8>>, mirroring: Mirroring) -> CartridgeM0 {
+    pub fn new(rom_config: RomConfig) -> CartridgeM0 {
         CartridgeM0 {
-            prg_rom,
-            chr_rom,
-            mirroring,
+            rom_data: rom_config.data,
+            mirroring: rom_config.ines_mirroring,
         }
     }
 }
@@ -31,13 +27,17 @@ impl Cartridge for CartridgeM0 {
     // NROM has no internal registers to write to
     // NROM-128 is 16KB mirrored twice, NROM-256 is 32KB
     fn read_prg_rom(&self, addr: u16) -> u8 {
-        self.prg_rom[addr as usize % self.prg_rom.len()]
+        self.rom_data.prg_rom[addr as usize % self.rom_data.prg_rom.len()]
     }
     // CHR ROM is fixed 8KB
     fn read_chr(&mut self, addr: u16) -> u8 {
-        self.chr_rom[addr as usize]
-    }    
-    fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
-        basic_nametable_mirroring(addr, self.mirroring)
+        self.rom_data.chr_mem.read(addr as usize)
+    }
+    // NROM doesn't actually support CHR RAM but some homebrew games use this mapper with RAM
+    fn write_chr(&mut self, addr: u16, value: u8) {
+        self.rom_data.chr_mem.write(addr as usize, value);
+    }
+    fn mirroring(&self) -> Mirroring {
+        self.mirroring
     }
 }

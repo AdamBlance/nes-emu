@@ -2,56 +2,52 @@
 use super::cartridge::{
     Cartridge,
     Mirroring,
-    basic_nametable_mirroring,
     KB,
 };
 use crate::util::get_bit_u16;
 use serde::{Deserialize, Serialize};
+use crate::emulator::{CartMemory, RomConfig};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM4 {
-    pub prg_ram: Vec<u8>,
-    pub prg_rom: Vec<u8>,
-    pub chr_rom: Vec<u8>,
+    rom_data: CartMemory,
     
-    pub bank_index: u8,
+    bank_index: u8,
 
-    pub prg_bank_0_or_2: usize,
-    pub prg_bank_1: usize,
+    prg_bank_0_or_2: usize,
+    prg_bank_1: usize,
     
-    pub chr_2kb_bank_0: usize,
-    pub chr_2kb_bank_1: usize,
+    chr_2kb_bank_0: usize,
+    chr_2kb_bank_1: usize,
     
-    pub chr_1kb_bank_0: usize,
-    pub chr_1kb_bank_1: usize,
-    pub chr_1kb_bank_2: usize,
-    pub chr_1kb_bank_3: usize,
+    chr_1kb_bank_0: usize,
+    chr_1kb_bank_1: usize,
+    chr_1kb_bank_2: usize,
+    chr_1kb_bank_3: usize,
     
-    pub prg_fixed_bank_select: bool,
-    pub chr_bank_size_select: bool,
+    prg_fixed_bank_select: bool,
+    chr_bank_size_select: bool,
     
-    pub mirroring: Mirroring,
+    mirroring: Mirroring,
 
-    pub scanline_counter_init: u8,
-    pub scanline_counter_curr: u8,
+    scanline_counter_init: u8,
+    scanline_counter_curr: u8,
 
-    pub last_a12_value: bool,
+    last_a12_value: bool,
 
-    pub scanline_counter_reset_flag: bool,
+    scanline_counter_reset_flag: bool,
 
-    pub irq_enable: bool,
+    irq_enable: bool,
 
-    pub interrupt_request: bool,
+    interrupt_request: bool,
 
-    pub a12_filtering_counter: u8,
+    a12_filtering_counter: u8,
 }
 
 impl CartridgeM4 {
-    pub fn new(prg_rom: Vec<u8>, chr_rom: Vec<u8>) -> CartridgeM4 {
+    pub fn new(rom_config: RomConfig) -> CartridgeM4 {
         CartridgeM4 {
-            prg_ram: [0u8; 0x2000].to_vec(),  // This isn't checked
-            prg_rom,
-            chr_rom,
+            rom_data: rom_config.data,
             bank_index: 0,
             prg_bank_0_or_2: 0,
             prg_bank_1: 0,
@@ -80,32 +76,31 @@ impl Cartridge for CartridgeM4 {
 
     // MMC3 can optionally have PRG RAM
     fn read_prg_ram(&mut self, addr: u16) -> u8 {
-        if !self.prg_ram.is_empty() {
-            self.prg_ram[(addr - 0x6000) as usize]
-        } else {
-            0
+        match self.rom_data.prg_ram.as_ref() {
+            Some(ram) => ram[(addr - 0x6000) as usize],
+            None => 0
         }
     }
     fn write_prg_ram(&mut self, addr: u16, byte: u8) {
-        if !self.prg_ram.is_empty() {
-            self.prg_ram[(addr - 0x6000) as usize] = byte;
+        if let Some(ram) = self.rom_data.prg_ram.as_mut() {
+            ram[(addr - 0x6000) as usize] = byte;
         }
     }
 
     fn read_prg_rom(&self, addr: u16) -> u8 {
         let base_bank_addr = match (addr, self.prg_fixed_bank_select) {
             (0xA000..=0xBFFF, _) => self.prg_bank_1 * 8*KB + (addr as usize - 0xA000),
-            (0xE000..=0xFFFF, _) => self.prg_rom.len() - 8*KB + (addr as usize - 0xE000),
+            (0xE000..=0xFFFF, _) => self.rom_data.prg_rom.len() - 8*KB + (addr as usize - 0xE000),
 
             (0x8000..=0x9FFF, false) => self.prg_bank_0_or_2 * 8*KB + (addr as usize - 0x8000),
-            (0xC000..=0xDFFF, false) => self.prg_rom.len() - 16*KB + (addr as usize - 0xC000),
+            (0xC000..=0xDFFF, false) => self.rom_data.prg_rom.len() - 16*KB + (addr as usize - 0xC000),
             
-            (0x8000..=0x9FFF, true) => self.prg_rom.len() - 16*KB + (addr as usize - 0x8000), 
+            (0x8000..=0x9FFF, true) => self.rom_data.prg_rom.len() - 16*KB + (addr as usize - 0x8000),
             (0xC000..=0xDFFF, true) => self.prg_bank_0_or_2 * 8*KB + (addr as usize - 0xC000),
             
             _ => unreachable!(),
         };
-        self.prg_rom[base_bank_addr]
+        self.rom_data.prg_rom[base_bank_addr]
     }
     fn write_prg_rom(&mut self, addr: u16, byte: u8) {
 
@@ -163,10 +158,7 @@ impl Cartridge for CartridgeM4 {
         }
 
     }
-
-
-
-
+    
     fn read_chr(&mut self, addr: u16) -> u8 {
         let uaddr = addr as usize;
 
@@ -189,14 +181,7 @@ impl Cartridge for CartridgeM4 {
             0x1800..=0x1FFF => self.chr_2kb_bank_1 * 1*KB + (uaddr - 0x1800), 
             _ => unreachable!(),
         }};
-
-
-        self.chr_rom[chr_addr]
-
-    }
-
-    fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
-        basic_nametable_mirroring(addr, self.mirroring)
+        self.rom_data.chr_mem.read(chr_addr)
     }
 
     fn asserting_irq(&mut self) -> bool {
@@ -242,8 +227,10 @@ impl Cartridge for CartridgeM4 {
             // Reset the 16 PPU cycles ago counter whenever there is a rising edge on A12
             self.a12_filtering_counter = 16;
         }
-
         self.last_a12_value = new_a12_value;
     }
 
+    fn mirroring(&self) -> Mirroring {
+        self.mirroring
+    }
 }

@@ -1,10 +1,9 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use crate::nes::cartridge::cartridge::new_cartridge;
-use crate::nes::cartridge::Mirroring;
+use crate::nes::cartridge::{Cartridge, mapper0, mapper1, mapper2, mapper3, mapper4, mapper7, Mirroring};
 use crate::nes::controller::ButtonState;
 use crate::nes::Nes;
 use eframe::egui::{ColorImage, TextureFilter, TextureHandle, TextureOptions};
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::mpsc::SyncSender;
 
 use crate::nes::apu;
@@ -13,6 +12,7 @@ use crate::nes::cpu::lookup_table::{Instruction, INSTRUCTIONS};
 use crate::nes::ppu;
 
 use dyn_clone;
+use serde::{Deserialize, Serialize};
 
 pub struct AudioStream {
     pub sender: SyncSender<(f32, f32)>,
@@ -28,12 +28,12 @@ pub struct InstructionAndOperands {
 
 pub struct Emulator {
     // The emulator isn't gonna have a NES unless it has a game cartridge
-    // The cartridge is hardwired into the address bus so that seems fair 
+    // The cartridge is hardwired into the address bus so that seems fair
     nes: Option<Nes>,
     target_speed: f64,
     game_speed: f64,
     paused: bool,
-    pub video_output: TextureHandle,  // accessed directly in main.rs, no point in using a getter
+    pub video_output: TextureHandle, // accessed directly in main.rs, no point in using a getter
     frame: u64,
 
     time: f64,
@@ -49,12 +49,61 @@ pub struct Emulator {
     nes_frame: Rc<RefCell<Vec<u8>>>,
 }
 
-pub struct RomData {
-    pub prg_rom: Vec<u8>,
-    pub chr_rom: Vec<u8>,
-    pub chr_rom_is_ram: bool,
-    pub mapper_id: u8, // fine for iNES 1.0 files
-    pub mirroring_config: Mirroring,
+#[derive(Clone, Serialize, Deserialize)]
+pub enum ChrMem {
+    Rom(Rc<Vec<u8>>),
+    Ram(Vec<u8>),
+}
+impl ChrMem {
+    pub fn new(rom_data: Option<Vec<u8>>) -> Self {
+        match rom_data {
+            Some(data) => Self::Rom(Rc::new(data)),
+            None => Self::Ram(vec![0u8; 0x2000]),
+        }
+    }
+
+    pub fn read(&self, addr: usize) -> u8 {
+        match self {
+            ChrMem::Rom(rom) => rom[addr],
+            ChrMem::Ram(ram) => ram[addr],
+        }
+    }
+    pub fn write(&mut self, addr: usize, value: u8) {
+        if let ChrMem::Ram(ram) = self {
+            ram[addr] = value;
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RomConfig {
+    pub ines_mapper_id: u8,
+    pub ines_mirroring: Mirroring,
+    pub data: CartMemory,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CartMemory {
+    pub prg_ram: Option<Vec<u8>>,
+    pub prg_rom: Rc<Vec<u8>>,
+    pub chr_mem: ChrMem,
+}
+
+impl CartMemory {
+    pub fn new(
+        prg_rom: Vec<u8>,
+        chr_rom: Option<Vec<u8>>,
+        has_prg_ram: bool,
+    ) -> Self {
+        CartMemory {
+            prg_ram: match has_prg_ram {
+                true => Some(vec![0u8; 0x2000]),
+                false => None
+            },
+            prg_rom: Rc::new(prg_rom),
+            chr_mem: ChrMem::new(chr_rom),
+        }
+    }
 }
 
 const CPU_CYCLES_PER_FRAME: f32 = 29780.5;
@@ -87,10 +136,23 @@ impl Emulator {
         }
     }
 
-    pub fn load_game(&mut self, rom_data: RomData) {
-        self.nes = Some(Nes::new(new_cartridge(rom_data), Rc::clone(&self.nes_frame)));
+    pub fn load_game(&mut self, rom_config: RomConfig) {
+        let cartridge: Box<dyn Cartridge> = match rom_config.ines_mapper_id {
+            0 => Box::new(mapper0::CartridgeM0::new(rom_config)),
+            1 => Box::new(mapper1::CartridgeM1::new(rom_config)),
+            2 => Box::new(mapper2::CartridgeM2::new(rom_config)),
+            3 => Box::new(mapper3::CartridgeM3::new(rom_config)),
+            4 => Box::new(mapper4::CartridgeM4::new(rom_config)),
+            7 => Box::new(mapper7::CartridgeM7::new(rom_config)),
+            id => unimplemented!("Mapper {id} not implemented"),
+        };
 
-        self.paused = false;
+        self.nes = Some(
+            Nes::new(
+                cartridge,
+                Rc::clone(&self.nes_frame),
+            )
+        );
     }
 
     pub fn game_loaded(&self) -> bool {
@@ -119,10 +181,8 @@ impl Emulator {
 
     pub fn scrub_by(&mut self, n_frames: f32) {
         if self.paused && !self.rewind_states.is_empty() {
-            self.rewind_state_index = (self.rewind_state_index + n_frames).clamp(
-                0.0,
-                (self.rewind_states.len() - 1) as f32
-            );
+            self.rewind_state_index = (self.rewind_state_index + n_frames)
+                .clamp(0.0, (self.rewind_states.len() - 1) as f32);
         }
     }
 
@@ -137,7 +197,6 @@ impl Emulator {
         let frame_number = (self.time / frame_length) as u64;
 
         if frame_number > self.frame {
-
             if self.game_speed != self.target_speed {
                 self.game_speed = self.target_speed;
 
@@ -156,7 +215,8 @@ impl Emulator {
 
             if self.paused {
                 if !self.rewind_states.is_empty() {
-                    self.nes = Some(self.rewind_states[self.rewind_state_index.round() as usize].clone());
+                    self.nes =
+                        Some(self.rewind_states[self.rewind_state_index.round() as usize].clone());
                 }
                 self.run_to_vblank(false);
             } else {
@@ -167,10 +227,7 @@ impl Emulator {
             }
 
             self.video_output.set(
-                ColorImage::from_rgba_unmultiplied(
-                    [256, 240],
-                    self.nes_frame.borrow().as_slice()
-                ),
+                ColorImage::from_rgba_unmultiplied([256, 240], self.nes_frame.borrow().as_slice()),
                 TextureOptions {
                     magnification: TextureFilter::Nearest,
                     minification: TextureFilter::Nearest,
@@ -183,9 +240,9 @@ impl Emulator {
     }
 
     fn run_to_vblank(&mut self, create_rewind_state: bool) {
-
         if create_rewind_state {
-            self.rewind_states.push(self.nes.as_ref().unwrap().clone());
+            let state = self.nes.as_ref().unwrap().clone();
+            self.rewind_states.push(state);
         }
 
         loop {
@@ -242,6 +299,11 @@ impl Emulator {
     fn do_sample(&mut self) {
         if let Some(nes) = self.nes.as_mut() {
             let new_sample = nes.apu.get_sample(self.stereo_pan);
+
+            // TODO: Add volume control
+
+            let new_sample = (0.0, 0.0);
+
             let _ = self
                 .audio_output
                 .as_mut()
@@ -272,14 +334,12 @@ impl Emulator {
 
                 assert!(instrs.len() <= 0xFFFF - 0x8000);
 
-                instrs.push(
-                    InstructionAndOperands {
-                            address,
-                            instruction,
-                            operand_1: if len > 0 {Some(op1)} else {None},
-                            operand_2: if len > 1 {Some(op2)} else {None},
-                    }
-                );
+                instrs.push(InstructionAndOperands {
+                    address,
+                    instruction,
+                    operand_1: if len > 0 { Some(op1) } else { None },
+                    operand_2: if len > 1 { Some(op2) } else { None },
+                });
                 address = address.wrapping_add(1 + len as u16);
             }
         }

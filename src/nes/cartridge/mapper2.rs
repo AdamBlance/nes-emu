@@ -2,27 +2,21 @@
 use super::cartridge::{
     Cartridge,
     Mirroring,
-    basic_nametable_mirroring,
 };
 use serde::{Deserialize, Serialize};
+use crate::emulator::{CartMemory, RomConfig};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM2 {
-    pub prg_rom: Vec<u8>,
-    pub chr_rom: Vec<u8>,
-
-    pub chr_rom_is_ram: bool,
-    pub bank_select: usize,
-
-    pub mirroring: Mirroring,
+    rom_data: CartMemory,
+    bank_select: usize,
+    mirroring: Mirroring,
 }
 impl CartridgeM2 {
-    pub fn new(prg_rom: Vec<u8>, chr_rom: Vec<u8>, chr_rom_is_ram: bool, mirroring: Mirroring) -> CartridgeM2 {
+    pub fn new(rom_config: RomConfig) -> CartridgeM2 {
         CartridgeM2 {
-            prg_rom,
-            chr_rom,
-            chr_rom_is_ram,
-            mirroring,
+            rom_data: rom_config.data,
+            mirroring: rom_config.ines_mirroring,
 
             bank_select: 0,
         }
@@ -35,9 +29,9 @@ impl Cartridge for CartridgeM2 {
     fn read_prg_rom(&self, addr: u16) -> u8 {
         match addr {
             // Swappable 16KB at start of cartridge range
-            0x8000..=0xBFFF => self.prg_rom[(self.bank_select * 0x4000) + (addr as usize - 0x8000)],
+            0x8000..=0xBFFF => self.rom_data.prg_rom[(self.bank_select * 0x4000) + (addr as usize - 0x8000)],
             // Fixed 16KB at end of addressable range
-            0xC000..=0xFFFF => self.prg_rom[(self.prg_rom.len() - 0x4000) + (addr as usize - 0xC000)],
+            0xC000..=0xFFFF => self.rom_data.prg_rom[(self.rom_data.prg_rom.len() - 0x4000) + (addr as usize - 0xC000)],
             _ => unreachable!(),
         }
     }
@@ -46,15 +40,13 @@ impl Cartridge for CartridgeM2 {
     }
 
     fn read_chr(&mut self, addr: u16) -> u8 {
-        self.chr_rom[addr as usize]
+        self.rom_data.chr_mem.read(addr as usize)
     }
-    fn write_chr(&mut self, addr: u16, byte: u8) {
-        if self.chr_rom_is_ram {
-            self.chr_rom[addr as usize] = byte;
-        }
+    fn write_chr(&mut self, addr: u16, value: u8) {
+        self.rom_data.chr_mem.write(addr as usize, value);
     }
-    fn get_physical_ntable_addr(&self, addr: u16) -> u16 {
-        basic_nametable_mirroring(addr, self.mirroring)
+    fn mirroring(&self) -> Mirroring {
+        self.mirroring
     }
 
 }
