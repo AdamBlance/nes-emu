@@ -1,4 +1,4 @@
-
+use std::rc::Rc;
 use super::cartridge::{
     Cartridge,
     Mirroring,
@@ -73,7 +73,6 @@ impl CartridgeM4 {
 
 #[typetag::serde]
 impl Cartridge for CartridgeM4 {
-
     // MMC3 can optionally have PRG RAM
     fn read_prg_ram(&mut self, addr: u16) -> u8 {
         match self.rom_data.prg_ram.as_ref() {
@@ -83,7 +82,7 @@ impl Cartridge for CartridgeM4 {
     }
     fn write_prg_ram(&mut self, addr: u16, byte: u8) {
         if let Some(ram) = self.rom_data.prg_ram.as_mut() {
-            ram[(addr - 0x6000) as usize] = byte;
+            Rc::make_mut(ram)[(addr - 0x6000) as usize] = byte;
         }
     }
 
@@ -200,29 +199,19 @@ impl Cartridge for CartridgeM4 {
         
         // If PPU has gone from fetching background tiles to fetching sprite tiles
         if self.last_a12_value == false && new_a12_value == true {
-            // println!("A12 edge");
             // If last rising edge was more than 16 PPU cycles ago, update scanline counter
             if self.a12_filtering_counter == 0 {
-                // println!("Within 16 ticks");
-                // println!("Old counter val {} init {} reset {} irq {}", self.scanline_counter_curr, self.scanline_counter_init, self.scanline_counter_reset_flag, self.irq_enable);
                 if self.scanline_counter_curr == 0 || self.scanline_counter_reset_flag {
                     self.scanline_counter_curr = self.scanline_counter_init;
                     self.scanline_counter_reset_flag = false;
                 } else {
                     self.scanline_counter_curr -= 1;
 
-                    // println!("Decremented!");
-                    // let mut line = String::new();
-                    // std::io::stdin().read_line(&mut line);
-
                     if self.irq_enable && self.scanline_counter_curr == 0 {
-                        // println!("Do interrupt");
 
                         self.interrupt_request = true; 
                     }
                 }
-                // println!("New counter val {} init {} reset {}", self.scanline_counter_curr, self.scanline_counter_init, self.scanline_counter_reset_flag);
-
             }
             // Reset the 16 PPU cycles ago counter whenever there is a rising edge on A12
             self.a12_filtering_counter = 16;

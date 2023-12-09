@@ -1,4 +1,6 @@
-use crate::nes::cartridge::{Cartridge, mapper0, mapper1, mapper2, mapper3, mapper4, mapper7, Mirroring};
+use crate::nes::cartridge::{
+    mapper0, mapper1, mapper2, mapper3, mapper4, mapper7, Cartridge, Mirroring,
+};
 use crate::nes::controller::ButtonState;
 use crate::nes::Nes;
 use eframe::egui::{ColorImage, TextureFilter, TextureHandle, TextureOptions};
@@ -51,14 +53,14 @@ pub struct Emulator {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum ChrMem {
-    Rom(Rc<Vec<u8>>),
-    Ram(Vec<u8>),
+    Rom(Rc<Vec<u8>>), // Could this just be a boolean? I'm not sure if that's less rusty
+    Ram(Rc<Vec<u8>>),
 }
 impl ChrMem {
     pub fn new(rom_data: Option<Vec<u8>>) -> Self {
         match rom_data {
             Some(data) => Self::Rom(Rc::new(data)),
-            None => Self::Ram(vec![0u8; 0x2000]),
+            None => Self::Ram(Rc::new(vec![0u8; 0x2000])),
         }
     }
 
@@ -70,7 +72,8 @@ impl ChrMem {
     }
     pub fn write(&mut self, addr: usize, value: u8) {
         if let ChrMem::Ram(ram) = self {
-            ram[addr] = value;
+            // ram[addr] = value;
+            Rc::make_mut(ram)[addr] = value
         }
     }
 }
@@ -84,21 +87,17 @@ pub struct RomConfig {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CartMemory {
-    pub prg_ram: Option<Vec<u8>>,
+    pub prg_ram: Option<Rc<Vec<u8>>>,
     pub prg_rom: Rc<Vec<u8>>,
     pub chr_mem: ChrMem,
 }
 
 impl CartMemory {
-    pub fn new(
-        prg_rom: Vec<u8>,
-        chr_rom: Option<Vec<u8>>,
-        has_prg_ram: bool,
-    ) -> Self {
+    pub fn new(prg_rom: Vec<u8>, chr_rom: Option<Vec<u8>>, has_prg_ram: bool) -> Self {
         CartMemory {
             prg_ram: match has_prg_ram {
-                true => Some(vec![0u8; 0x2000]),
-                false => None
+                true => Some(Rc::new(vec![0u8; 0x2000])),
+                false => None,
             },
             prg_rom: Rc::new(prg_rom),
             chr_mem: ChrMem::new(chr_rom),
@@ -137,6 +136,16 @@ impl Emulator {
     }
 
     pub fn load_game(&mut self, rom_config: RomConfig) {
+        println!(
+            "Mapper: {}\nPRG RAM: {}\nCHR RAM: {}",
+            rom_config.ines_mapper_id,
+            rom_config.data.prg_ram.is_some(),
+            match rom_config.data.chr_mem {
+                ChrMem::Rom(_) => false,
+                ChrMem::Ram(_) => true,
+            }
+        );
+
         let cartridge: Box<dyn Cartridge> = match rom_config.ines_mapper_id {
             0 => Box::new(mapper0::CartridgeM0::new(rom_config)),
             1 => Box::new(mapper1::CartridgeM1::new(rom_config)),
@@ -147,12 +156,7 @@ impl Emulator {
             id => unimplemented!("Mapper {id} not implemented"),
         };
 
-        self.nes = Some(
-            Nes::new(
-                cartridge,
-                Rc::clone(&self.nes_frame),
-            )
-        );
+        self.nes = Some(Nes::new(cartridge, Rc::clone(&self.nes_frame)));
     }
 
     pub fn game_loaded(&self) -> bool {
@@ -213,18 +217,38 @@ impl Emulator {
                 self.frame = frame_number;
             }
 
+            /*
+
+            Right so CHR RAM and PRG RAM can be behind Rc.
+            Stuff behind Rc is usually immutable (because otherwise you could potentially have multiple
+            mutable references at the same time to the same part of memory).
+
+            Turns out that you can actually mutate the data behind an Rc using make_mut.
+            This works in a copy-on-write way, so if multiple Rc exist that point to the same allocation
+            make_mut will clone the existing allocation then mutate it.
+
+            So I think all we need to do is make CHR RAM and PRG RAM Rc and modify them with make_mut
+
+            So when we clone the nes state into the rewind state list, both the rewind state and the
+            current nes state should be pointing to the same RAM allocations. The moment the current
+            nes modifies the ram it will be cloned and will point to a new allocation
+
+             */
+
             if self.paused {
-                if !self.rewind_states.is_empty() {
+                if self.rewind_states.len() > 0 {
                     self.nes =
                         Some(self.rewind_states[self.rewind_state_index.round() as usize].clone());
                 }
-                self.run_to_vblank(false);
             } else {
-                if !self.rewind_states.is_empty() {
+                if self.rewind_states.len() > 0 {
                     self.rewind_state_index = (self.rewind_states.len() - 1) as f32;
                 }
-                self.run_to_vblank(true);
+                let state = self.nes.as_ref().unwrap().clone();
+                self.rewind_states.push(state);
             }
+
+            self.run_to_vblank();
 
             self.video_output.set(
                 ColorImage::from_rgba_unmultiplied([256, 240], self.nes_frame.borrow().as_slice()),
@@ -239,12 +263,7 @@ impl Emulator {
         }
     }
 
-    fn run_to_vblank(&mut self, create_rewind_state: bool) {
-        if create_rewind_state {
-            let state = self.nes.as_ref().unwrap().clone();
-            self.rewind_states.push(state);
-        }
-
+    fn run_to_vblank(&mut self) {
         loop {
             self.try_audio_sample();
             if let Some(nes) = self.nes.as_mut() {

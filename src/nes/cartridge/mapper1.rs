@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use super::cartridge::{Cartridge, Mirroring, KB};
 use crate::emulator::{CartMemory, RomConfig};
 use serde::{Deserialize, Serialize};
@@ -65,7 +66,7 @@ impl Cartridge for CartridgeM1 {
     }
     fn write_prg_ram(&mut self, addr: u16, byte: u8) {
         if let Some(ram) = self.rom_data.prg_ram.as_mut() {
-            ram[(addr - 0x6000) as usize] = byte;
+            Rc::make_mut(ram)[(addr - 0x6000) as usize] = byte;
         }
     }
 
