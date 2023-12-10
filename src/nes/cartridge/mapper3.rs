@@ -28,11 +28,10 @@ impl Cartridge for CartridgeM3 {
         self.rom_data.prg_rom[addr as usize % self.rom_data.prg_rom.len()]
     }
     fn write_prg_rom(&mut self, _addr: u16, byte: u8) {
-        // self.bank_select = (byte & 0b1111_1111) as usize;
         self.bank_select = (byte & 0b0000_0011) as usize;
     }
     fn read_chr(&mut self, addr: u16) -> u8 {
-        self.rom_data.chr_mem.read(addr as usize)
+        self.rom_data.chr_mem.read(self.bank_select * 0x2000 + addr as usize)
     }
     fn mirroring(&self) -> Mirroring {
         self.mirroring

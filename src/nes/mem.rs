@@ -159,7 +159,12 @@ pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
 
         // Cartridge space
 
-        0x6000..=0x7FFF => nes.cart.read_prg_ram(addr),
+        // TODO: Proper open bus behaviour
+        // https://www.nesdev.org/wiki/Open_bus_behavior
+
+        0x6000..=0x7FFF => {
+            nes.cart.read_prg_ram(addr)
+        },
 
         0x8000..=0xFFFF => nes.cart.read_prg_rom(addr),
 

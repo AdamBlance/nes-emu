@@ -96,6 +96,16 @@ impl CartMemory {
     pub fn new(prg_rom: Vec<u8>, chr_rom: Option<Vec<u8>>, has_prg_ram: bool) -> Self {
         CartMemory {
             prg_ram: match has_prg_ram {
+                // TODO: Fix this
+                /*
+                    Mario 3 writes to and reads from 0x6000-0x7FFF where PRG RAM would be
+                    but the cartridge doesn't actually have PRG RAM so any reads should just return
+                    the open bus. There are no mentions of Mario 3 relying on open bus behaviour
+                    to function but weirdly the game crashes at startup if don't enable PRG RAM.
+                    Tried to figure out what was going wrong but to no avail. It's difficult without
+                    a CPU instruction view, so maybe I should flesh that out first before trying
+                    to fix this bug.
+                 */
                 true => Some(Rc::new(vec![0u8; 0x2000])),
                 false => None,
             },
@@ -136,16 +146,6 @@ impl Emulator {
     }
 
     pub fn load_game(&mut self, rom_config: RomConfig) {
-        println!(
-            "Mapper: {}\nPRG RAM: {}\nCHR RAM: {}",
-            rom_config.ines_mapper_id,
-            rom_config.data.prg_ram.is_some(),
-            match rom_config.data.chr_mem {
-                ChrMem::Rom(_) => false,
-                ChrMem::Ram(_) => true,
-            }
-        );
-
         let cartridge: Box<dyn Cartridge> = match rom_config.ines_mapper_id {
             0 => Box::new(mapper0::CartridgeM0::new(rom_config)),
             1 => Box::new(mapper1::CartridgeM1::new(rom_config)),

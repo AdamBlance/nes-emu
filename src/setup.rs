@@ -4,7 +4,7 @@ use std::fs;
 use std::sync::mpsc;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crate::emulator;
-use crate::emulator::{AudioStream, CartMemory};
+use crate::emulator::{AudioStream, CartMemory, ChrMem};
 use crate::nes::cartridge::Mirroring;
 
 pub fn get_rom_from_file(path: &Path) -> Result<emulator::RomConfig, Box<dyn Error>> {
@@ -30,9 +30,18 @@ pub fn get_rom_from_file(path: &Path) -> Result<emulator::RomConfig, Box<dyn Err
 
     let has_prg_ram = (ines_data[6] & 0b10) > 0;
 
+    let ines_mapper_id = (ines_data[7] & 0xF0) | (ines_data[6] >> 4);
+
+    println!(
+        "Mapper: {}\nPRG RAM: {}\nCHR RAM: {}",
+        ines_mapper_id,
+        has_prg_ram,
+        chr_rom_is_ram
+    );
+
     Ok(
         emulator::RomConfig {
-            ines_mapper_id: (ines_data[7] & 0xF0) | (ines_data[6] >> 4),
+            ines_mapper_id,
             ines_mirroring: match ines_data[6] & 1 {
                 1 => Mirroring::Vertical,
                 0 => Mirroring::Horizontal,
