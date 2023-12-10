@@ -106,8 +106,9 @@ impl CartMemory {
                     a CPU instruction view, so maybe I should flesh that out first before trying
                     to fix this bug.
                  */
-                true => Some(Rc::new(vec![0u8; 0x2000])),
-                false => None,
+                true | false => Some(Rc::new(vec![0u8; 0x2000])),
+                // true => Some(Rc::new(vec![0u8; 0x2000])),
+                // false => None,
             },
             prg_rom: Rc::new(prg_rom),
             chr_mem: ChrMem::new(chr_rom),
