@@ -13,8 +13,16 @@ use crate::nes::cpu;
 use crate::nes::cpu::lookup_table::{Instruction, INSTRUCTIONS};
 use crate::nes::ppu;
 
-use dyn_clone;
 use serde::{Deserialize, Serialize};
+
+/*
+    Would be nice to create a state machine diagram to show how the program works when pausing,
+    unpausing, opening the debugger, rewinding, scrubbing, stepping forward and backward through
+    instructions, etc.
+    Will prevent future headaches I think.
+    Would also be nice to fix that off-by-one error that happens when you unpause and the game
+    lurches a frame.
+*/
 
 pub struct AudioStream {
     pub sender: SyncSender<(f32, f32)>,
