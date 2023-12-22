@@ -10,7 +10,7 @@ use std::sync::mpsc::SyncSender;
 
 use crate::nes::apu;
 use crate::nes::cpu;
-use crate::nes::cpu::lookup_table::{Instruction, INSTRUCTIONS, Mode, Name};
+use crate::nes::cpu::lookup_table::{INSTRUCTIONS, Mode};
 use crate::nes::ppu;
 
 use serde::{Deserialize, Serialize};

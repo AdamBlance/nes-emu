@@ -1,18 +1,12 @@
 use crate::nes::Nes;
 use super::addressing::*;
 use super::cycles::{control_instruction_cycles, address_resolution_cycles, branch_instruction_cycles, processing_cycles};
-use crate::nes::mem::{read_mem, read_mem_safe};
+use crate::nes::mem::read_mem;
 use super::lookup_table::{
     INSTRUCTIONS,
-    Mode::*,
     Category::*,
-    Name::*,
 };
 use super::operation_funcs::{set_interrupt_inhibit_flag};
-use crate::util::concat_u8;
-use std::io::Write;
-
-
 
 pub fn step_cpu(nes: &mut Nes) -> bool {
 
@@ -98,7 +92,6 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
 
 
     let instr = nes.cpu.instruction;
-    let cat = nes.cpu.instruction.category; 
     let func = nes.cpu.instruction.func();
     
 
