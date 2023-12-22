@@ -14,7 +14,7 @@ use std::io::Write;
 
 
 
-pub fn step_cpu(nes: &mut Nes) {
+pub fn step_cpu(nes: &mut Nes) -> bool {
 
     nes.cart.cpu_tick();
 
@@ -93,7 +93,7 @@ pub fn step_cpu(nes: &mut Nes) {
 
             end_cycle(nes);
         }
-        return
+        return false
     }
 
 
@@ -117,11 +117,12 @@ pub fn step_cpu(nes: &mut Nes) {
         _ => unreachable!()
     }
 
+    let instr_done = nes.cpu.instruction_done;
     if nes.cpu.instruction_done {
         end_instr(nes);
     }
     end_cycle(nes);
-    
+    instr_done
 }
 
 fn end_cycle(nes: &mut Nes) {

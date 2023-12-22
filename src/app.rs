@@ -1,5 +1,5 @@
 use eframe::{CreationContext, egui};
-use eframe::egui::{Color32, ColorImage, Image, include_image, Key, TextureFilter, TextureOptions, ViewportBuilder, ViewportId};
+use eframe::egui::{Color32, ColorImage, Image, include_image, Key, RichText, TextureFilter, TextureOptions, ViewportBuilder, ViewportId};
 use eframe::egui::load::SizedTexture;
 use crate::emulator::Emulator;
 use crate::input::{KeyMapping, new_button_state};
@@ -137,22 +137,54 @@ impl eframe::App for MyApp {
                     self.emulator.get_set_pause(Some(temp));
                 }
 
+                ui.add(
+                    egui::Slider::from_get_set(0.0..=1.0, |val| self.emulator.get_set_volume(val) )
+                        .text("Volume")
+                );
+
             });
         });
 
         if self.show_cpu_debugger {
             ctx.show_viewport_immediate(
                 ViewportId::from_hash_of("cpu_debugger"),
-                ViewportBuilder::default().with_inner_size([300.0, 300.0]),
+                ViewportBuilder::default().with_inner_size([500.0, 800.0]),
                 |ctx, class| {
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        ui.label("Hello from immediate viewport");
 
-                        egui::ScrollArea::vertical().show_rows(ui, 10.0, 100, |ui, row_range| {
-                            for row in row_range {
-                                let text = format!("Row {}/{}", row + 1, 100);
-                                ui.label(text);
+                        let advance_button = ui.button("Step");
+                        if advance_button.clicked() {
+                            self.emulator.run_one_cpu_instruction();
+                            self.emulator.update_prg_rom_debug_cache();
+                        }
+
+                        ui.separator();
+
+                        ui.add_enabled_ui(self.emulator.get_set_pause(None), |ui| {
+                            let mut scroll_builder = egui::ScrollArea::vertical().auto_shrink(false);
+                            if advance_button.clicked() {
+                                let row = match self.emulator.instruction_cache.binary_search_by_key(&self.emulator.nes.as_ref().unwrap().cpu.pc, |x| x.opc_addr) {
+                                    Ok(i) => i,
+                                    Err(i) => i,
+                                };
+                                scroll_builder = scroll_builder.vertical_scroll_offset((10.0 + ui.spacing().item_spacing.y) * (row as f32) - (ui.available_height() / 2.5));
                             }
+
+                            let scroll = scroll_builder.show_rows(ui, 10.0, self.emulator.instruction_cache.len(), |ui, row_range| {
+                                for row in row_range {
+                                    if let Some(nes) = self.emulator.nes.as_ref() {
+                                        let debug_instr = self.emulator.instruction_cache[row];
+                                        let text = RichText::new(debug_instr.debug_string()).monospace();
+                                        if debug_instr.opc_addr == nes.cpu.pc {
+                                            ui.label(text.color(Color32::RED));
+                                        } else {
+                                            ui.label(text);
+                                        }
+                                    }
+                                }
+                            });
+                            scroll
+
                         });
 
                     });

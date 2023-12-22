@@ -10,10 +10,11 @@ use std::sync::mpsc::SyncSender;
 
 use crate::nes::apu;
 use crate::nes::cpu;
-use crate::nes::cpu::lookup_table::{Instruction, INSTRUCTIONS};
+use crate::nes::cpu::lookup_table::{Instruction, INSTRUCTIONS, Mode, Name};
 use crate::nes::ppu;
 
 use serde::{Deserialize, Serialize};
+use crate::util::concat_u8;
 
 /*
     Would be nice to create a state machine diagram to show how the program works when pausing,
@@ -29,17 +30,56 @@ pub struct AudioStream {
     pub sample_rate: f32,
 }
 
-pub struct InstructionAndOperands {
-    pub address: u16,
-    pub instruction: Instruction,
-    pub operand_1: Option<u8>,
-    pub operand_2: Option<u8>,
+#[derive(Debug, Copy, Clone)]
+pub enum InstrBytes {
+    I1(u8),
+    I2(u8, u8),
+    I3(u8, u8, u8),
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct CpuDebuggerInstruction {
+    pub opc_addr: u16,
+    pub bytes: InstrBytes,
+}
+
+impl CpuDebuggerInstruction {
+    pub fn debug_string(&self) -> String {
+        let instr = match self.bytes {
+            InstrBytes::I1(opc) => INSTRUCTIONS[opc as usize],
+            InstrBytes::I2(opc, ..) => INSTRUCTIONS[opc as usize],
+            InstrBytes::I3(opc, ..) => INSTRUCTIONS[opc as usize],
+        };
+        match self.bytes {
+            InstrBytes::I1(_) => match instr.mode {
+                Mode::Accumulator | Mode::Implied => format!("{:04X} {:#?}", self.opc_addr, instr.name),
+                _ => unreachable!(),
+            },
+            InstrBytes::I2(_, arg1) => match instr.mode {
+                Mode::Immediate => format!("{:04X} {:#?} {:02X}", self.opc_addr, instr.name, arg1),
+                Mode::ZeroPage => format!("{:04X} {:#?} ZP[{:02X}]", self.opc_addr, instr.name, arg1),
+                Mode::ZeroPageX => format!("{:04X} {:#?} ZP[{:02X}+X]", self.opc_addr, instr.name, arg1),
+                Mode::ZeroPageY => format!("{:04X} {:#?} ZP[{:02X}+Y]", self.opc_addr, instr.name, arg1),
+                Mode::IndirectX => format!("{:04X} {:#?} MEM[ ZP16[{:02X}+X] ]", self.opc_addr, instr.name, arg1),
+                Mode::IndirectY => format!("{:04X} {:#?} MEM[ ZP16[{:02X}]+Y ]", self.opc_addr, instr.name, arg1),
+                Mode::Relative => format!("{:04X} {:#?} (offset)", self.opc_addr, instr.name),
+                _ => unreachable!(),
+            },
+            InstrBytes::I3(_, arg1, arg2) => match instr.mode {
+                Mode::Absolute => format!("{:04X} {:#?} MEM[{:04X}]", self.opc_addr, instr.name, concat_u8(arg2, arg1)),
+                Mode::AbsoluteX => format!("{:04X} {:#?} MEM[{:04X}+X]", self.opc_addr, instr.name, concat_u8(arg2, arg1)),
+                Mode::AbsoluteY => format!("{:04X} {:#?} MEM[{:04X}+Y]", self.opc_addr, instr.name, concat_u8(arg2, arg1)),
+                Mode::AbsoluteI => format!("{:04X} {:#?} MEM[ MEM16[{:04X}] ]", self.opc_addr, instr.name, concat_u8(arg2, arg1)),
+                _ => unreachable!(),
+            }
+        }
+    }
 }
 
 pub struct Emulator {
     // The emulator isn't gonna have a NES unless it has a game cartridge
     // The cartridge is hardwired into the address bus so that seems fair
-    nes: Option<Nes>,
+    pub nes: Option<Nes>,
     target_speed: f64,
     game_speed: f64,
     paused: bool,
@@ -49,6 +89,7 @@ pub struct Emulator {
     time: f64,
 
     audio_output: Option<AudioStream>,
+    volume: f64,
     avg_sample_rate: f64,
     cpu_cycle_at_last_sample: u64,
     cached_cycles_per_sample: f32,
@@ -57,6 +98,8 @@ pub struct Emulator {
     rewind_states: Vec<Nes>,
 
     nes_frame: Rc<RefCell<Vec<u8>>>,
+
+    pub instruction_cache: Vec<CpuDebuggerInstruction>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -142,6 +185,7 @@ impl Emulator {
             paused: false,
             video_output: texture_handle,
             audio_output,
+            volume: 1.0,
             avg_sample_rate: 1000.0,
             cpu_cycle_at_last_sample: 0,
             cached_cycles_per_sample: init_cycles_per_sample,
@@ -151,6 +195,7 @@ impl Emulator {
             rewind_state_index: 0.0,
             rewind_states: Vec::new(),
             nes_frame: Rc::new(RefCell::new(vec![0u8; 256usize * 240 * 4])),
+            instruction_cache: Vec::new(),
         }
     }
 
@@ -166,6 +211,16 @@ impl Emulator {
         };
 
         self.nes = Some(Nes::new(cartridge, Rc::clone(&self.nes_frame)));
+        self.update_prg_rom_debug_cache();
+    }
+
+    pub fn update_prg_rom_debug_cache(&mut self) {
+        if let Some(nes) = self.nes.as_mut() {
+            let prg_rom_snapshot: Vec<u8> = (0x8000..=0xFFFF)
+                .map(|i| nes.cart.read_prg_rom(i))
+                .collect();
+            self.instruction_cache = Emulator::instructions_for_debug(prg_rom_snapshot.as_slice());
+        }
     }
 
     pub fn game_loaded(&self) -> bool {
@@ -183,8 +238,10 @@ impl Emulator {
     pub fn get_set_pause(&mut self, pause: Option<bool>) -> bool {
         if let Some(pause) = pause {
             if !pause {
-                while self.rewind_states.len() - 1 != self.rewind_state_index as usize {
-                    self.rewind_states.pop();
+                if self.rewind_states.len() > 0 {
+                    while self.rewind_states.len() - 1 != self.rewind_state_index as usize {
+                        self.rewind_states.pop();
+                    }
                 }
             }
             self.paused = pause;
@@ -192,10 +249,20 @@ impl Emulator {
         self.paused
     }
 
+    pub fn get_set_volume(&mut self, volume: Option<f64>) -> f64 {
+        if let Some(v) = volume {
+            assert!(v <= 1.0);
+            self.volume = v;
+        }
+        self.volume
+    }
+
     pub fn scrub_by(&mut self, n_frames: f32) {
-        if self.paused && !self.rewind_states.is_empty() {
+        if self.paused && !self.rewind_states.is_empty() && n_frames != 0.0 {
             self.rewind_state_index = (self.rewind_state_index + n_frames)
                 .clamp(0.0, (self.rewind_states.len() - 1) as f32);
+            self.nes =
+                Some(self.rewind_states[self.rewind_state_index.round() as usize].clone());
         }
     }
 
@@ -244,20 +311,14 @@ impl Emulator {
 
              */
 
-            if self.paused {
-                if self.rewind_states.len() > 0 {
-                    self.nes =
-                        Some(self.rewind_states[self.rewind_state_index.round() as usize].clone());
-                }
-            } else {
+            if !self.paused {
                 if self.rewind_states.len() > 0 {
                     self.rewind_state_index = (self.rewind_states.len() - 1) as f32;
                 }
                 let state = self.nes.as_ref().unwrap().clone();
                 self.rewind_states.push(state);
+                self.run_to_vblank();
             }
-
-            self.run_to_vblank();
 
             self.video_output.set(
                 ColorImage::from_rgba_unmultiplied([256, 240], self.nes_frame.borrow().as_slice()),
@@ -269,6 +330,24 @@ impl Emulator {
             true
         } else {
             false
+        }
+    }
+
+    pub fn run_one_cpu_instruction(&mut self) {
+        if let Some(nes) = self.nes.as_mut() {
+            loop {
+                let end_of_instr = cpu::step_cpu(nes);
+
+                ppu::step_ppu(nes);
+                ppu::step_ppu(nes);
+                ppu::step_ppu(nes);
+
+                apu::step_apu(nes);
+
+                if end_of_instr {
+                    break;
+                }
+            }
         }
     }
 
@@ -327,17 +406,14 @@ impl Emulator {
     fn do_sample(&mut self) {
         if let Some(nes) = self.nes.as_mut() {
             let new_sample = nes.apu.get_sample(self.stereo_pan);
-
-            // TODO: Add volume control
-
-            // let new_sample = (0.0, 0.0);
+            let new_sample_multiplied = (new_sample.0 * self.volume as f32, new_sample.1 * self.volume as f32);
 
             let _ = self
                 .audio_output
                 .as_mut()
                 .unwrap()
                 .sender
-                .try_send(new_sample);
+                .try_send(new_sample_multiplied);
 
             let rolling_average = EXPONENTIAL_MOVING_AVG_BETA * self.avg_sample_rate
                 + (1.0 - EXPONENTIAL_MOVING_AVG_BETA)
@@ -348,29 +424,27 @@ impl Emulator {
         }
     }
 
-    pub fn instructions_for_debug(&self) -> Vec<InstructionAndOperands> {
-        let mut instrs: Vec<InstructionAndOperands> = Vec::with_capacity(0xFFFF - 0x8000);
-        if let Some(nes) = self.nes.as_ref() {
-            let mut address = 0x8000;
-            while address >= 0x8000 {
-                let opc = nes.cart.read_prg_rom(address);
-                let op1 = nes.cart.read_prg_rom(address.wrapping_add(1));
-                let op2 = nes.cart.read_prg_rom(address.wrapping_add(2));
-
-                let instruction = INSTRUCTIONS[opc as usize];
-                let len = instruction.number_of_operands();
-
-                assert!(instrs.len() <= 0xFFFF - 0x8000);
-
-                instrs.push(InstructionAndOperands {
-                    address,
-                    instruction,
-                    operand_1: if len > 0 { Some(op1) } else { None },
-                    operand_2: if len > 1 { Some(op2) } else { None },
-                });
-                address = address.wrapping_add(1 + len as u16);
+    pub fn instructions_for_debug(prg_rom: &[u8]) -> Vec<CpuDebuggerInstruction> {
+        assert_eq!(prg_rom.len(), 0x8000);
+        let mut opcodes: Vec<CpuDebuggerInstruction> = Vec::new();
+        let mut window = prg_rom.array_windows().enumerate();
+        while let Some((index, [opc, arg1, arg2])) = window.next() {
+            let instr = INSTRUCTIONS[*opc as usize];
+            if !instr.is_unofficial() {
+                opcodes.push(
+                    CpuDebuggerInstruction {
+                        opc_addr: 0x8000 + index as u16,
+                        bytes: match instr.number_of_operands() {
+                            0 => InstrBytes::I1(*opc),
+                            1 => InstrBytes::I2(*opc, *arg1),
+                            2 => InstrBytes::I3(*opc, *arg1, *arg2),
+                            _ => unreachable!(),
+                        }
+                    }
+                );
+                let _ = window.advance_by(instr.number_of_operands() as usize);
             }
         }
-        instrs
+        opcodes
     }
 }
