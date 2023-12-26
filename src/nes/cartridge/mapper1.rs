@@ -1,6 +1,5 @@
 use std::rc::Rc;
-use super::cartridge::{Cartridge, Mirroring, KB};
-use crate::emulator::{CartMemory, RomConfig};
+use super::cartridge::{Cartridge, Mirroring, KB, CartMemory, RomConfig};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]

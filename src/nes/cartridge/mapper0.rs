@@ -1,9 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::emulator::{CartMemory, RomConfig};
-use super::cartridge::{
-    Cartridge,
-    Mirroring,
-};
+use super::cartridge::{CartMemory, Cartridge, Mirroring, RomConfig};
 
 // iNES mapper 0: NROM-128 and NROM-256
 

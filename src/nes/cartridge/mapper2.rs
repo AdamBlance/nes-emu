@@ -1,10 +1,6 @@
 
-use super::cartridge::{
-    Cartridge,
-    Mirroring,
-};
+use super::cartridge::{CartMemory, Cartridge, Mirroring, RomConfig};
 use serde::{Deserialize, Serialize};
-use crate::emulator::{CartMemory, RomConfig};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM2 {

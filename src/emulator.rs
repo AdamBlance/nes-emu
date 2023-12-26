@@ -1,5 +1,5 @@
 use crate::nes::cartridge::{
-    mapper0, mapper1, mapper2, mapper3, mapper4, mapper7, Cartridge, Mirroring,
+    mapper0, mapper1, mapper2, mapper3, mapper4, mapper7, Cartridge
 };
 use crate::nes::controller::ButtonState;
 use crate::nes::Nes;
@@ -9,12 +9,12 @@ use std::rc::Rc;
 use std::sync::mpsc::SyncSender;
 
 use crate::nes::apu;
+use crate::nes::cartridge::cartridge::RomConfig;
 use crate::nes::cpu;
-use crate::nes::cpu::lookup_table::{INSTRUCTIONS, Mode};
+use crate::nes::cpu::lookup_table::INSTRUCTIONS;
 use crate::nes::ppu;
 
-use serde::{Deserialize, Serialize};
-use crate::util::concat_u8;
+use crate::nes::cpu::debugger::{CpuDebuggerInstruction, InstrBytes};
 
 /*
     Would be nice to create a state machine diagram to show how the program works when pausing,
@@ -25,55 +25,13 @@ use crate::util::concat_u8;
     lurches a frame.
 */
 
+const CPU_CYCLES_PER_FRAME: f32 = 29780.5;
+const DEFAULT_FRAMERATE: f64 = 60.0;
+const EXPONENTIAL_MOVING_AVG_BETA: f64 = 0.999;
+
 pub struct AudioStream {
     pub sender: SyncSender<(f32, f32)>,
     pub sample_rate: f32,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum InstrBytes {
-    I1(u8),
-    I2(u8, u8),
-    I3(u8, u8, u8),
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct CpuDebuggerInstruction {
-    pub opc_addr: u16,
-    pub bytes: InstrBytes,
-}
-
-impl CpuDebuggerInstruction {
-    pub fn debug_string(&self) -> String {
-        let instr = match self.bytes {
-            InstrBytes::I1(opc) => INSTRUCTIONS[opc as usize],
-            InstrBytes::I2(opc, ..) => INSTRUCTIONS[opc as usize],
-            InstrBytes::I3(opc, ..) => INSTRUCTIONS[opc as usize],
-        };
-        match self.bytes {
-            InstrBytes::I1(_) => match instr.mode {
-                Mode::Accumulator | Mode::Implied => format!("{:04X} {:#?}", self.opc_addr, instr.name),
-                _ => unreachable!(),
-            },
-            InstrBytes::I2(_, arg1) => match instr.mode {
-                Mode::Immediate => format!("{:04X} {:#?} {:02X}", self.opc_addr, instr.name, arg1),
-                Mode::ZeroPage => format!("{:04X} {:#?} ZP[{:02X}]", self.opc_addr, instr.name, arg1),
-                Mode::ZeroPageX => format!("{:04X} {:#?} ZP[{:02X}+X]", self.opc_addr, instr.name, arg1),
-                Mode::ZeroPageY => format!("{:04X} {:#?} ZP[{:02X}+Y]", self.opc_addr, instr.name, arg1),
-                Mode::IndirectX => format!("{:04X} {:#?} MEM[ ZP16[{:02X}+X] ]", self.opc_addr, instr.name, arg1),
-                Mode::IndirectY => format!("{:04X} {:#?} MEM[ ZP16[{:02X}]+Y ]", self.opc_addr, instr.name, arg1),
-                Mode::Relative => format!("{:04X} {:#?} (offset)", self.opc_addr, instr.name),
-                _ => unreachable!(),
-            },
-            InstrBytes::I3(_, arg1, arg2) => match instr.mode {
-                Mode::Absolute => format!("{:04X} {:#?} MEM[{:04X}]", self.opc_addr, instr.name, concat_u8(arg2, arg1)),
-                Mode::AbsoluteX => format!("{:04X} {:#?} MEM[{:04X}+X]", self.opc_addr, instr.name, concat_u8(arg2, arg1)),
-                Mode::AbsoluteY => format!("{:04X} {:#?} MEM[{:04X}+Y]", self.opc_addr, instr.name, concat_u8(arg2, arg1)),
-                Mode::AbsoluteI => format!("{:04X} {:#?} MEM[ MEM16[{:04X}] ]", self.opc_addr, instr.name, concat_u8(arg2, arg1)),
-                _ => unreachable!(),
-            }
-        }
-    }
 }
 
 pub struct Emulator {
@@ -101,75 +59,6 @@ pub struct Emulator {
 
     pub instruction_cache: Vec<CpuDebuggerInstruction>,
 }
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ChrMem {
-    Rom(Rc<Vec<u8>>), // Could this just be a boolean? I'm not sure if that's less rusty
-    Ram(Rc<Vec<u8>>),
-}
-impl ChrMem {
-    pub fn new(rom_data: Option<Vec<u8>>) -> Self {
-        match rom_data {
-            Some(data) => Self::Rom(Rc::new(data)),
-            None => Self::Ram(Rc::new(vec![0u8; 0x2000])),
-        }
-    }
-
-    pub fn read(&self, addr: usize) -> u8 {
-        match self {
-            ChrMem::Rom(rom) => rom[addr],
-            ChrMem::Ram(ram) => ram[addr],
-        }
-    }
-    pub fn write(&mut self, addr: usize, value: u8) {
-        if let ChrMem::Ram(ram) = self {
-            // ram[addr] = value;
-            Rc::make_mut(ram)[addr] = value
-        }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct RomConfig {
-    pub ines_mapper_id: u8,
-    pub ines_mirroring: Mirroring,
-    pub data: CartMemory,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct CartMemory {
-    pub prg_ram: Option<Rc<Vec<u8>>>,
-    pub prg_rom: Rc<Vec<u8>>,
-    pub chr_mem: ChrMem,
-}
-
-impl CartMemory {
-    pub fn new(prg_rom: Vec<u8>, chr_rom: Option<Vec<u8>>, has_prg_ram: bool) -> Self {
-        CartMemory {
-            prg_ram: match has_prg_ram {
-                // TODO: Fix this
-                /*
-                    Mario 3 writes to and reads from 0x6000-0x7FFF where PRG RAM would be
-                    but the cartridge doesn't actually have PRG RAM so any reads should just return
-                    the open bus. There are no mentions of Mario 3 relying on open bus behaviour
-                    to function but weirdly the game crashes at startup if don't enable PRG RAM.
-                    Tried to figure out what was going wrong but to no avail. It's difficult without
-                    a CPU instruction view, so maybe I should flesh that out first before trying
-                    to fix this bug.
-                 */
-                true | false => Some(Rc::new(vec![0u8; 0x2000])),
-                // true => Some(Rc::new(vec![0u8; 0x2000])),
-                // false => None,
-            },
-            prg_rom: Rc::new(prg_rom),
-            chr_mem: ChrMem::new(chr_rom),
-        }
-    }
-}
-
-const CPU_CYCLES_PER_FRAME: f32 = 29780.5;
-const DEFAULT_FRAMERATE: f64 = 60.0;
-const EXPONENTIAL_MOVING_AVG_BETA: f64 = 0.999;
 
 impl Emulator {
     pub fn new(texture_handle: TextureHandle, audio_output: Option<AudioStream>) -> Self {
@@ -214,15 +103,6 @@ impl Emulator {
         self.update_prg_rom_debug_cache();
     }
 
-    pub fn update_prg_rom_debug_cache(&mut self) {
-        if let Some(nes) = self.nes.as_mut() {
-            let prg_rom_snapshot: Vec<u8> = (0x8000..=0xFFFF)
-                .map(|i| nes.cart.read_prg_rom(i))
-                .collect();
-            self.instruction_cache = Emulator::instructions_for_debug(prg_rom_snapshot.as_slice());
-        }
-    }
-
     pub fn game_loaded(&self) -> bool {
         self.nes.is_some()
     }
@@ -263,8 +143,20 @@ impl Emulator {
                 .clamp(0.0, (self.rewind_states.len() - 1) as f32);
             self.nes =
                 Some(self.rewind_states[self.rewind_state_index.round() as usize].clone());
+            self.run_to_vblank();
         }
     }
+
+    fn update_prg_rom_debug_cache(&mut self) {
+        if let Some(nes) = self.nes.as_mut() {
+            let prg_rom_snapshot: Vec<u8> = (0x8000..=0xFFFF)
+                .map(|i| nes.cart.read_prg_rom(i))
+                .collect();
+            self.instruction_cache = Emulator::instructions_for_debug(prg_rom_snapshot.as_slice());
+        }
+    }
+
+
 
     pub fn update(&mut self, time: f64) -> bool {
         self.time = time;
@@ -349,6 +241,7 @@ impl Emulator {
                 }
             }
         }
+        self.update_prg_rom_debug_cache();
     }
 
     fn run_to_vblank(&mut self) {
@@ -424,7 +317,7 @@ impl Emulator {
         }
     }
 
-    pub fn instructions_for_debug(prg_rom: &[u8]) -> Vec<CpuDebuggerInstruction> {
+    fn instructions_for_debug(prg_rom: &[u8]) -> Vec<CpuDebuggerInstruction> {
         assert_eq!(prg_rom.len(), 0x8000);
         let mut opcodes: Vec<CpuDebuggerInstruction> = Vec::new();
         let mut window = prg_rom.array_windows().enumerate();

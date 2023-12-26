@@ -1,12 +1,7 @@
 use std::rc::Rc;
-use super::cartridge::{
-    Cartridge,
-    Mirroring,
-    KB,
-};
+use super::cartridge::{Cartridge, Mirroring, KB, CartMemory, RomConfig};
 use crate::util::get_bit_u16;
 use serde::{Deserialize, Serialize};
-use crate::emulator::{CartMemory, RomConfig};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM4 {

@@ -3,11 +3,11 @@ use std::error::Error;
 use std::fs;
 use std::sync::mpsc;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use crate::emulator;
-use crate::emulator::{AudioStream, CartMemory, ChrMem};
+use crate::emulator::AudioStream;
+use crate::nes::cartridge::cartridge::{CartMemory, RomConfig};
 use crate::nes::cartridge::Mirroring;
 
-pub fn get_rom_from_file(path: &Path) -> Result<emulator::RomConfig, Box<dyn Error>> {
+pub fn get_rom_from_file(path: &Path) -> Result<RomConfig, Box<dyn Error>> {
     const INES_HEADER_SIZE: usize = 16;
     const KB: usize = 1024;
 
@@ -40,7 +40,7 @@ pub fn get_rom_from_file(path: &Path) -> Result<emulator::RomConfig, Box<dyn Err
     );
 
     Ok(
-        emulator::RomConfig {
+        RomConfig {
             ines_mapper_id,
             ines_mirroring: match ines_data[6] & 1 {
                 1 => Mirroring::Vertical,
