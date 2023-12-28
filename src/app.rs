@@ -1,16 +1,18 @@
 use eframe::{CreationContext, egui};
-use eframe::egui::{Color32, ColorImage, Image, include_image, Key, RichText, TextureFilter, TextureOptions, ViewportBuilder, ViewportId};
-use eframe::egui::load::SizedTexture;
+use eframe::egui::{Color32, ColorImage, Key, TextureFilter, TextureOptions};
+use gilrs::Gilrs;
+
 use crate::emulator::Emulator;
-use crate::input::{KeyMapping, new_button_state};
+use crate::input::{ControllerThingy, KeyMapping, new_button_state};
 use crate::setup;
 
 pub struct MyApp {
     pub emulator: Emulator,
     pub key_mapping: KeyMapping,
     pub show_cpu_debugger: bool,
-    pub show_ppu_debugger: bool,
-    pub show_apu_debugger: bool,
+    pub show_controller_config: bool,
+    pub input_select_states: ControllerThingy,
+    pub gilrs: Gilrs,
 }
 
 impl MyApp {
@@ -38,8 +40,9 @@ impl MyApp {
             emulator: Emulator::new(screen_texture, audio_stream),
             key_mapping: KeyMapping::default(),
             show_cpu_debugger: false,
-            show_ppu_debugger: false,
-            show_apu_debugger: false,
+            show_controller_config: false,
+            input_select_states: ControllerThingy::default(),
+            gilrs: Gilrs::new().unwrap(),
         }
     }
 }
@@ -76,6 +79,9 @@ impl eframe::App for MyApp {
 
         if self.show_cpu_debugger {
             self.define_cpu_debugger(ctx);
+        }
+        if self.show_controller_config {
+            self.define_controller_config(ctx);
         }
     }
 }

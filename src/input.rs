@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use eframe::egui;
 use eframe::egui::Key;
 use crate::nes::controller::ButtonState;
+use crate::widgets::input_select::InputSelectState;
 
 pub fn new_button_state(
     keys_down: &HashSet<egui::Key>,
@@ -28,6 +29,26 @@ pub fn new_button_state(
         select: keys_down.contains(&key_mapping.con2_select),
     };
     (con1, con2)
+}
+
+#[derive(Default)]
+pub struct ControllerThingy {
+    pub con1_up: InputSelectState,
+    pub con1_down: InputSelectState,
+    pub con1_left: InputSelectState,
+    pub con1_right: InputSelectState,
+    pub con1_a: InputSelectState,
+    pub con1_b: InputSelectState,
+    pub con1_start: InputSelectState,
+    pub con1_select: InputSelectState,
+    pub con2_up: InputSelectState,
+    pub con2_down: InputSelectState,
+    pub con2_left: InputSelectState,
+    pub con2_right: InputSelectState,
+    pub con2_a: InputSelectState,
+    pub con2_b: InputSelectState,
+    pub con2_start: InputSelectState,
+    pub con2_select: InputSelectState,
 }
 
 pub struct KeyMapping {

@@ -8,6 +8,7 @@ pub struct Controller {
     pub sr_latch_pin: bool,
 }
 
+#[derive(Default)]
 pub struct ButtonState {
     pub up: bool,
     pub down: bool,

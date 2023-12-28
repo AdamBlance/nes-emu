@@ -1,8 +1,11 @@
 use eframe::egui;
 use eframe::egui::{Color32, Image, include_image, RichText, ViewportBuilder, ViewportId};
 use eframe::egui::load::SizedTexture;
+use gilrs::{Event, EventType};
 use crate::app::MyApp;
 use crate::setup;
+use crate::widgets::input_select::{Button, InputSelect};
+
 
 impl MyApp {
     pub fn define_main_top_panel(&mut self, ctx: &egui::Context) {
@@ -15,22 +18,16 @@ impl MyApp {
                         }
                     }
                 }
-                ui.separator();
 
-                ui.button("Save");
-                ui.button("Load");
-                ui.button("Load...");
+                if ui.button("Controller Config").clicked() {
+                    self.show_controller_config = !self.show_controller_config
+                }
+
                 ui.separator();
 
                 ui.add_enabled_ui(self.emulator.game_loaded(), |ui| {
                     if ui.button("CPU Debugger").clicked() {
                         self.show_cpu_debugger = !self.show_cpu_debugger;
-                    }
-                    if ui.button("PPU Debugger").clicked() {
-                        self.show_ppu_debugger = !self.show_ppu_debugger;
-                    }
-                    if ui.button("CPU Debugger").clicked() {
-                        self.show_apu_debugger = !self.show_apu_debugger;
                     }
                 });
 
@@ -123,14 +120,86 @@ impl MyApp {
                             }
                         });
                         scroll
-
                     });
-
                 });
 
                 if ctx.input(|i| i.viewport().close_requested()) {
-                    // Tell parent viewport that we should not show next frame:
                     self.show_cpu_debugger = false;
+                }
+            }
+        )
+    }
+
+    pub fn define_controller_config(&mut self, ctx: &egui::Context) {
+        ctx.show_viewport_immediate(
+            ViewportId::from_hash_of("controller"),
+            ViewportBuilder::default().with_inner_size([500.0, 800.0]),
+            |ctx, class| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    egui::Grid::new("some_unique_id").max_col_width(25.0).show(ui, |ui| {
+                        let maybe_pressed_key = ui.input(
+                            |i| i.keys_down
+                                .iter()
+                                .next()
+                                .copied()
+                                .map(|x| Button::Key(x))
+                        );
+
+                        let maybe_pressed_button = std::iter::from_fn(|| self.gilrs.next_event())
+                            .filter_map(|event| match event {
+                                Event {event: EventType::ButtonPressed(button, _), ..} => Some(Button::ControllerButton(button)),
+                                Event { event: EventType::AxisChanged(axis, position, _), .. } if position != 0.0 => Some(Button::ControllerAxis(axis, position > 0.0)),
+                                _ => None,
+                            })
+                            .last();
+
+                        let maybe_pressed_thing = maybe_pressed_button.or(maybe_pressed_key);
+
+                        ui.label("");
+                        ui.add(
+                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_up)
+                        );
+
+                        ui.end_row();
+
+                        ui.add(
+                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_left)
+                        );
+                        ui.label("");
+                        ui.add(
+                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_right)
+                        );
+                        ui.label("");
+                        ui.label("");
+                        ui.label("");
+                        ui.label("");
+                        ui.add(
+                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_b)
+                        );                        ui.add(
+                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_a)
+                        );
+
+                        ui.end_row();
+
+                        ui.label("");
+                        ui.add(
+                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_down)
+                        );
+                        ui.label("");
+                        ui.label("");
+                        ui.add(
+                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_select)
+                        );
+                        ui.add(
+                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_start)
+                        );
+
+                        ui.end_row();
+                    });
+                });
+
+                if ctx.input(|i| i.viewport().close_requested()) {
+                    self.show_controller_config = false;
                 }
             },
         )
