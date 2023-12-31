@@ -1,10 +1,11 @@
 use crate::nes::cartridge::{
     mapper0, mapper1, mapper2, mapper3, mapper4, mapper7, Cartridge
 };
-use crate::nes::controller::ButtonState;
+use crate::nes::controller::NesButton;
 use crate::nes::Nes;
 use eframe::egui::{ColorImage, TextureFilter, TextureHandle, TextureOptions};
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::mpsc::SyncSender;
 
@@ -281,11 +282,11 @@ impl Emulator {
         }
     }
 
-    pub fn update_controller(&mut self, num: u8, new_state: ButtonState) {
+    pub fn update_controller(&mut self, num: u8, pressed_buttons: HashSet<NesButton>) {
         if let Some(nes) = self.nes.as_mut() {
             match num {
-                1 => nes.con1.update_button_state(new_state),
-                2 => nes.con2.update_button_state(new_state),
+                1 => nes.con1.update_button_state(&pressed_buttons),
+                // 2 => nes.con2.update_button_state(&pressed_buttons),
                 _ => panic!("Controller doesn't exist"),
             }
         }

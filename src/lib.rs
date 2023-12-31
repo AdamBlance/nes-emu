@@ -8,6 +8,5 @@ pub mod emulator;
 pub mod nes;
 mod setup;
 pub mod app;
-mod input;
 mod ui;
 mod widgets;

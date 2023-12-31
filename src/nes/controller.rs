@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use crate::util::to_mask;
 
@@ -8,16 +9,16 @@ pub struct Controller {
     pub sr_latch_pin: bool,
 }
 
-#[derive(Default)]
-pub struct ButtonState {
-    pub up: bool,
-    pub down: bool,
-    pub left: bool,
-    pub right: bool,
-    pub a: bool,
-    pub b: bool,
-    pub start: bool,
-    pub select: bool,
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum NesButton {
+    Up,
+    Down,
+    Left,
+    Right,
+    B,
+    A,
+    Start,
+    Select
 }
 
 const UP:     u8 = 0b0001_0000;
@@ -44,16 +45,17 @@ impl Controller {
         self.sr_latch_pin = (val & 1) == 1;
     }
 
-    pub fn update_button_state(&mut self, new_state: ButtonState) {
+    // TODO: Use bitfields here
+    pub fn update_button_state(&mut self, pressed_buttons: &HashSet<NesButton>) {
         self.button_state = 0b00000000;
-        self.button_state |= to_mask(new_state.up) & UP;
-        self.button_state |= to_mask(new_state.down) & DOWN;
-        self.button_state |= to_mask(new_state.left) & LEFT;
-        self.button_state |= to_mask(new_state.right) & RIGHT;
-        self.button_state |= to_mask(new_state.start) & START;
-        self.button_state |= to_mask(new_state.select) & SELECT;
-        self.button_state |= to_mask(new_state.a) & A;
-        self.button_state |= to_mask(new_state.b) & B;
+        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Up)) & UP;
+        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Down)) & DOWN;
+        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Left)) & LEFT;
+        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Right)) & RIGHT;
+        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Start)) & START;
+        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Select)) & SELECT;
+        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::A)) & A;
+        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::B)) & B;
     }
 
 }

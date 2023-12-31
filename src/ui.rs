@@ -1,11 +1,12 @@
-use eframe::egui;
-use eframe::egui::{Color32, Image, include_image, RichText, ViewportBuilder, ViewportId};
-use eframe::egui::load::SizedTexture;
-use gilrs::{Event, EventType};
 use crate::app::MyApp;
 use crate::setup;
-use crate::widgets::input_select::{Button, InputSelect};
-
+use crate::widgets::input_select::InputSelect;
+use eframe::egui;
+use eframe::egui::load::SizedTexture;
+use eframe::egui::{
+    include_image, Color32, Image, RichText, ViewportBuilder, ViewportId,
+};
+use crate::nes::controller::NesButton;
 
 impl MyApp {
     pub fn define_main_top_panel(&mut self, ctx: &egui::Context) {
@@ -30,7 +31,6 @@ impl MyApp {
                         self.show_cpu_debugger = !self.show_cpu_debugger;
                     }
                 });
-
             });
         });
     }
@@ -40,10 +40,9 @@ impl MyApp {
             ui.horizontal(|ui| {
                 ui.label("Speed:");
                 ui.add(
-                    egui::DragValue::from_get_set(|val| self.emulator.get_set_speed(val) )
+                    egui::DragValue::from_get_set(|val| self.emulator.get_set_speed(val))
                         .clamp_range(0.1..=2.0)
-                        .speed(0.005)
-
+                        .speed(0.005),
                 );
 
                 ui.add_enabled_ui(self.emulator.get_set_pause(None), |ui| {
@@ -52,23 +51,26 @@ impl MyApp {
                     self.emulator.scrub_by(rewind_speed_offset);
                 });
 
-
-                if ui.add(
-                    match self.emulator.get_set_pause(None) {
-                        true => egui::Button::image(Image::new(include_image!("../resources/play_light.png"))),
-                        false => egui::Button::image(Image::new(include_image!("../resources/pause_light.png"))),
-                    }
-                ).clicked() {
+                if ui
+                    .add(match self.emulator.get_set_pause(None) {
+                        true => egui::Button::image(Image::new(include_image!(
+                            "../resources/play_light.png"
+                        ))),
+                        false => egui::Button::image(Image::new(include_image!(
+                            "../resources/pause_light.png"
+                        ))),
+                    })
+                    .clicked()
+                {
                     // TODO: get_set isn't a great pattern, change
                     let temp = !self.emulator.get_set_pause(None);
                     self.emulator.get_set_pause(Some(temp));
                 }
 
                 ui.add(
-                    egui::Slider::from_get_set(0.0..=1.0, |val| self.emulator.get_set_volume(val) )
-                        .text("Volume")
+                    egui::Slider::from_get_set(0.0..=1.0, |val| self.emulator.get_set_volume(val))
+                        .text("Volume"),
                 );
-
             });
         });
     }
@@ -88,7 +90,6 @@ impl MyApp {
             ViewportBuilder::default().with_inner_size([500.0, 800.0]),
             |ctx, class| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-
                     let advance_button = ui.button("Step");
                     if advance_button.clicked() {
                         self.emulator.run_one_cpu_instruction();
@@ -99,26 +100,35 @@ impl MyApp {
                     ui.add_enabled_ui(self.emulator.get_set_pause(None), |ui| {
                         let mut scroll_builder = egui::ScrollArea::vertical().auto_shrink(false);
                         if advance_button.clicked() {
-                            let row = match self.emulator.instruction_cache.binary_search_by_key(&self.emulator.nes.as_ref().unwrap().cpu.pc, |x| x.opc_addr) {
-                                Ok(i) => i,
-                                Err(i) => i,
-                            };
-                            scroll_builder = scroll_builder.vertical_scroll_offset((10.0 + ui.spacing().item_spacing.y) * (row as f32) - (ui.available_height() / 2.5));
+                            let row = self.emulator.instruction_cache.binary_search_by_key(
+                                &self.emulator.nes.as_ref().unwrap().cpu.pc,
+                                |x| x.opc_addr,
+                            ).unwrap_or_else(|i| i);
+                            scroll_builder = scroll_builder.vertical_scroll_offset(
+                                (10.0 + ui.spacing().item_spacing.y) * (row as f32)
+                                    - (ui.available_height() / 2.5),
+                            );
                         }
 
-                        let scroll = scroll_builder.show_rows(ui, 10.0, self.emulator.instruction_cache.len(), |ui, row_range| {
-                            for row in row_range {
-                                if let Some(nes) = self.emulator.nes.as_ref() {
-                                    let debug_instr = self.emulator.instruction_cache[row];
-                                    let text = RichText::new(debug_instr.debug_string()).monospace();
-                                    if debug_instr.opc_addr == nes.cpu.pc {
-                                        ui.label(text.color(Color32::RED));
-                                    } else {
-                                        ui.label(text);
+                        let scroll = scroll_builder.show_rows(
+                            ui,
+                            10.0,
+                            self.emulator.instruction_cache.len(),
+                            |ui, row_range| {
+                                for row in row_range {
+                                    if let Some(nes) = self.emulator.nes.as_ref() {
+                                        let debug_instr = self.emulator.instruction_cache[row];
+                                        let text =
+                                            RichText::new(debug_instr.debug_string()).monospace();
+                                        if debug_instr.opc_addr == nes.cpu.pc {
+                                            ui.label(text.color(Color32::RED));
+                                        } else {
+                                            ui.label(text);
+                                        }
                                     }
                                 }
-                            }
-                        });
+                            },
+                        );
                         scroll
                     });
                 });
@@ -126,7 +136,7 @@ impl MyApp {
                 if ctx.input(|i| i.viewport().close_requested()) {
                     self.show_cpu_debugger = false;
                 }
-            }
+            },
         )
     }
 
@@ -136,64 +146,75 @@ impl MyApp {
             ViewportBuilder::default().with_inner_size([500.0, 800.0]),
             |ctx, class| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    egui::Grid::new("some_unique_id").max_col_width(25.0).show(ui, |ui| {
-                        let maybe_pressed_key = ui.input(
-                            |i| i.keys_down
-                                .iter()
-                                .next()
-                                .copied()
-                                .map(|x| Button::Key(x))
-                        );
+                    egui::Grid::new("cool-grid").show(ui, |ui| {
+                        if ctx.input(|ui| ui.focused) {
+                            self.get_pressed_input(ctx);
+                        }
 
-                        let maybe_pressed_button = std::iter::from_fn(|| self.gilrs.next_event())
-                            .filter_map(|event| match event {
-                                Event {event: EventType::ButtonPressed(button, _), ..} => Some(Button::ControllerButton(button)),
-                                Event { event: EventType::AxisChanged(axis, position, _), .. } if position != 0.0 => Some(Button::ControllerAxis(axis, position > 0.0)),
-                                _ => None,
-                            })
-                            .last();
+                        let maybe_input = self.input.iter().next().copied();
 
-                        let maybe_pressed_thing = maybe_pressed_button.or(maybe_pressed_key);
-
-                        ui.label("");
-                        ui.add(
-                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_up)
-                        );
-
+                        ui.label("Up:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            self.input_mapping.get_mut(&NesButton::Up).unwrap(),
+                            "con-up",
+                        ));
                         ui.end_row();
 
-                        ui.add(
-                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_left)
-                        );
-                        ui.label("");
-                        ui.add(
-                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_right)
-                        );
-                        ui.label("");
-                        ui.label("");
-                        ui.label("");
-                        ui.label("");
-                        ui.add(
-                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_b)
-                        );                        ui.add(
-                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_a)
-                        );
-
+                        ui.label("Down:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            self.input_mapping.get_mut(&NesButton::Down).unwrap(),
+                            "con-down",
+                        ));
                         ui.end_row();
 
-                        ui.label("");
-                        ui.add(
-                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_down)
-                        );
-                        ui.label("");
-                        ui.label("");
-                        ui.add(
-                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_select)
-                        );
-                        ui.add(
-                            InputSelect::new(maybe_pressed_thing, &mut self.input_select_states.con1_start)
-                        );
+                        ui.label("Left:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            self.input_mapping.get_mut(&NesButton::Left).unwrap(),
+                            "con-left",
+                        ));
+                        ui.end_row();
 
+                        ui.label("Right:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            self.input_mapping.get_mut(&NesButton::Right).unwrap(),
+                            "con-right",
+                        ));
+                        ui.end_row();
+
+                        ui.label("B:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            self.input_mapping.get_mut(&NesButton::B).unwrap(),
+                            "con-b",
+                        ));
+                        ui.end_row();
+
+                        ui.label("A:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            self.input_mapping.get_mut(&NesButton::A).unwrap(),
+                            "con-a",
+                        ));
+                        ui.end_row();
+
+                        ui.label("Select:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            self.input_mapping.get_mut(&NesButton::Select).unwrap(),
+                            "con-select",
+                        ));
+                        ui.end_row();
+
+                        ui.label("Start:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            self.input_mapping.get_mut(&NesButton::Start).unwrap(),
+                            "con-start",
+                        ));
                         ui.end_row();
                     });
                 });
