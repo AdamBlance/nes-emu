@@ -193,7 +193,7 @@ impl Cartridge for CartridgeM4 {
         let new_a12_value = get_bit_u16(addr_bus, 12);
         
         // If PPU has gone from fetching background tiles to fetching sprite tiles
-        if self.last_a12_value == false && new_a12_value == true {
+        if !self.last_a12_value && new_a12_value {
             // If last rising edge was more than 16 PPU cycles ago, update scanline counter
             if self.a12_filtering_counter == 0 {
                 if self.scanline_counter_curr == 0 || self.scanline_counter_reset_flag {

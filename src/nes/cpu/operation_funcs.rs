@@ -52,9 +52,6 @@ pub fn load_y(nes: &mut Nes) {
     update_p_nz(nes, nes.cpu.y);
 }
 
-
-// This is a pretty crap way of doing things for the tracing
-
 pub fn store_a(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a;
 }
@@ -274,7 +271,7 @@ pub fn rra(nes: &mut Nes) {
 }
 
 pub fn anc(nes: &mut Nes) {
-    nes.cpu.a = nes.cpu.a & nes.cpu.data;
+    nes.cpu.a &= nes.cpu.data;
     update_p_nz(nes, nes.cpu.a);
     nes.cpu.p_c = nes.cpu.p_n;
 }

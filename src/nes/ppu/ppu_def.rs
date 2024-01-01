@@ -79,6 +79,12 @@ impl fmt::Debug for Ppu {
     }
 }
 
+impl Default for Ppu {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Ppu {
     pub fn new() -> Ppu {
         Ppu {

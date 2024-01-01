@@ -118,11 +118,9 @@ impl Emulator {
 
     pub fn get_set_pause(&mut self, pause: Option<bool>) -> bool {
         if let Some(pause) = pause {
-            if !pause {
-                if self.rewind_states.len() > 0 {
-                    while self.rewind_states.len() - 1 != self.rewind_state_index as usize {
-                        self.rewind_states.pop();
-                    }
+            if !pause && !self.rewind_states.is_empty() {
+                while self.rewind_states.len() - 1 != self.rewind_state_index as usize {
+                    self.rewind_states.pop();
                 }
             }
             self.paused = pause;
@@ -205,7 +203,7 @@ impl Emulator {
              */
 
             if !self.paused {
-                if self.rewind_states.len() > 0 {
+                if !self.rewind_states.is_empty() {
                     self.rewind_state_index = (self.rewind_states.len() - 1) as f32;
                 }
                 let state = self.nes.as_ref().unwrap().clone();

@@ -156,10 +156,8 @@ fn clock_triangle_linear_counter(tri: &mut Triangle) {
     
     if tri.linear_counter_reload_flag {
         tri.linear_counter_curr_value = tri.linear_counter_init_value;
-    } else {
-        if tri.linear_counter_curr_value > 0 {
-            tri.linear_counter_curr_value -= 1;
-        }
+    } else if tri.linear_counter_curr_value > 0 {
+        tri.linear_counter_curr_value -= 1;
     }
 
     // counter reload flag is actually not cleared on clock unconditionally
@@ -191,19 +189,17 @@ fn clock_square_envelope(sqw: &mut Square) {
         sqw.envelope_start_flag = false;
         sqw.envelope_decay_level = 15;
         sqw.envelope_counter_curr_value = sqw.volume_and_envelope_period;
-    } else {
-        if sqw.envelope_counter_curr_value == 0 {
-            // clock decay counter
-            sqw.envelope_counter_curr_value = sqw.volume_and_envelope_period;
-            // restart the count from 15 if loop is true
-            if sqw.envelope_decay_level == 0 && sqw.envelope_loop_and_length_counter_halt {
-                sqw.envelope_decay_level = 15;
-            } else {
-                sqw.envelope_decay_level = sqw.envelope_decay_level.saturating_sub(1);
-            }
+    } else if sqw.envelope_counter_curr_value == 0 {
+        // clock decay counter
+        sqw.envelope_counter_curr_value = sqw.volume_and_envelope_period;
+        // restart the count from 15 if loop is true
+        if sqw.envelope_decay_level == 0 && sqw.envelope_loop_and_length_counter_halt {
+            sqw.envelope_decay_level = 15;
         } else {
-            sqw.envelope_counter_curr_value -= 1;
+            sqw.envelope_decay_level = sqw.envelope_decay_level.saturating_sub(1);
         }
+    } else {
+        sqw.envelope_counter_curr_value -= 1;
     }
 
     sqw.envelope_output = if sqw.constant_volume {
@@ -225,22 +221,20 @@ fn clock_noise_envelope(noise: &mut Noise) {
         noise.envelope_start_flag = false;
         noise.envelope_decay_level = 15;
         noise.envelope_counter_curr_value = noise.volume_and_envelope_period;
-    } else {
-        if noise.envelope_counter_curr_value == 0 {
-            // clock decay counter
-            noise.envelope_counter_curr_value = noise.volume_and_envelope_period;
-            // restart the count from 15 if loop is true
-            if noise.envelope_decay_level == 0 {
-                if noise.envelope_loop_and_length_counter_halt {
-                    noise.envelope_decay_level = 15;
-                }
-            } else {
-                noise.envelope_decay_level -= 1;
+    } else if noise.envelope_counter_curr_value == 0 {
+        // clock decay counter
+        noise.envelope_counter_curr_value = noise.volume_and_envelope_period;
+        // restart the count from 15 if loop is true
+        if noise.envelope_decay_level == 0 {
+            if noise.envelope_loop_and_length_counter_halt {
+                noise.envelope_decay_level = 15;
             }
-
         } else {
-            noise.envelope_counter_curr_value -= 1;
+            noise.envelope_decay_level -= 1;
         }
+
+    } else {
+        noise.envelope_counter_curr_value -= 1;
     }
 
     noise.envelope_output = if noise.constant_volume {

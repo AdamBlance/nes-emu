@@ -41,12 +41,11 @@ impl CartridgeM1 {
     }
 
     fn calc_chr_addr(&self, addr: usize) -> usize {
-        let addru = addr as usize;
         match self.chr_bank_mode {
-            0 => (self.chr_bank_0 & 0b11110) as usize * 8 * KB + addru,
+            0 => (self.chr_bank_0 & 0b11110) * 8 * KB + addr,
             1 => match addr {
-                0x0000..=0x0FFF => self.chr_bank_0 * 4 * KB + addru,
-                0x1000..=0x1FFF => self.chr_bank_1 * 4 * KB + (addru - 0x1000),
+                0x0000..=0x0FFF => self.chr_bank_0 * 4 * KB + addr,
+                0x1000..=0x1FFF => self.chr_bank_1 * 4 * KB + (addr - 0x1000),
                 _ => unreachable!(),
             },
             _ => unreachable!(),

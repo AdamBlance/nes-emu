@@ -198,7 +198,7 @@ impl Sample {
         self.output = byte & 0b0111_1111;
     }
     pub fn set_reg3_from_byte(&mut self, byte: u8) {
-        self.init_sample_addr = 0xC000 + (byte as u16 * 64) as u16;
+        self.init_sample_addr = 0xC000 + (byte as u16 * 64);
     }
     pub fn set_reg4_from_byte(&mut self, byte: u8) {
         self.sample_length = (byte as u16 * 16) + 1;

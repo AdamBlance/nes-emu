@@ -103,7 +103,7 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
 
 fn end_cycle(nes: &mut Nes) {
 
-    if nes.cpu.prev_nmi_signal == false && nes.ppu.nmi_line == true {
+    if !nes.cpu.prev_nmi_signal && nes.ppu.nmi_line {
         nes.cpu.nmi_edge_detector_output = true;
     }
     nes.cpu.prev_nmi_signal = nes.ppu.nmi_line;

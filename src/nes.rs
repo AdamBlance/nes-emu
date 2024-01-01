@@ -35,14 +35,14 @@ pub struct Nes {
 impl Clone for Nes {
     fn clone(&self) -> Self {
         Nes {
-            cpu: self.cpu.clone(),
+            cpu: self.cpu,
             ppu: self.ppu.clone(),
             apu: self.apu.clone(),
             wram: self.wram.clone(),
             cart: dyn_clone::clone_box(&*self.cart),
-            con1: self.con1.clone(),
-            con2: self.con2.clone(),
-            frame: Some(Rc::clone(&self.frame.as_ref().unwrap())),
+            con1: self.con1,
+            con2: self.con2,
+            frame: Some(Rc::clone(self.frame.as_ref().unwrap())),
         }
     }
 }

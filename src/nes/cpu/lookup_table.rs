@@ -216,7 +216,7 @@ impl Instruction {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Name {
     // Official opcodes
     LDA,
@@ -269,6 +269,7 @@ pub enum Name {
     CLD,
     CLI,
     CLV,
+    #[default]
     NOP,
     BRK,
     JMP,
@@ -297,13 +298,12 @@ pub enum Name {
     SBX,
 }
 
-impl Default for Name {
-    fn default() -> Name {NOP}
-}
 
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Mode { 
+
+#[derive(Default, Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Mode {
+    #[default]
     Accumulator,
     Immediate,
     Absolute,
@@ -319,15 +319,14 @@ pub enum Mode {
     AbsoluteI,
 }
 
-impl Default for Mode {
-    fn default() -> Mode {Accumulator}
-}
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+
+#[derive(Default, Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Category {
     Control,
     NonMemory,
     Branch,
+    #[default]
     Read,
     ReadModifyWrite,
     Write,
@@ -336,11 +335,7 @@ pub enum Category {
 }
 
 
-impl Default for Category {
-    fn default() -> Category {
-        Read
-    }
-}
+
 
 pub static INSTRUCTIONS: [Instruction; 256] = [
     // 0

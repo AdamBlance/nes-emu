@@ -136,8 +136,7 @@ pub fn push_a_to_stack(nes: &mut Nes) {
 
 fn pull_from_stack(nes: &mut Nes) -> u8 {
     let stack_addr = 0x0100 + nes.cpu.s as u16;
-    let value = read_mem(stack_addr, nes);
-    value
+    read_mem(stack_addr, nes)
 }
 pub fn pull_lower_pc_from_stack(nes: &mut Nes) {
     let lower_pc = pull_from_stack(nes);

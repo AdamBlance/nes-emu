@@ -109,8 +109,7 @@ impl MyApp {
                                     - (ui.available_height() / 2.5),
                             );
                         }
-
-                        let scroll = scroll_builder.show_rows(
+                        scroll_builder.show_rows(
                             ui,
                             10.0,
                             self.emulator.instruction_cache.len(),
@@ -128,8 +127,7 @@ impl MyApp {
                                     }
                                 }
                             },
-                        );
-                        scroll
+                        )
                     });
                 });
 

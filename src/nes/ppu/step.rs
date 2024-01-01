@@ -41,7 +41,7 @@ pub fn step_ppu(nes: &mut Nes) {
 
     // could move this down or whatever
     // the shift registers shift at the end(?) of the cycles 2..=257, 322..=337
-    if (cycle >= 2 && cycle <= 257) || (cycle >= 322 && cycle <= 337) {
+    if (2..=257).contains(&cycle) || (322..=337).contains(&cycle) {
         nes.ppu.bg_ptable_lsb_sr <<= 1;
         nes.ppu.bg_ptable_msb_sr <<= 1;
     
@@ -52,7 +52,7 @@ pub fn step_ppu(nes: &mut Nes) {
     }
 
     // If in visible area, draw pixel
-    if (cycle >= 1 && cycle <= 256) && (scanline >= 0 && scanline <= 239) && rendering_enabled {
+    if (1..=256).contains(&cycle) && (0..=239).contains(&scanline) && rendering_enabled {
 
         // secondary OAM initialisation spans cycles 1..=64 in reality
         if cycle == 1 {
@@ -180,10 +180,8 @@ pub fn step_ppu(nes: &mut Nes) {
         let bg_transparent = (!bg_patt_lsb && !bg_patt_msb) || (!nes.ppu.show_leftmost_bg && cycle <= 8) || !nes.ppu.show_bg;
         let sprite_transparent = (!sprite_patt_lsb && !sprite_patt_msb) || (!nes.ppu.show_leftmost_sprites && cycle <= 8) || !nes.ppu.show_sprites;
 
-        if !bg_transparent && !sprite_transparent && cycle < 256 && sprite_number == 0 && nes.ppu.sprite_zero_in_latches {
-            if !(cycle <= 8 && (!nes.ppu.show_leftmost_bg || !nes.ppu.show_leftmost_sprites)) {
-                nes.ppu.sprite_zero_hit = true;
-            }
+        if !bg_transparent && !sprite_transparent && cycle < 256 && sprite_number == 0 && nes.ppu.sprite_zero_in_latches && !(cycle <= 8 && (!nes.ppu.show_leftmost_bg || !nes.ppu.show_leftmost_sprites)) {
+            nes.ppu.sprite_zero_hit = true;
         }
 
         let palette_index = {
@@ -283,7 +281,7 @@ pub fn step_ppu(nes: &mut Nes) {
         // nes.ppu.sprite_zero_in_soam = false;
     }
     // Shift register reload happens on cycles {9, 17, 25, ... , 257} and {329, 337}
-    let shift_register_reload = ((cycle % 8 == 1) && (cycle >= 9 && cycle <= 257)) 
+    let shift_register_reload = ((cycle % 8 == 1) && (9..=257).contains(&cycle)) 
                               || (cycle == 329 || cycle == 337);
 
     if shift_register_reload {
@@ -319,7 +317,7 @@ pub fn step_ppu(nes: &mut Nes) {
         }
     }
 
-    let in_bg_fetch_cycle = ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336))
+    let in_bg_fetch_cycle = ((1..=256).contains(&cycle) || (321..=336).contains(&cycle))
                       && (scanline <= 239);  
 
     if in_bg_fetch_cycle && rendering_enabled {
@@ -360,7 +358,7 @@ pub fn step_ppu(nes: &mut Nes) {
 
     // sprite fetch spans 64 cycles
     // each sprite does 4 memory reads, each taking 2 cycles
-    let in_sprite_fetch_cycle = (cycle >= 257 && cycle <= 320) && (scanline <= 239);
+    let in_sprite_fetch_cycle = (257..=320).contains(&cycle) && (scanline <= 239);
 
     if in_sprite_fetch_cycle && rendering_enabled {
 
@@ -433,14 +431,14 @@ pub fn step_ppu(nes: &mut Nes) {
                 let mut data = read_vram(tile_addr, nes);
                 if current_sprite >= (nes.ppu.in_range_counter as usize) {data = 0;}
                 if flip_horizontally {data = flip_byte(data);}
-                nes.ppu.sprite_ptable_lsb_srs[current_sprite as usize] = data;
+                nes.ppu.sprite_ptable_lsb_srs[current_sprite] = data;
             }
 
             PATTERN_MSB_READ => {
                 let mut data = read_vram(tile_addr.wrapping_add(8), nes);
                 if current_sprite >= (nes.ppu.in_range_counter as usize) {data = 0;}
                 if flip_horizontally {data = flip_byte(data);}
-                nes.ppu.sprite_ptable_msb_srs[current_sprite as usize] = data;
+                nes.ppu.sprite_ptable_msb_srs[current_sprite] = data;
             }
 
             _ => (),
@@ -451,7 +449,7 @@ pub fn step_ppu(nes: &mut Nes) {
     // https://fceux.com/web/help/PPU.html
     // could tidy up these conditions later
     // Horizontal v increment happens on cycles {8, 16, 24, ... , 256} and {328, 336}
-    let horizontal_v_increment = (((cycle % 8 == 0) && (cycle >= 8 && cycle <= 256)) || (cycle == 328 || cycle == 336)) && scanline <= 239;
+    let horizontal_v_increment = (((cycle % 8 == 0) && (8..=256).contains(&cycle)) || (cycle == 328 || cycle == 336)) && scanline <= 239;
 
     if horizontal_v_increment && rendering_enabled {
         inc_v_horizontal(nes);
@@ -484,7 +482,7 @@ pub fn step_ppu(nes: &mut Nes) {
 
     }
 
-    if (cycle >= 280 && cycle <= 304) && scanline == -1 && rendering_enabled {
+    if (280..=304).contains(&cycle) && scanline == -1 && rendering_enabled {
         const VERTICAL_BITMASK: u16 = FINE_Y | NAMETABLE_MSB | COARSE_Y;
 
         nes.ppu.v &= !VERTICAL_BITMASK;

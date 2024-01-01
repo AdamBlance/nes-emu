@@ -24,6 +24,12 @@ pub struct Apu {
 
 }
 
+impl Default for Apu {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Apu {
     pub fn new() -> Apu {
         Apu {

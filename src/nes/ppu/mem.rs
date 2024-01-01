@@ -27,7 +27,7 @@ pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
 }
 
 pub fn increment_v_after_ppudata_access(nes: &mut Nes) {
-    let increment = if nes.ppu.increment_select == false {1} else {32};
+    let increment = if !nes.ppu.increment_select {1} else {32};
     nes.ppu.v = nes.ppu.v.wrapping_add(increment);
     nes.ppu.addr_bus = nes.ppu.v;
 }
