@@ -3,10 +3,10 @@
 #![feature(array_windows)]
 #![feature(iter_advance_by)]
 
-mod util ;
+pub mod app;
 pub mod emulator;
 pub mod nes;
 mod setup;
-pub mod app;
 mod ui;
+mod util;
 mod widgets;

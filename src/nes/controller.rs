@@ -1,6 +1,6 @@
-use std::collections::HashSet;
-use serde::{Deserialize, Serialize};
 use crate::util::to_mask;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Controller {
@@ -18,17 +18,17 @@ pub enum NesButton {
     B,
     A,
     Start,
-    Select
+    Select,
 }
 
-const UP:     u8 = 0b0001_0000;
-const DOWN:   u8 = 0b0010_0000;
-const LEFT:   u8 = 0b0100_0000;
-const RIGHT:  u8 = 0b1000_0000;
-const START:  u8 = 0b0000_1000;
+const UP: u8 = 0b0001_0000;
+const DOWN: u8 = 0b0010_0000;
+const LEFT: u8 = 0b0100_0000;
+const RIGHT: u8 = 0b1000_0000;
+const START: u8 = 0b0000_1000;
 const SELECT: u8 = 0b0000_0100;
-const A:      u8 = 0b0000_0001;
-const B:      u8 = 0b0000_0010;
+const A: u8 = 0b0000_0001;
+const B: u8 = 0b0000_0010;
 
 impl Controller {
     pub fn shift_out_button_state(&mut self) -> u8 {
@@ -57,5 +57,4 @@ impl Controller {
         self.button_state |= to_mask(pressed_buttons.contains(&NesButton::A)) & A;
         self.button_state |= to_mask(pressed_buttons.contains(&NesButton::B)) & B;
     }
-
 }

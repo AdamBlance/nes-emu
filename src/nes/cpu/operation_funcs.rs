@@ -29,7 +29,7 @@ fn add_value_to_a_with_carry(val: u8, nes: &mut Nes) {
     let (result, carry) = nes.cpu.a.carrying_add(val, nes.cpu.p_c);
     nes.cpu.p_v = was_signed_overflow(nes.cpu.a, val, result);
     nes.cpu.p_c = carry;
-    nes.cpu.a = result;  
+    nes.cpu.a = result;
 }
 
 fn compare_data_with_register(reg_val: u8, nes: &mut Nes) {
@@ -80,7 +80,6 @@ pub fn bit(nes: &mut Nes) {
     nes.cpu.p_v = get_bit(nes.cpu.data, 6);
     nes.cpu.p_z = result == 0;
 }
-
 
 pub fn transfer_a_to_x(nes: &mut Nes) {
     nes.cpu.x = nes.cpu.a;
@@ -148,7 +147,6 @@ pub fn subtract_with_carry(nes: &mut Nes) {
     update_p_nz(nes, nes.cpu.a);
 }
 
-
 pub fn compare_memory_with_a(nes: &mut Nes) {
     compare_data_with_register(nes.cpu.a, nes);
 }
@@ -207,7 +205,6 @@ pub fn set_decimal_flag(nes: &mut Nes) {
 pub fn set_interrupt_inhibit_flag(nes: &mut Nes) {
     nes.cpu.p_i = true;
 }
-
 
 pub fn none(_nes: &mut Nes) {}
 
@@ -280,7 +277,7 @@ pub fn sbx(nes: &mut Nes) {
     nes.cpu.x &= nes.cpu.a;
     let (result, carry) = nes.cpu.x.carrying_add(!nes.cpu.data, true);
     nes.cpu.p_c = carry;
-    nes.cpu.x = result;      
+    nes.cpu.x = result;
     update_p_nz(nes, nes.cpu.x);
 }
 
@@ -306,7 +303,12 @@ pub fn shs(nes: &mut Nes) {
 }
 
 pub fn shy(nes: &mut Nes) {
-    nes.cpu.data = nes.cpu.y & (nes.cpu.upper_address.wrapping_add(1).wrapping_sub(nes.cpu.y));
+    nes.cpu.data = nes.cpu.y
+        & (nes
+            .cpu
+            .upper_address
+            .wrapping_add(1)
+            .wrapping_sub(nes.cpu.y));
 }
 
 pub fn shx(nes: &mut Nes) {

@@ -1,6 +1,6 @@
-use std::rc::Rc;
-use super::cartridge::{Cartridge, Mirroring, KB, CartMemory, RomConfig};
+use super::cartridge::{CartMemory, Cartridge, Mirroring, RomConfig, KB};
 use serde::{Deserialize, Serialize};
+use std::rc::Rc;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct CartridgeM1 {
@@ -59,7 +59,7 @@ impl Cartridge for CartridgeM1 {
     fn read_prg_ram(&mut self, addr: u16) -> u8 {
         match self.rom_data.prg_ram.as_ref() {
             Some(ram) => ram[(addr - 0x6000) as usize],
-            None => 0
+            None => 0,
         }
     }
     fn write_prg_ram(&mut self, addr: u16, byte: u8) {
@@ -74,12 +74,19 @@ impl Cartridge for CartridgeM1 {
             0 | 1 => self.rom_data.prg_rom[(self.prg_bank & 0b11110) * 32 * KB + (addru - 0x8000)],
             2 => match addr {
                 0x8000..=0xBFFF => self.rom_data.prg_rom[addru - 0x8000],
-                0xC000..=0xFFFF => self.rom_data.prg_rom[(self.prg_bank * 16 * KB) + (addru - 0xC000)],
+                0xC000..=0xFFFF => {
+                    self.rom_data.prg_rom[(self.prg_bank * 16 * KB) + (addru - 0xC000)]
+                }
                 _ => unreachable!(),
             },
             3 => match addr {
-                0x8000..=0xBFFF => self.rom_data.prg_rom[(self.prg_bank * 16 * KB) + (addru - 0x8000)],
-                0xC000..=0xFFFF => self.rom_data.prg_rom[(self.rom_data.prg_rom.len() - 16 * KB) + (addru - 0xC000)],
+                0x8000..=0xBFFF => {
+                    self.rom_data.prg_rom[(self.prg_bank * 16 * KB) + (addru - 0x8000)]
+                }
+                0xC000..=0xFFFF => {
+                    self.rom_data.prg_rom
+                        [(self.rom_data.prg_rom.len() - 16 * KB) + (addru - 0xC000)]
+                }
                 _ => unreachable!(),
             },
             _ => unreachable!(),
@@ -126,7 +133,9 @@ impl Cartridge for CartridgeM1 {
     }
 
     fn read_chr(&mut self, addr: u16) -> u8 {
-        self.rom_data.chr_mem.read(self.calc_chr_addr(addr as usize))
+        self.rom_data
+            .chr_mem
+            .read(self.calc_chr_addr(addr as usize))
     }
     fn write_chr(&mut self, addr: u16, byte: u8) {
         self.rom_data.chr_mem.write(addr as usize, byte);

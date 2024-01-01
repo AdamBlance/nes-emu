@@ -18,7 +18,6 @@
 +------+-------------------+---+--------------------------------------------------------------+
 */
 
-
 /*
 Immediate
 LDA F4
@@ -75,11 +74,11 @@ So maybe this could be shown like
 
  */
 
+use serde::{Deserialize, Serialize};
 use std::{
     fmt::Error,
     fmt::{self, Formatter},
 };
-use serde::{Deserialize, Serialize};
 
 use Category::*;
 use Mode::*;
@@ -144,8 +143,9 @@ impl Instruction {
 
     pub fn is_unofficial(&self) -> bool {
         match self.name {
-            LAS | LAX | SAX | SHA | SHX | SHY | SHS | ANC | ARR | ASR | DCP | RLA | RRA | SLO | SRE | XAA | JAM | ISB | SBX => true,
-            _ => false
+            LAS | LAX | SAX | SHA | SHX | SHY | SHS | ANC | ARR | ASR | DCP | RLA | RRA | SLO
+            | SRE | XAA | JAM | ISB | SBX => true,
+            _ => false,
         }
     }
     pub fn func(&self) -> fn(&mut Nes) {
@@ -298,9 +298,6 @@ pub enum Name {
     SBX,
 }
 
-
-
-
 #[derive(Default, Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Mode {
     #[default]
@@ -319,8 +316,6 @@ pub enum Mode {
     AbsoluteI,
 }
 
-
-
 #[derive(Default, Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Category {
     Control,
@@ -333,9 +328,6 @@ pub enum Category {
     Imm,
     Unimplemented,
 }
-
-
-
 
 pub static INSTRUCTIONS: [Instruction; 256] = [
     // 0

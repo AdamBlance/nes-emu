@@ -1,4 +1,3 @@
-
 use super::cartridge::{CartMemory, Cartridge, Mirroring, RomConfig};
 use serde::{Deserialize, Serialize};
 
@@ -25,14 +24,19 @@ impl Cartridge for CartridgeM2 {
     fn read_prg_rom(&self, addr: u16) -> u8 {
         match addr {
             // Swappable 16KB at start of cartridge range
-            0x8000..=0xBFFF => self.rom_data.prg_rom[(self.bank_select * 0x4000) + (addr as usize - 0x8000)],
+            0x8000..=0xBFFF => {
+                self.rom_data.prg_rom[(self.bank_select * 0x4000) + (addr as usize - 0x8000)]
+            }
             // Fixed 16KB at end of addressable range
-            0xC000..=0xFFFF => self.rom_data.prg_rom[(self.rom_data.prg_rom.len() - 0x4000) + (addr as usize - 0xC000)],
+            0xC000..=0xFFFF => {
+                self.rom_data.prg_rom
+                    [(self.rom_data.prg_rom.len() - 0x4000) + (addr as usize - 0xC000)]
+            }
             _ => unreachable!(),
         }
     }
     fn write_prg_rom(&mut self, _addr: u16, byte: u8) {
-        self.bank_select = byte as usize;   
+        self.bank_select = byte as usize;
     }
 
     fn read_chr(&mut self, addr: u16) -> u8 {
@@ -44,5 +48,4 @@ impl Cartridge for CartridgeM2 {
     fn mirroring(&self) -> Mirroring {
         self.mirroring
     }
-
 }

@@ -1,42 +1,42 @@
-use serde::{Deserialize, Serialize};
-use crate::util::{concat_u8, get_bit};
 use super::lookup_table::Instruction;
+use crate::util::{concat_u8, get_bit};
+use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Cpu {
     // Registers
-    pub a:   u8,
-    pub x:   u8,
-    pub y:   u8,
-    pub s:   u8,
+    pub a: u8,
+    pub x: u8,
+    pub y: u8,
+    pub s: u8,
     pub p_n: bool,
     pub p_v: bool,
     pub p_d: bool,
     pub p_i: bool,
     pub p_z: bool,
     pub p_c: bool,
-    pub pc:  u16,
+    pub pc: u16,
     // Interrupts
-    pub prev_nmi_signal:          bool,
+    pub prev_nmi_signal: bool,
     pub nmi_edge_detector_output: bool,
-    pub nmi_pending:              bool,
-    pub prev_irq_signal:          bool,
-    pub irq_pending:              bool,
-    pub interrupt_vector:         u16,
+    pub nmi_pending: bool,
+    pub prev_irq_signal: bool,
+    pub irq_pending: bool,
+    pub interrupt_vector: u16,
     // Internal
-    pub instruction:        Instruction,
-    pub instruction_done:   bool,
-    pub instruction_cycle:  i8,
-    pub interrupt_cycle:    i8,
-    pub data:               u8,
-    pub lower_address:      u8,
-    pub upper_address:      u8,
-    pub low_indirect_address:      u8,
-    pub high_indirect_address:      u8,
-    pub branch_offset:      u8,
-    pub branching:          bool,
+    pub instruction: Instruction,
+    pub instruction_done: bool,
+    pub instruction_cycle: i8,
+    pub interrupt_cycle: i8,
+    pub data: u8,
+    pub lower_address: u8,
+    pub upper_address: u8,
+    pub low_indirect_address: u8,
+    pub high_indirect_address: u8,
+    pub branch_offset: u8,
+    pub branching: bool,
     pub internal_carry_out: bool,
-    pub cycles:             u64,
+    pub cycles: u64,
     pub ppustatus_read_time: (i32, i32),
     // Debugging
     pub instruction_count: u64,

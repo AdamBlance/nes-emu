@@ -1,6 +1,4 @@
-use crate::nes::cartridge::{
-    mapper0, mapper1, mapper2, mapper3, mapper4, mapper7, Cartridge
-};
+use crate::nes::cartridge::{mapper0, mapper1, mapper2, mapper3, mapper4, mapper7, Cartridge};
 use crate::nes::controller::NesButton;
 use crate::nes::Nes;
 use eframe::egui::{ColorImage, TextureFilter, TextureHandle, TextureOptions};
@@ -140,8 +138,7 @@ impl Emulator {
         if self.paused && !self.rewind_states.is_empty() && n_frames != 0.0 {
             self.rewind_state_index = (self.rewind_state_index + n_frames)
                 .clamp(0.0, (self.rewind_states.len() - 1) as f32);
-            self.nes =
-                Some(self.rewind_states[self.rewind_state_index.round() as usize].clone());
+            self.nes = Some(self.rewind_states[self.rewind_state_index.round() as usize].clone());
             self.run_to_vblank();
         }
     }
@@ -154,8 +151,6 @@ impl Emulator {
             self.instruction_cache = Emulator::instructions_for_debug(prg_rom_snapshot.as_slice());
         }
     }
-
-
 
     pub fn update(&mut self, time: f64) -> bool {
         self.time = time;
@@ -298,7 +293,10 @@ impl Emulator {
     fn do_sample(&mut self) {
         if let Some(nes) = self.nes.as_mut() {
             let new_sample = nes.apu.get_sample(self.stereo_pan);
-            let new_sample_multiplied = (new_sample.0 * self.volume as f32, new_sample.1 * self.volume as f32);
+            let new_sample_multiplied = (
+                new_sample.0 * self.volume as f32,
+                new_sample.1 * self.volume as f32,
+            );
 
             let _ = self
                 .audio_output
@@ -323,17 +321,15 @@ impl Emulator {
         while let Some((index, [opc, arg1, arg2])) = window.next() {
             let instr = INSTRUCTIONS[*opc as usize];
             if !instr.is_unofficial() {
-                opcodes.push(
-                    CpuDebuggerInstruction {
-                        opc_addr: 0x8000 + index as u16,
-                        bytes: match instr.number_of_operands() {
-                            0 => InstrBytes::I1(*opc),
-                            1 => InstrBytes::I2(*opc, *arg1),
-                            2 => InstrBytes::I3(*opc, *arg1, *arg2),
-                            _ => unreachable!(),
-                        }
-                    }
-                );
+                opcodes.push(CpuDebuggerInstruction {
+                    opc_addr: 0x8000 + index as u16,
+                    bytes: match instr.number_of_operands() {
+                        0 => InstrBytes::I1(*opc),
+                        1 => InstrBytes::I2(*opc, *arg1),
+                        2 => InstrBytes::I3(*opc, *arg1, *arg2),
+                        _ => unreachable!(),
+                    },
+                });
                 let _ = window.advance_by(instr.number_of_operands() as usize);
             }
         }

@@ -5,16 +5,15 @@ pub mod cpu;
 mod mem;
 pub mod ppu;
 
-use std::cell::RefCell;
-use std::rc::Rc;
-use serde::{Deserialize, Serialize};
 use crate::nes::apu::Apu;
 use crate::nes::cartridge::Cartridge;
 use crate::nes::controller::Controller;
 use crate::nes::cpu::Cpu;
 use crate::nes::ppu::Ppu;
 use crate::util::concat_u8;
-
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Serialize, Deserialize)]
 pub struct Nes {

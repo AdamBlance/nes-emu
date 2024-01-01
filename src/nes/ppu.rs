@@ -2,10 +2,8 @@ mod mem;
 mod ppu_def;
 mod step;
 
-pub use self::mem::{
-    read_vram, 
-    write_vram, 
-    increment_v_after_ppudata_access
-};
-pub use self::step::{step_ppu, FINE_Y, COARSE_X, COARSE_Y, NAMETABLE, NAMETABLE_LSB, NAMETABLE_MSB};
+pub use self::mem::{increment_v_after_ppudata_access, read_vram, write_vram};
 pub use self::ppu_def::Ppu;
+pub use self::step::{
+    step_ppu, COARSE_X, COARSE_Y, FINE_Y, NAMETABLE, NAMETABLE_LSB, NAMETABLE_MSB,
+};

@@ -1,6 +1,5 @@
-
-use crate::nes::Nes;
 use crate::nes::mem::{read_mem, write_mem};
+use crate::nes::Nes;
 use crate::util::concat_u8;
 
 /*
@@ -10,7 +9,7 @@ use crate::util::concat_u8;
     The advantage of all these methods is the method names document how the instructions work
     cycle-by-cycle in plain English.
     It ended up this way because I was storing these in static arrays previously and needed
-    all the functions to have the same signature so I could call them all in the same way at 
+    all the functions to have the same signature so I could call them all in the same way at
     runtime using function pointers.
 
 */
@@ -28,7 +27,7 @@ pub fn fetch_lower_pc_from_interrupt_vector(nes: &mut Nes) {
     nes.cpu.set_lower_pc(lower);
 }
 pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
-    let upper = read_mem(nes.cpu.interrupt_vector+1, nes);
+    let upper = read_mem(nes.cpu.interrupt_vector + 1, nes);
     nes.cpu.set_upper_pc(upper);
 }
 
@@ -50,11 +49,17 @@ pub fn fetch_low_address_byte_using_indirect_address(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.get_pointer(), nes);
 }
 pub fn fetch_high_address_byte_using_indirect_address(nes: &mut Nes) {
-    nes.cpu.upper_address = read_mem(concat_u8(nes.cpu.high_indirect_address, nes.cpu.low_indirect_address.wrapping_add(1)), nes);
+    nes.cpu.upper_address = read_mem(
+        concat_u8(
+            nes.cpu.high_indirect_address,
+            nes.cpu.low_indirect_address.wrapping_add(1),
+        ),
+        nes,
+    );
 }
 fn add_index_to_lower_address_and_set_carry(index: u8, nes: &mut Nes) {
     let (new_val, was_overflow) = nes.cpu.lower_address.overflowing_add(index);
-    nes.cpu.lower_address = new_val; 
+    nes.cpu.lower_address = new_val;
     nes.cpu.internal_carry_out = was_overflow;
 }
 pub fn add_x_to_low_address_byte(nes: &mut Nes) {
@@ -120,7 +125,7 @@ pub fn push_lower_pc_to_stack(nes: &mut Nes) {
     push_to_stack(nes.cpu.pc as u8, nes);
 }
 pub fn push_upper_pc_to_stack(nes: &mut Nes) {
-    push_to_stack((nes.cpu.pc >> 8) as u8, nes);    
+    push_to_stack((nes.cpu.pc >> 8) as u8, nes);
 }
 pub fn push_p_to_stack_during_break_or_php(nes: &mut Nes) {
     push_to_stack(nes.cpu.get_p() | 0b0011_0000, nes);

@@ -1,4 +1,3 @@
-
 use super::cartridge::{CartMemory, Cartridge, Mirroring, RomConfig};
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +26,9 @@ impl Cartridge for CartridgeM3 {
         self.bank_select = (byte & 0b0000_0011) as usize;
     }
     fn read_chr(&mut self, addr: u16) -> u8 {
-        self.rom_data.chr_mem.read(self.bank_select * 0x2000 + addr as usize)
+        self.rom_data
+            .chr_mem
+            .read(self.bank_select * 0x2000 + addr as usize)
     }
     fn mirroring(&self) -> Mirroring {
         self.mirroring

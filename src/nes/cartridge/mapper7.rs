@@ -1,4 +1,3 @@
-
 use super::cartridge::{CartMemory, Cartridge, Mirroring, RomConfig};
 use serde::{Deserialize, Serialize};
 

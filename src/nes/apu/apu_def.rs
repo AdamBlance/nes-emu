@@ -1,10 +1,9 @@
 use super::channels::*;
-use serde::{Deserialize, Serialize};
 use crate::nes::apu;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Apu {
-
     pub frame_sequencer_mode_1: bool,
     pub frame_sequencer_counter: u16,
     pub frame_sequencer_interrupt_inhibit: bool,
@@ -21,7 +20,6 @@ pub struct Apu {
     pub total_sample_count: u64,
 
     pub interrupt_request: bool,
-
 }
 
 impl Default for Apu {
@@ -66,9 +64,13 @@ impl Apu {
         let epsilon = 0.00001;
         let pos_bias = 1.0 + stereo_pan;
         let neg_bias = 1.0 - stereo_pan;
-        let pulse1_out = 95.88 / ((8128.0 / (pos_bias*sq1_output + neg_bias*sq2_output + epsilon)) + 100.0);
-        let pulse2_out = 95.88 / ((8128.0 / (pos_bias*sq2_output + neg_bias*sq1_output + epsilon)) + 100.0);
-        let other_out = 159.79 / ( ( 1.0 / ((tri_output/8227.0) + (noise/12241.0) + (sample/22638.0) + epsilon) ) + 100.0);
+        let pulse1_out =
+            95.88 / ((8128.0 / (pos_bias * sq1_output + neg_bias * sq2_output + epsilon)) + 100.0);
+        let pulse2_out =
+            95.88 / ((8128.0 / (pos_bias * sq2_output + neg_bias * sq1_output + epsilon)) + 100.0);
+        let other_out = 159.79
+            / ((1.0 / ((tri_output / 8227.0) + (noise / 12241.0) + (sample / 22638.0) + epsilon))
+                + 100.0);
 
         (pulse1_out + other_out, pulse2_out + other_out)
     }

@@ -11,7 +11,8 @@ pub fn is_neg(val: u8) -> bool {
     val > 0x7F
 }
 pub fn flip_byte(val: u8) -> u8 {
-    ((val & 0b1) << 7) | ((val & 0b10) << 5)
+    ((val & 0b1) << 7)
+        | ((val & 0b10) << 5)
         | ((val & 0b100) << 3)
         | ((val & 0b1000) << 1)
         | ((val & 0b10000) >> 1)

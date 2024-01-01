@@ -1,12 +1,10 @@
 use crate::app::MyApp;
+use crate::nes::controller::NesButton;
 use crate::setup;
 use crate::widgets::input_select::InputSelect;
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
-use eframe::egui::{
-    include_image, Color32, Image, RichText, ViewportBuilder, ViewportId,
-};
-use crate::nes::controller::NesButton;
+use eframe::egui::{include_image, Color32, Image, RichText, ViewportBuilder, ViewportId};
 
 impl MyApp {
     pub fn define_main_top_panel(&mut self, ctx: &egui::Context) {
@@ -100,10 +98,14 @@ impl MyApp {
                     ui.add_enabled_ui(self.emulator.get_set_pause(None), |ui| {
                         let mut scroll_builder = egui::ScrollArea::vertical().auto_shrink(false);
                         if advance_button.clicked() {
-                            let row = self.emulator.instruction_cache.binary_search_by_key(
-                                &self.emulator.nes.as_ref().unwrap().cpu.pc,
-                                |x| x.opc_addr,
-                            ).unwrap_or_else(|i| i);
+                            let row = self
+                                .emulator
+                                .instruction_cache
+                                .binary_search_by_key(
+                                    &self.emulator.nes.as_ref().unwrap().cpu.pc,
+                                    |x| x.opc_addr,
+                                )
+                                .unwrap_or_else(|i| i);
                             scroll_builder = scroll_builder.vertical_scroll_offset(
                                 (10.0 + ui.spacing().item_spacing.y) * (row as f32)
                                     - (ui.available_height() / 2.5),

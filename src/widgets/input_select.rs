@@ -1,13 +1,12 @@
-use std::fmt::{Display, Formatter};
 use eframe::egui;
 use eframe::egui::{Color32, FontId, Response, Ui, Vec2, Widget};
+use std::fmt::{Display, Formatter};
 
 #[derive(Hash, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Input {
     Key(egui::Key),
     ControllerButton(gilrs::ev::Button),
     ControllerAxis(gilrs::ev::Axis, bool),
-
 }
 
 impl Display for Input {
@@ -15,7 +14,7 @@ impl Display for Input {
         match self {
             Self::Key(k) => write!(f, "{:?}", *k),
             Self::ControllerButton(b) => write!(f, "{:?}", *b),
-            Self::ControllerAxis(a, dir) => write!(f, "{:?} {}", *a, if *dir {"+"} else {"-"}),
+            Self::ControllerAxis(a, dir) => write!(f, "{:?} {}", *a, if *dir { "+" } else { "-" }),
         }
     }
 }
@@ -27,7 +26,11 @@ pub struct InputSelect<'a> {
 }
 
 impl<'a> InputSelect<'a> {
-    pub fn new(pressed_input: Option<Input>, stored_input: &'a mut Option<Input>, unique_id: &'static str) -> Self {
+    pub fn new(
+        pressed_input: Option<Input>,
+        stored_input: &'a mut Option<Input>,
+        unique_id: &'static str,
+    ) -> Self {
         InputSelect {
             pressed_input,
             stored_input,
@@ -41,17 +44,22 @@ impl<'a> Widget for InputSelect<'a> {
         let text_layout = ui.painter().layout_no_wrap(
             self.stored_input.map_or("".to_string(), |x| x.to_string()),
             FontId::default(),
-            Color32::WHITE
+            Color32::WHITE,
         );
 
         let (rect, mut response) = ui.allocate_exact_size(
-            Vec2 { y: ui.spacing().interact_size.y, x: text_layout.size().x.max(25.0) },
-            egui::Sense::click()
+            Vec2 {
+                y: ui.spacing().interact_size.y,
+                x: text_layout.size().x.max(25.0),
+            },
+            egui::Sense::click(),
         );
 
         let state_id = ui.id().with(self.unique_id);
 
-        let mut listening = ui.ctx().data(|x| x.get_temp::<bool>(state_id).unwrap_or(false));
+        let mut listening = ui
+            .ctx()
+            .data(|x| x.get_temp::<bool>(state_id).unwrap_or(false));
 
         if !listening && response.clicked() {
             listening = true;
@@ -59,7 +67,11 @@ impl<'a> Widget for InputSelect<'a> {
         } else if listening && response.clicked_elsewhere() {
             listening = false;
             response.mark_changed();
-        } else if listening && self.pressed_input.is_some_and(|b| b == Input::Key(egui::Key::Escape)) {
+        } else if listening
+            && self
+                .pressed_input
+                .is_some_and(|b| b == Input::Key(egui::Key::Escape))
+        {
             listening = false;
             response.mark_changed();
         } else if listening && self.pressed_input.is_some() {
@@ -72,7 +84,8 @@ impl<'a> Widget for InputSelect<'a> {
 
         if ui.is_rect_visible(rect) {
             let visuals = ui.style().interact_selectable(&response, listening);
-            ui.painter().rect(rect, 1.0, visuals.bg_fill, visuals.bg_stroke);
+            ui.painter()
+                .rect(rect, 1.0, visuals.bg_fill, visuals.bg_stroke);
 
             let offset_pos = rect.center() - text_layout.rect.center();
             ui.painter().galley(offset_pos.to_pos2(), text_layout);
