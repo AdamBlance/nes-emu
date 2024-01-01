@@ -391,9 +391,10 @@ pub fn step_ppu(nes: &mut Nes) {
             }
 
             PATTERN_MSB_READ => {
-                let tile_addr = ((nes.ppu.bg_ptable_select as u16) << 12)
+                let tile_addr = (((nes.ppu.bg_ptable_select as u16) << 12)
                     | ((nes.ppu.bg_ntable_tmp as u16) << 4)
-                    | ((nes.ppu.v & FINE_Y) >> 12) + 8; // equivalently | 0b1000, lower 3 are fine y
+                    | ((nes.ppu.v & FINE_Y) >> 12))
+                    + 8; // equivalently | 0b1000, lower 3 are fine y
                 nes.ppu.bg_ptable_msb_tmp = read_vram(tile_addr, nes);
             }
 

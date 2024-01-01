@@ -160,24 +160,24 @@ impl Cartridge for CartridgeM4 {
 
         let chr_addr = if !self.chr_bank_size_select {
             match addr {
-                0x0000..=0x07FF => self.chr_2kb_bank_0 * 1 * KB + uaddr,
-                0x0800..=0x0FFF => self.chr_2kb_bank_1 * 1 * KB + (uaddr - 0x0800),
+                0x0000..=0x07FF => self.chr_2kb_bank_0 * KB + uaddr,
+                0x0800..=0x0FFF => self.chr_2kb_bank_1 * KB + (uaddr - 0x0800),
 
-                0x1000..=0x13FF => self.chr_1kb_bank_0 * 1 * KB + (uaddr - 0x1000),
-                0x1400..=0x17FF => self.chr_1kb_bank_1 * 1 * KB + (uaddr - 0x1400),
-                0x1800..=0x1BFF => self.chr_1kb_bank_2 * 1 * KB + (uaddr - 0x1800),
-                0x1C00..=0x1FFF => self.chr_1kb_bank_3 * 1 * KB + (uaddr - 0x1C00),
+                0x1000..=0x13FF => self.chr_1kb_bank_0 * KB + (uaddr - 0x1000),
+                0x1400..=0x17FF => self.chr_1kb_bank_1 * KB + (uaddr - 0x1400),
+                0x1800..=0x1BFF => self.chr_1kb_bank_2 * KB + (uaddr - 0x1800),
+                0x1C00..=0x1FFF => self.chr_1kb_bank_3 * KB + (uaddr - 0x1C00),
                 _ => unreachable!(),
             }
         } else {
             match addr {
-                0x0000..=0x03FF => self.chr_1kb_bank_0 * 1 * KB + uaddr,
-                0x0400..=0x07FF => self.chr_1kb_bank_1 * 1 * KB + (uaddr - 0x0400),
-                0x0800..=0x0BFF => self.chr_1kb_bank_2 * 1 * KB + (uaddr - 0x0800),
-                0x0C00..=0x0FFF => self.chr_1kb_bank_3 * 1 * KB + (uaddr - 0x0C00),
+                0x0000..=0x03FF => self.chr_1kb_bank_0 * KB + uaddr,
+                0x0400..=0x07FF => self.chr_1kb_bank_1 * KB + (uaddr - 0x0400),
+                0x0800..=0x0BFF => self.chr_1kb_bank_2 * KB + (uaddr - 0x0800),
+                0x0C00..=0x0FFF => self.chr_1kb_bank_3 * KB + (uaddr - 0x0C00),
 
-                0x1000..=0x17FF => self.chr_2kb_bank_0 * 1 * KB + (uaddr - 0x1000),
-                0x1800..=0x1FFF => self.chr_2kb_bank_1 * 1 * KB + (uaddr - 0x1800),
+                0x1000..=0x17FF => self.chr_2kb_bank_0 * KB + (uaddr - 0x1000),
+                0x1800..=0x1FFF => self.chr_2kb_bank_1 * KB + (uaddr - 0x1800),
                 _ => unreachable!(),
             }
         };
