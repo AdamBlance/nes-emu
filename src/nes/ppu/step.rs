@@ -243,17 +243,14 @@ pub fn step_ppu(nes: &mut Nes) {
             // these conditions are pretty redundant, will get around to improving them
             // just want to be exhaustive for the now and get this working
 
+            // This is probably to blame if things break
             if bg_transparent && sprite_transparent {
                 0x3F00
-            } else if (bg_transparent && !sprite_transparent)
-                || (!bg_transparent && !sprite_transparent && !draw_sprite_behind)
-            {
+            } else if !sprite_transparent && (bg_transparent || !draw_sprite_behind) {
                 0x3F10 | (sprite_palette_number << 2)   // fuckin gross looking
                        | ((sprite_patt_msb as u16) << 1)
                        |  (sprite_patt_lsb as u16)
-            } else if (!bg_transparent && sprite_transparent)
-                || (!bg_transparent && !sprite_transparent && draw_sprite_behind)
-            {
+            } else if !bg_transparent && (sprite_transparent || draw_sprite_behind) {
                 let lsb_attr = get_bit(nes.ppu.bg_attr_lsb_sr, 7 - nes.ppu.x) as u16;
                 let msb_attr = get_bit(nes.ppu.bg_attr_msb_sr, 7 - nes.ppu.x) as u16;
 

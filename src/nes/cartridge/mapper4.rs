@@ -1,4 +1,4 @@
-use super::cartridge::{CartMemory, Cartridge, Mirroring, RomConfig, KB};
+use super::cartridge_def::{CartMemory, Cartridge, Mirroring, RomConfig, KB};
 use crate::util::get_bit_u16;
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;

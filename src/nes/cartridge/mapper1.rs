@@ -1,4 +1,4 @@
-use super::cartridge::{CartMemory, Cartridge, Mirroring, RomConfig, KB};
+use super::cartridge_def::{CartMemory, Cartridge, Mirroring, RomConfig, KB};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 

@@ -187,6 +187,7 @@ pub fn address_resolution_cycles(nes: &mut Nes, instruction_cycle: i8) {
                 take_operand_as_low_address_byte(nes);
                 increment_pc(nes);
             }
+            2 => (),
             _ => (),
         },
         ZeroPageX => match instruction_cycle {

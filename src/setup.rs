@@ -1,5 +1,5 @@
 use crate::emulator::AudioStream;
-use crate::nes::cartridge::cartridge::{CartMemory, RomConfig};
+use crate::nes::cartridge::cartridge_def::{CartMemory, RomConfig};
 use crate::nes::cartridge::Mirroring;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::error::Error;

@@ -142,11 +142,27 @@ impl Instruction {
     }
 
     pub fn is_unofficial(&self) -> bool {
-        match self.name {
-            LAS | LAX | SAX | SHA | SHX | SHY | SHS | ANC | ARR | ASR | DCP | RLA | RRA | SLO
-            | SRE | XAA | JAM | ISB | SBX => true,
-            _ => false,
-        }
+        matches!(
+            self.name,
+            LAS | LAX
+                | SAX
+                | SHA
+                | SHX
+                | SHY
+                | SHS
+                | ANC
+                | ARR
+                | ASR
+                | DCP
+                | RLA
+                | RRA
+                | SLO
+                | SRE
+                | XAA
+                | JAM
+                | ISB
+                | SBX
+        )
     }
     pub fn func(&self) -> fn(&mut Nes) {
         match (self.mode, self.name) {

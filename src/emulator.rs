@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::sync::mpsc::SyncSender;
 
 use crate::nes::apu;
-use crate::nes::cartridge::cartridge::RomConfig;
+use crate::nes::cartridge::cartridge_def::RomConfig;
 use crate::nes::cpu;
 use crate::nes::cpu::lookup_table::INSTRUCTIONS;
 use crate::nes::ppu;
@@ -264,11 +264,11 @@ impl Emulator {
             if let Some(nes) = self.nes.as_mut() {
                 let cycle_diff = nes.cpu.cycles - self.cpu_cycle_at_last_sample;
 
-                if cycle_diff == self.cached_cycles_per_sample.floor() as u64
-                    && self.avg_sample_rate > self.cached_cycles_per_sample as f64
+                if (cycle_diff == self.cached_cycles_per_sample.floor() as u64
+                    && self.avg_sample_rate > self.cached_cycles_per_sample as f64)
+                    || cycle_diff >= self.cached_cycles_per_sample.ceil() as u64
                 {
-                    self.do_sample();
-                } else if cycle_diff >= self.cached_cycles_per_sample.ceil() as u64 {
+                    // TODO: This should technically be (cached_cycles_per_sample + 1).floor() I think
                     self.do_sample();
                 }
             }

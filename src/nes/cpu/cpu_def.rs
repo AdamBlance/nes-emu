@@ -63,8 +63,8 @@ impl Cpu {
     }
 
     pub fn get_p(&self) -> u8 {
-        (self.p_n as u8) << 7 | 
-        (self.p_v as u8) << 6 | 
+        (self.p_n as u8) << 7 |
+        (self.p_v as u8) << 6 |
         // 1 << 5 |
         (self.p_d as u8) << 3 |
         (self.p_i as u8) << 2 |

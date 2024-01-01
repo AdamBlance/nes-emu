@@ -64,13 +64,11 @@ impl<'a> Widget for InputSelect<'a> {
         if !listening && response.clicked() {
             listening = true;
             response.mark_changed();
-        } else if listening && response.clicked_elsewhere() {
-            listening = false;
-            response.mark_changed();
         } else if listening
-            && self
-                .pressed_input
-                .is_some_and(|b| b == Input::Key(egui::Key::Escape))
+            && (response.clicked_elsewhere()
+                || self
+                    .pressed_input
+                    .is_some_and(|b| b == Input::Key(egui::Key::Escape)))
         {
             listening = false;
             response.mark_changed();
