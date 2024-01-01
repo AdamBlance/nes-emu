@@ -2,8 +2,6 @@ use super::channels::*;
 use serde::{Deserialize, Serialize};
 use crate::nes::apu;
 
-const CPU_HZ:   f64 = 1_789_773.0;
-
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Apu {
 
@@ -42,12 +40,6 @@ impl Apu {
 
             sample: Default::default(),
 
-            // audio_queue,
-
-            // target_cycles_per_sample: CPU_HZ / sample_rate as f64,
-
-            // cycles_since_last_sample: 0,
-            // average_cycles_per_sample: 0.0,
             total_sample_count: 0,
 
             interrupt_request: false,
@@ -55,7 +47,6 @@ impl Apu {
     }
     pub fn asserting_irq(&self) -> bool {
         self.interrupt_request || self.sample.interrupt_request
-        // false
     }
 
     pub fn get_sample(&self, stereo_pan: f32) -> (f32, f32) {

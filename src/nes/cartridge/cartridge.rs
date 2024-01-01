@@ -12,7 +12,7 @@ pub enum Mirroring {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum ChrMem {
-    Rom(Rc<Vec<u8>>), // Could this just be a boolean? I'm not sure if that's less rusty
+    Rom(Rc<Vec<u8>>),
     Ram(Rc<Vec<u8>>),
 }
 impl ChrMem {
@@ -31,7 +31,6 @@ impl ChrMem {
     }
     pub fn write(&mut self, addr: usize, value: u8) {
         if let ChrMem::Ram(ram) = self {
-            // ram[addr] = value;
             Rc::make_mut(ram)[addr] = value
         }
     }
@@ -91,19 +90,19 @@ pub const KB: usize = 0x400;
 // All cartridges must implement this
 #[typetag::serde(tag = "type")]
 pub trait Cartridge: DynClone {
-    fn read_prg_ram(&mut self, addr: u16) -> u8 {0}
-    fn write_prg_ram(&mut self, addr: u16, byte: u8) {}
+    fn read_prg_ram(&mut self, _addr: u16) -> u8 {0}
+    fn write_prg_ram(&mut self, _addr: u16, _byte: u8) {}
 
     fn read_prg_rom(&self, addr: u16) -> u8;
-    fn write_prg_rom(&mut self, addr: u16, byte: u8) {}
+    fn write_prg_rom(&mut self, _addr: u16, _byte: u8) {}
 
     fn read_chr(&mut self, addr: u16) -> u8;
-    fn write_chr(&mut self, addr: u16, byte: u8) {}
+    fn write_chr(&mut self, _addr: u16, _byte: u8) {}
 
     fn asserting_irq(&mut self) -> bool {false}
 
     fn cpu_tick(&mut self) {}
-    fn ppu_tick(&mut self, addr_bus: u16) {}
+    fn ppu_tick(&mut self, _addr_bus: u16) {}
 
     fn mirroring(&self) -> Mirroring;
 }

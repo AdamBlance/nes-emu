@@ -1,9 +1,5 @@
-
 use crate::nes::Nes;
-
-use crate::nes::mem::*;
 use crate::util::*;
-
 
 #[inline(always)]
 pub fn update_p_nz(nes: &mut Nes, val: u8) {
@@ -43,9 +39,6 @@ fn compare_data_with_register(reg_val: u8, nes: &mut Nes) {
     nes.cpu.p_c = nes.cpu.data <= reg_val;
 }
 
-
-
-
 pub fn load_a(nes: &mut Nes) {
     nes.cpu.a = nes.cpu.data;
     update_p_nz(nes, nes.cpu.a);
@@ -64,15 +57,12 @@ pub fn load_y(nes: &mut Nes) {
 
 pub fn store_a(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a;
-    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 pub fn store_x(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.x;
-    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 pub fn store_y(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.y;
-    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn xor(nes: &mut Nes) {
@@ -246,12 +236,10 @@ pub fn load_a_and_x(nes: &mut Nes) {
 
 pub fn store_a_and_x(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a & nes.cpu.x;
-    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn dec_then_compare(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.data.wrapping_sub(1);
-    // nes.cpu.a = nes.cpu.a.wrapping_sub(nes.cpu.data);
     compare_memory_with_a(nes);
 }
 
@@ -306,17 +294,8 @@ pub fn asr(nes: &mut Nes) {
 }
 
 pub fn arr(nes: &mut Nes) {
-    let initial_a = nes.cpu.a;
     nes.cpu.a &= nes.cpu.data;
     nes.cpu.a = shift_right(nes.cpu.a, true, nes);
-    // nes.cpu.p_v = match nes.cpu.p_d {
-    //     false => get_bit(nes.cpu.a, 5) ^ get_bit(nes.cpu.a, 6),
-    //     true => get_bit(nes.cpu.a, 6) ^ get_bit(initial_a, 6),
-    // };
-    // nes.cpu.p_c = match nes.cpu.p_d {
-    //     false => get_bit(nes.cpu.a, 6),
-    //     true => (nes.cpu.data & 0xF0).wrapping_add(nes.cpu.data & 0x10) > 0x50,
-    // };
     nes.cpu.p_c = get_bit(nes.cpu.a, 6);
     nes.cpu.p_v = get_bit(nes.cpu.a, 6) ^ get_bit(nes.cpu.a, 5);
     update_p_nz(nes, nes.cpu.a);
@@ -330,23 +309,17 @@ pub fn shs(nes: &mut Nes) {
 }
 
 pub fn shy(nes: &mut Nes) {
-    nes.cpu.data = (nes.cpu.y & (nes.cpu.upper_address.wrapping_add(1).wrapping_sub(nes.cpu.y)));
-    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
+    nes.cpu.data = nes.cpu.y & (nes.cpu.upper_address.wrapping_add(1).wrapping_sub(nes.cpu.y));
 }
 
 pub fn shx(nes: &mut Nes) {
     nes.cpu.data = (nes.cpu.x & nes.cpu.upper_address).wrapping_add(1);
-    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn sha_indirect(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.low_indirect_address;
-    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
 
 pub fn sha_absolute(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.upper_address;
-    // nes.cpu.trace_data = read_mem_safe(nes.cpu.get_address(), nes);
 }
-
-

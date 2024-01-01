@@ -36,26 +36,21 @@ pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
 
 pub fn fetch_immediate_from_pc(nes: &mut Nes) {
     nes.cpu.data = read_mem(nes.cpu.pc, nes);
-    nes.cpu.trace_operand_1 = nes.cpu.data;
 }
 
 // Address
 
 pub fn take_operand_as_low_address_byte(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.pc, nes);
-    nes.cpu.trace_operand_1 = nes.cpu.lower_address;
 }
 pub fn take_operand_as_high_address_byte(nes: &mut Nes) {
     nes.cpu.upper_address = read_mem(nes.cpu.pc, nes);
-    nes.cpu.trace_operand_2 = nes.cpu.upper_address;
 }
 pub fn fetch_low_address_byte_using_indirect_address(nes: &mut Nes) {
     nes.cpu.lower_address = read_mem(nes.cpu.get_pointer(), nes);
-    nes.cpu.trace_low_address = nes.cpu.lower_address;
 }
 pub fn fetch_high_address_byte_using_indirect_address(nes: &mut Nes) {
     nes.cpu.upper_address = read_mem(concat_u8(nes.cpu.high_indirect_address, nes.cpu.low_indirect_address.wrapping_add(1)), nes);
-    nes.cpu.trace_high_address = nes.cpu.upper_address;
 }
 fn add_index_to_lower_address_and_set_carry(index: u8, nes: &mut Nes) {
     let (new_val, was_overflow) = nes.cpu.lower_address.overflowing_add(index);
@@ -77,14 +72,9 @@ pub fn add_lower_address_carry_bit_to_upper_address(nes: &mut Nes) {
 
 pub fn take_operand_as_low_indirect_address_byte(nes: &mut Nes) {
     nes.cpu.low_indirect_address = read_mem(nes.cpu.pc, nes);
-    nes.cpu.trace_operand_1 = nes.cpu.low_indirect_address;
 }
 pub fn take_operand_as_high_indirect_address_byte(nes: &mut Nes) {
     nes.cpu.high_indirect_address = read_mem(nes.cpu.pc, nes);
-    nes.cpu.trace_operand_2 = nes.cpu.high_indirect_address;
-}
-pub fn increment_lower_pointer(nes: &mut Nes) {
-    nes.cpu.low_indirect_address = nes.cpu.low_indirect_address.wrapping_add(1);
 }
 pub fn add_x_to_low_indirect_address_byte(nes: &mut Nes) {
     nes.cpu.low_indirect_address = nes.cpu.low_indirect_address.wrapping_add(nes.cpu.x);
@@ -95,14 +85,9 @@ pub fn add_x_to_low_indirect_address_byte(nes: &mut Nes) {
 pub fn read_from_address(nes: &mut Nes) {
     let addr = nes.cpu.get_address();
     nes.cpu.data = read_mem(addr, nes);
-    nes.cpu.trace_data = nes.cpu.data;
 }
 pub fn dummy_read_from_address(nes: &mut Nes) {
     let addr = nes.cpu.get_address();
-    nes.cpu.data = read_mem(addr, nes);
-}
-pub fn read_from_pointer(nes: &mut Nes) {
-    let addr = nes.cpu.get_pointer();
     nes.cpu.data = read_mem(addr, nes);
 }
 pub fn dummy_read_from_pc_address(nes: &mut Nes) {
@@ -123,7 +108,6 @@ pub fn write_to_address(nes: &mut Nes) {
 
 pub fn fetch_branch_offset_from_pc(nes: &mut Nes) {
     nes.cpu.branch_offset = read_mem(nes.cpu.pc, nes);
-    nes.cpu.trace_operand_1 = nes.cpu.branch_offset;
 }
 
 // Stack push

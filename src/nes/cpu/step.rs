@@ -14,22 +14,6 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
 
     if nes.cpu.instruction_cycle == 0 {
 
-        nes.cpu.trace_opc_addr = nes.cpu.pc;
-        nes.cpu.trace_a = nes.cpu.a;
-        nes.cpu.trace_x = nes.cpu.x;
-        nes.cpu.trace_y = nes.cpu.y;
-        nes.cpu.trace_p = nes.cpu.get_p();
-        nes.cpu.trace_s = nes.cpu.s;
-        nes.cpu.trace_initial_cycle = nes.cpu.cycles;
-        nes.cpu.trace_initial_ppu_scanline = nes.ppu.scanline;
-        nes.cpu.trace_initial_ppu_scanline_cycle = nes.ppu.scanline_cycle;
-        nes.cpu.trace_vblank = nes.ppu.in_vblank;
-
-        // let op1 = read_mem_safe(nes.cpu.pc.wrapping_add(1), nes);
-        // let op2 = read_mem_safe(nes.cpu.pc.wrapping_add(2), nes);
-        // nes.cpu.trace_read_absolute_addr_first_cycle = read_mem_safe(concat_u8(op2, op1), nes);
-
-
         if nes.cpu.nmi_pending {
             match nes.cpu.interrupt_cycle {
                 0 => {dummy_read_from_pc_address(nes); nes.cpu.irq_pending = false; nes.cpu.interrupt_vector = 0xFFFA;}
@@ -71,7 +55,6 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
         
         else {
             let opcode = read_mem(nes.cpu.pc, nes);
-            nes.cpu.trace_opc = opcode;
             nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
             if nes.cpu.instruction.category == Unimplemented {
                 unimplemented!("Unofficial instruction {:?} not implemented!", nes.cpu.instruction.name);
@@ -132,8 +115,6 @@ fn end_cycle(nes: &mut Nes) {
 }
 
 fn end_instr(nes: &mut Nes) {
-    // writeln!(nes.logfile, "{}", create_log_line_mesen(nes)).unwrap();
-
     nes.cpu.data = 0;
     nes.cpu.lower_address = 0;
     nes.cpu.upper_address = 0;

@@ -48,10 +48,6 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
     read_mem_with_safety(nes, addr, false)
 }
 
-pub fn read_mem_safe(addr: u16, nes: &mut Nes) -> u8 {
-    read_mem_with_safety(nes, addr, true)
-}
-
 pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
     match addr {
 
@@ -192,7 +188,6 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                     nes.ppu.set_ppuctrl_from_byte(val);
                     nes.ppu.t &= !ppu::NAMETABLE;
                     nes.ppu.t |= (val_u16 & 0b11) << 10;
-                    // println!("nmi {}", nes.ppu.nmi_enable);
                 }
                 PPUMASK => {
                     if nes.cpu.cycles < PPU_WARMUP {return};
@@ -231,7 +226,6 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
                         // Copy t into v
                         nes.ppu.v = nes.ppu.t;
                         nes.ppu.addr_bus = nes.ppu.v;
-                        // println!("new ppu addr {:013b} {:04X}", nes.ppu.v, nes.ppu.v);
                     }
                     nes.ppu.w = !nes.ppu.w;
                 }

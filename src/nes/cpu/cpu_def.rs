@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::{util::{concat_u8, get_bit}, nes::mem::read_mem};
+use crate::util::{concat_u8, get_bit};
 use super::lookup_table::Instruction;
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
@@ -40,32 +40,12 @@ pub struct Cpu {
     pub ppustatus_read_time: (i32, i32),
     // Debugging
     pub instruction_count: u64,
-
-    pub trace_opc: u8,
-    pub trace_opc_addr: u16,
-    pub trace_operand_1: u8,
-    pub trace_operand_2: u8,
-    pub trace_low_address: u8,
-    pub trace_high_address: u8,
-    pub trace_data: u8,
-    pub trace_initial_cycle: u64,
-    pub trace_a: u8,
-    pub trace_x: u8,
-    pub trace_y: u8,
-    pub trace_p: u8,
-    pub trace_s: u8,
-    pub trace_initial_ppu_scanline: i32,
-    pub trace_initial_ppu_scanline_cycle: i32,
-    pub trace_value_before_store: u8,
-    pub trace_read_absolute_addr_first_cycle: u8,
-    pub trace_vblank: bool,
 }
 
 impl Cpu {
     pub fn new(initial_pc: u16) -> Cpu {
         Cpu {
             pc: initial_pc,
-            // nes.cpu.pc = 0xC000,
             cycles: 8,
             p_i: true,
             s: 0xFD,

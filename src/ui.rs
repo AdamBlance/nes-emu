@@ -88,7 +88,7 @@ impl MyApp {
         ctx.show_viewport_immediate(
             ViewportId::from_hash_of("cpu_debugger"),
             ViewportBuilder::default().with_inner_size([500.0, 800.0]),
-            |ctx, class| {
+            |ctx, _class| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     let advance_button = ui.button("Step");
                     if advance_button.clicked() {
@@ -144,7 +144,7 @@ impl MyApp {
         ctx.show_viewport_immediate(
             ViewportId::from_hash_of("controller"),
             ViewportBuilder::default().with_inner_size([500.0, 800.0]),
-            |ctx, class| {
+            |ctx, _class| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     egui::Grid::new("cool-grid").show(ui, |ui| {
                         if ctx.input(|ui| ui.focused) {
