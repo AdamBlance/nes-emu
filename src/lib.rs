@@ -2,6 +2,7 @@
 #![feature(array_chunks)]
 #![feature(array_windows)]
 #![feature(iter_advance_by)]
+#![allow(clippy::unusual_byte_groupings)]
 
 pub mod app;
 pub mod emulator;
