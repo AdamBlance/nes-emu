@@ -151,12 +151,15 @@ impl MyApp {
                             self.get_pressed_input(ctx);
                         }
 
-                        let maybe_input = self.input.iter().next().copied();
+                        let maybe_input = self.pressed_input.iter().next().copied();
 
                         ui.label("Up:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.input_mapping.get_mut(&NesButton::Up).unwrap(),
+                            self.keyboard_input_mapping
+                                .0
+                                .get_mut(&NesButton::Up)
+                                .unwrap(),
                             "con-up",
                         ));
                         ui.end_row();
@@ -164,7 +167,10 @@ impl MyApp {
                         ui.label("Down:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.input_mapping.get_mut(&NesButton::Down).unwrap(),
+                            self.keyboard_input_mapping
+                                .0
+                                .get_mut(&NesButton::Down)
+                                .unwrap(),
                             "con-down",
                         ));
                         ui.end_row();
@@ -172,7 +178,10 @@ impl MyApp {
                         ui.label("Left:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.input_mapping.get_mut(&NesButton::Left).unwrap(),
+                            self.keyboard_input_mapping
+                                .0
+                                .get_mut(&NesButton::Left)
+                                .unwrap(),
                             "con-left",
                         ));
                         ui.end_row();
@@ -180,7 +189,10 @@ impl MyApp {
                         ui.label("Right:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.input_mapping.get_mut(&NesButton::Right).unwrap(),
+                            self.keyboard_input_mapping
+                                .0
+                                .get_mut(&NesButton::Right)
+                                .unwrap(),
                             "con-right",
                         ));
                         ui.end_row();
@@ -188,7 +200,10 @@ impl MyApp {
                         ui.label("B:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.input_mapping.get_mut(&NesButton::B).unwrap(),
+                            self.keyboard_input_mapping
+                                .0
+                                .get_mut(&NesButton::B)
+                                .unwrap(),
                             "con-b",
                         ));
                         ui.end_row();
@@ -196,7 +211,10 @@ impl MyApp {
                         ui.label("A:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.input_mapping.get_mut(&NesButton::A).unwrap(),
+                            self.keyboard_input_mapping
+                                .0
+                                .get_mut(&NesButton::A)
+                                .unwrap(),
                             "con-a",
                         ));
                         ui.end_row();
@@ -204,7 +222,10 @@ impl MyApp {
                         ui.label("Select:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.input_mapping.get_mut(&NesButton::Select).unwrap(),
+                            self.keyboard_input_mapping
+                                .0
+                                .get_mut(&NesButton::Select)
+                                .unwrap(),
                             "con-select",
                         ));
                         ui.end_row();
@@ -212,7 +233,10 @@ impl MyApp {
                         ui.label("Start:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.input_mapping.get_mut(&NesButton::Start).unwrap(),
+                            self.keyboard_input_mapping
+                                .0
+                                .get_mut(&NesButton::Start)
+                                .unwrap(),
                             "con-start",
                         ));
                         ui.end_row();

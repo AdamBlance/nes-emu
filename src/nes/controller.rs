@@ -9,7 +9,7 @@ pub struct Controller {
     pub sr_latch_pin: bool,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum NesButton {
     Up,
     Down,

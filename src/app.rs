@@ -1,24 +1,62 @@
 use eframe::egui::{Color32, ColorImage, Key, TextureFilter, TextureOptions};
-use eframe::{egui, CreationContext};
+use eframe::{egui, CreationContext, Storage};
 use gilrs::{Event, EventType, Gilrs};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::iter;
+use std::fs::File;
+use std::{fs, iter};
+use uuid::Uuid;
 
 use crate::emulator::Emulator;
 use crate::nes::controller::NesButton;
 use crate::setup;
 use crate::widgets::input_select::Input;
 
+type InputMapping = HashMap<NesButton, Option<Input>>;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PersistentData {
+    pub volume: f64,
+    pub keyboard_input_mapping: (InputMapping, InputMapping),
+    pub controllers_input_mapping: HashMap<Uuid, InputMapping>,
+    pub selected_controllers: (Option<Uuid>, Option<Uuid>),
+}
+
+impl Default for PersistentData {
+    fn default() -> Self {
+        // TODO: Change from hashmap to struct with correct fields and also implements IntoIter trait
+        let input_mapping = HashMap::from([
+            (NesButton::Up, None),
+            (NesButton::Down, None),
+            (NesButton::Left, None),
+            (NesButton::Right, None),
+            (NesButton::B, None),
+            (NesButton::A, None),
+            (NesButton::Start, None),
+            (NesButton::Select, None),
+        ]);
+
+        PersistentData {
+            volume: 1.0,
+            keyboard_input_mapping: (input_mapping.clone(), input_mapping.clone()),
+            controllers_input_mapping: HashMap::new(),
+            selected_controllers: (None, None),
+        }
+    }
+}
+
 pub struct MyApp {
     pub emulator: Emulator,
     pub show_cpu_debugger: bool,
     pub show_controller_config: bool,
-    pub input_mapping: HashMap<NesButton, Option<Input>>,
-    pub input: HashSet<Input>,
+    pub controllers_input_mapping: HashMap<Uuid, InputMapping>,
+    pub keyboard_input_mapping: (InputMapping, InputMapping),
+    pub pressed_input: HashSet<Input>,
     pub gilrs: Gilrs,
 }
 
 const AXIS_DEADZONE: f32 = 0.1;
+const CONFIG_FILE: &str = "config.cbor";
 
 impl MyApp {
     pub fn new(eframe_creation_ctx: &CreationContext) -> Self {
@@ -34,32 +72,41 @@ impl MyApp {
         let audio_stream = match setup::create_audio_stream() {
             Ok(stream) => Some(stream),
             Err(e) => {
-                println!("Failed to create stream, emulator will have no audio output: {e}");
+                eprintln!("Failed to create stream, emulator will have no audio output: {e}");
                 None
             }
         };
 
         egui_extras::install_image_loaders(&eframe_creation_ctx.egui_ctx);
 
-        let input_mapping = HashMap::from([
-            (NesButton::Up, None),
-            (NesButton::Down, None),
-            (NesButton::Left, None),
-            (NesButton::Right, None),
-            (NesButton::B, None),
-            (NesButton::A, None),
-            (NesButton::Start, None),
-            (NesButton::Select, None),
-        ]);
+        let persistent_state = match fs::read(CONFIG_FILE) {
+            Ok(data) => serde_cbor::from_slice(&data).unwrap_or_else(|_| {
+                eprintln!("Failed to decode config file");
+                PersistentData::default()
+            }),
+            Err(_) => {
+                let blank_data = PersistentData::default();
+                Self::write_to_config_file(&blank_data)
+                    .unwrap_or_else(|err| eprintln!("Failed to write blank config"));
+                blank_data
+            }
+        };
 
         Self {
             emulator: Emulator::new(screen_texture, audio_stream),
             show_cpu_debugger: false,
             show_controller_config: false,
-            input_mapping,
             gilrs: Gilrs::new().unwrap(),
-            input: HashSet::with_capacity(16),
+            pressed_input: HashSet::with_capacity(16),
+            keyboard_input_mapping: persistent_state.keyboard_input_mapping,
+            controllers_input_mapping: persistent_state.controllers_input_mapping,
         }
+    }
+
+    pub fn write_to_config_file(data: &PersistentData) -> Result<(), &'static str> {
+        let file_handle = File::create(CONFIG_FILE).map_err(|err| "Error opening config file")?;
+        serde_cbor::to_writer(file_handle, data).map_err(|err| "Error serializing config data")?;
+        Ok(())
     }
 
     pub fn get_pressed_input(&mut self, ctx: &egui::Context) {
@@ -69,34 +116,39 @@ impl MyApp {
                     event: EventType::ButtonPressed(button, _),
                     ..
                 } => {
-                    self.input.insert(Input::ControllerButton(button));
+                    self.pressed_input.insert(Input::ControllerButton(button));
                 }
                 Event {
                     event: EventType::ButtonReleased(button, _),
                     ..
                 } => {
-                    self.input.remove(&Input::ControllerButton(button));
+                    self.pressed_input.remove(&Input::ControllerButton(button));
                 }
                 Event {
                     event: EventType::AxisChanged(axis, position, _),
                     ..
                 } if (-1.0..=-AXIS_DEADZONE).contains(&position) => {
-                    self.input.remove(&Input::ControllerAxis(axis, true));
-                    self.input.insert(Input::ControllerAxis(axis, false));
+                    self.pressed_input
+                        .remove(&Input::ControllerAxis(axis, true));
+                    self.pressed_input
+                        .insert(Input::ControllerAxis(axis, false));
                 }
                 Event {
                     event: EventType::AxisChanged(axis, position, _),
                     ..
                 } if (AXIS_DEADZONE..=1.0).contains(&position) => {
-                    self.input.remove(&Input::ControllerAxis(axis, false));
-                    self.input.insert(Input::ControllerAxis(axis, true));
+                    self.pressed_input
+                        .remove(&Input::ControllerAxis(axis, false));
+                    self.pressed_input.insert(Input::ControllerAxis(axis, true));
                 }
                 Event {
                     event: EventType::AxisChanged(axis, position, _),
                     ..
                 } if (-AXIS_DEADZONE..=AXIS_DEADZONE).contains(&position) => {
-                    self.input.remove(&Input::ControllerAxis(axis, false));
-                    self.input.remove(&Input::ControllerAxis(axis, true));
+                    self.pressed_input
+                        .remove(&Input::ControllerAxis(axis, false));
+                    self.pressed_input
+                        .remove(&Input::ControllerAxis(axis, true));
                 }
                 _ => {}
             }
@@ -111,7 +163,7 @@ impl MyApp {
                         repeat: false,
                         ..
                     } => {
-                        self.input.insert(Input::Key(*key));
+                        self.pressed_input.insert(Input::Key(*key));
                     }
                     egui::Event::Key {
                         key,
@@ -119,7 +171,7 @@ impl MyApp {
                         repeat: false,
                         ..
                     } => {
-                        self.input.remove(&Input::Key(*key));
+                        self.pressed_input.remove(&Input::Key(*key));
                     }
                     _ => {}
                 }
@@ -129,10 +181,23 @@ impl MyApp {
 }
 
 impl eframe::App for MyApp {
+    fn save(&mut self, _storage: &mut dyn Storage) {
+        let new_config = PersistentData {
+            controllers_input_mapping: self.controllers_input_mapping.clone(),
+            keyboard_input_mapping: self.keyboard_input_mapping.clone(),
+            volume: self.emulator.get_set_volume(None),
+            // TODO: implement this later
+            selected_controllers: (None, None),
+        };
+        Self::write_to_config_file(&new_config)
+            .unwrap_or_else(|err| eprintln!("Couldn't save config state"));
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint();
 
         if ctx.input(|ui| ui.focused) {
+            // TODO: Maybe clear event cache when switching focus to another viewport
             self.get_pressed_input(ctx);
         }
 
@@ -150,13 +215,13 @@ impl eframe::App for MyApp {
             }
         });
 
-        // Should only be 8 items, will be 16 when controller 2 is implemented
         let pressed_button_set: HashSet<NesButton> = self
-            .input_mapping
+            .keyboard_input_mapping
+            .0
             .iter()
             .filter_map(|(nes_button, mapped_input)| {
                 if let Some(m) = mapped_input {
-                    if self.input.contains(m) {
+                    if self.pressed_input.contains(m) {
                         Some(*nes_button)
                     } else {
                         None

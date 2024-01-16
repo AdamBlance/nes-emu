@@ -1,8 +1,9 @@
 use eframe::egui;
 use eframe::egui::{Color32, FontId, Response, Ui, Vec2, Widget};
+use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
-#[derive(Hash, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Input {
     Key(egui::Key),
     ControllerButton(gilrs::ev::Button),

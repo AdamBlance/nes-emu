@@ -29,6 +29,7 @@ pub struct Ppu {
     // OAMADDR register
     pub oam_addr: u8,
     // Memories
+    // TODO: Make Rc
     pub vram: Vec<u8>,
     pub oam: Vec<u8>,
     pub s_oam: [u8; 32],
