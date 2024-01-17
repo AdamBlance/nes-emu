@@ -6,6 +6,7 @@ fn main() -> eframe::Result<()> {
         viewport: egui::ViewportBuilder::default().with_inner_size([550.0, 567.0]),
         follow_system_theme: false,
         default_theme: eframe::Theme::Dark,
+        persist_window: false,
         ..Default::default()
     };
     eframe::run_native(

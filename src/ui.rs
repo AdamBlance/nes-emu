@@ -1,5 +1,4 @@
 use crate::app::MyApp;
-use crate::nes::controller::NesButton;
 use crate::setup;
 use crate::widgets::input_select::InputSelect;
 use eframe::egui;
@@ -143,9 +142,27 @@ impl MyApp {
     pub fn define_controller_config(&mut self, ctx: &egui::Context) {
         ctx.show_viewport_immediate(
             ViewportId::from_hash_of("controller"),
-            ViewportBuilder::default().with_inner_size([500.0, 800.0]),
+            ViewportBuilder::default().with_inner_size([500.0, 500.0]),
             |ctx, _class| {
                 egui::CentralPanel::default().show(ctx, |ui| {
+                    egui::ComboBox::from_id_source("fuck")
+                        .selected_text(self.selected_controllers.0.map_or("None", |con| {
+                            self.controllers_input_mapping
+                                .get(&con)
+                                .unwrap()
+                                .name
+                                .as_str()
+                        }))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.selected_controllers.0, None, "None");
+                            for (uuid, controller_config) in self.controllers_input_mapping.iter() {
+                                ui.selectable_value(
+                                    &mut self.selected_controllers.0,
+                                    Some(*uuid),
+                                    &controller_config.name,
+                                );
+                            }
+                        });
                     egui::Grid::new("cool-grid").show(ui, |ui| {
                         if ctx.input(|ui| ui.focused) {
                             self.get_pressed_input(ctx);
@@ -153,92 +170,195 @@ impl MyApp {
 
                         let maybe_input = self.pressed_input.iter().next().copied();
 
+                        ui.label("");
+                        ui.label("Keyboard");
+                        ui.label("Controller");
+                        ui.end_row();
+
                         ui.label("Up:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.keyboard_input_mapping
-                                .0
-                                .get_mut(&NesButton::Up)
-                                .unwrap(),
-                            "con-up",
+                            Some(&mut self.keyboard_input_mapping.0.up),
+                            "con1-up-key",
                         ));
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .up
+                                }),
+                                "con1-up-gamepad",
+                            ),
+                        );
                         ui.end_row();
 
                         ui.label("Down:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.keyboard_input_mapping
-                                .0
-                                .get_mut(&NesButton::Down)
-                                .unwrap(),
-                            "con-down",
+                            Some(&mut self.keyboard_input_mapping.0.down),
+                            "con1-down-key",
                         ));
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .down
+                                }),
+                                "con1-down-gamepad",
+                            ),
+                        );
                         ui.end_row();
 
                         ui.label("Left:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.keyboard_input_mapping
-                                .0
-                                .get_mut(&NesButton::Left)
-                                .unwrap(),
-                            "con-left",
+                            Some(&mut self.keyboard_input_mapping.0.left),
+                            "con1-left-key",
                         ));
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .left
+                                }),
+                                "con1-left-gamepad",
+                            ),
+                        );
                         ui.end_row();
 
                         ui.label("Right:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.keyboard_input_mapping
-                                .0
-                                .get_mut(&NesButton::Right)
-                                .unwrap(),
-                            "con-right",
+                            Some(&mut self.keyboard_input_mapping.0.right),
+                            "con1-right-key",
                         ));
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .right
+                                }),
+                                "con1-right-gamepad",
+                            ),
+                        );
                         ui.end_row();
 
                         ui.label("B:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.keyboard_input_mapping
-                                .0
-                                .get_mut(&NesButton::B)
-                                .unwrap(),
-                            "con-b",
+                            Some(&mut self.keyboard_input_mapping.0.b),
+                            "con1-b-key",
                         ));
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .b
+                                }),
+                                "con1-b-gamepad",
+                            ),
+                        );
                         ui.end_row();
 
                         ui.label("A:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.keyboard_input_mapping
-                                .0
-                                .get_mut(&NesButton::A)
-                                .unwrap(),
-                            "con-a",
+                            Some(&mut self.keyboard_input_mapping.0.a),
+                            "con1-a-key",
                         ));
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .a
+                                }),
+                                "con1-a-gamepad",
+                            ),
+                        );
                         ui.end_row();
 
                         ui.label("Select:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.keyboard_input_mapping
-                                .0
-                                .get_mut(&NesButton::Select)
-                                .unwrap(),
-                            "con-select",
+                            Some(&mut self.keyboard_input_mapping.0.select),
+                            "con1-select-key",
                         ));
+
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .select
+                                }),
+                                "con1-select-gamepad",
+                            ),
+                        );
+
                         ui.end_row();
 
                         ui.label("Start:");
                         ui.add(InputSelect::new(
                             maybe_input,
-                            self.keyboard_input_mapping
-                                .0
-                                .get_mut(&NesButton::Start)
-                                .unwrap(),
-                            "con-start",
+                            Some(&mut self.keyboard_input_mapping.0.start),
+                            "con1-start-key",
                         ));
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .start
+                                }),
+                                "con1-start-gamepad",
+                            ),
+                        );
                         ui.end_row();
                     });
                 });

@@ -3,11 +3,22 @@ use eframe::egui::{Color32, FontId, Response, Ui, Vec2, Widget};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum Input {
     Key(egui::Key),
     ControllerButton(gilrs::ev::Button),
     ControllerAxis(gilrs::ev::Axis, bool),
+    #[default]
+    Unspecified,
+}
+
+impl Input {
+    pub fn specified_and(self, f: impl FnOnce(Self) -> bool) -> bool {
+        match self {
+            Input::Unspecified => false,
+            x => f(x),
+        }
+    }
 }
 
 impl Display for Input {
@@ -16,20 +27,21 @@ impl Display for Input {
             Self::Key(k) => write!(f, "{:?}", *k),
             Self::ControllerButton(b) => write!(f, "{:?}", *b),
             Self::ControllerAxis(a, dir) => write!(f, "{:?} {}", *a, if *dir { "+" } else { "-" }),
+            Self::Unspecified => write!(f, ""),
         }
     }
 }
 
 pub struct InputSelect<'a> {
     pub pressed_input: Option<Input>,
-    pub stored_input: &'a mut Option<Input>,
+    pub stored_input: Option<&'a mut Input>,
     pub unique_id: &'static str,
 }
 
 impl<'a> InputSelect<'a> {
     pub fn new(
         pressed_input: Option<Input>,
-        stored_input: &'a mut Option<Input>,
+        stored_input: Option<&'a mut Input>,
         unique_id: &'static str,
     ) -> Self {
         InputSelect {
@@ -43,7 +55,9 @@ impl<'a> InputSelect<'a> {
 impl<'a> Widget for InputSelect<'a> {
     fn ui(self, ui: &mut Ui) -> Response {
         let text_layout = ui.painter().layout_no_wrap(
-            self.stored_input.map_or("".to_string(), |x| x.to_string()),
+            self.stored_input
+                .as_ref()
+                .map_or("".to_owned(), |input| input.to_string()),
             FontId::default(),
             Color32::WHITE,
         );
@@ -75,7 +89,11 @@ impl<'a> Widget for InputSelect<'a> {
             response.mark_changed();
         } else if listening && self.pressed_input.is_some() {
             listening = false;
-            *self.stored_input = self.pressed_input;
+            if let Some(si) = self.stored_input {
+                if let Some(pressed_input) = self.pressed_input {
+                    *si = pressed_input;
+                }
+            }
             response.mark_changed();
         }
 

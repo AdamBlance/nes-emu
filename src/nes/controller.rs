@@ -1,6 +1,6 @@
+use crate::app::NesButtonState;
 use crate::util::to_mask;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Controller {
@@ -46,15 +46,15 @@ impl Controller {
     }
 
     // TODO: Use bitfields here
-    pub fn update_button_state(&mut self, pressed_buttons: &HashSet<NesButton>) {
+    pub fn update_button_state(&mut self, pressed_buttons: NesButtonState) {
         self.button_state = 0b00000000;
-        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Up)) & UP;
-        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Down)) & DOWN;
-        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Left)) & LEFT;
-        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Right)) & RIGHT;
-        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Start)) & START;
-        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::Select)) & SELECT;
-        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::A)) & A;
-        self.button_state |= to_mask(pressed_buttons.contains(&NesButton::B)) & B;
+        self.button_state |= to_mask(pressed_buttons.up) & UP;
+        self.button_state |= to_mask(pressed_buttons.down) & DOWN;
+        self.button_state |= to_mask(pressed_buttons.left) & LEFT;
+        self.button_state |= to_mask(pressed_buttons.right) & RIGHT;
+        self.button_state |= to_mask(pressed_buttons.b) & B;
+        self.button_state |= to_mask(pressed_buttons.a) & A;
+        self.button_state |= to_mask(pressed_buttons.start) & START;
+        self.button_state |= to_mask(pressed_buttons.select) & SELECT;
     }
 }

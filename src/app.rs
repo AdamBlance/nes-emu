@@ -8,37 +8,51 @@ use std::{fs, iter};
 use uuid::Uuid;
 
 use crate::emulator::Emulator;
-use crate::nes::controller::NesButton;
 use crate::setup;
 use crate::widgets::input_select::Input;
 
-type InputMapping = HashMap<NesButton, Option<Input>>;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ControllerConfig {
+    pub name: String,
+    pub input_mapping: InputMapping,
+}
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
+pub struct InputMapping {
+    pub up: Input,
+    pub down: Input,
+    pub left: Input,
+    pub right: Input,
+    pub b: Input,
+    pub a: Input,
+    pub start: Input,
+    pub select: Input,
+}
+
+pub struct NesButtonState {
+    pub up: bool,
+    pub down: bool,
+    pub left: bool,
+    pub right: bool,
+    pub b: bool,
+    pub a: bool,
+    pub start: bool,
+    pub select: bool,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct PersistentData {
     pub volume: f64,
     pub keyboard_input_mapping: (InputMapping, InputMapping),
-    pub controllers_input_mapping: HashMap<Uuid, InputMapping>,
+    pub controllers_input_mapping: HashMap<Uuid, ControllerConfig>,
     pub selected_controllers: (Option<Uuid>, Option<Uuid>),
 }
 
 impl Default for PersistentData {
     fn default() -> Self {
-        // TODO: Change from hashmap to struct with correct fields and also implements IntoIter trait
-        let input_mapping = HashMap::from([
-            (NesButton::Up, None),
-            (NesButton::Down, None),
-            (NesButton::Left, None),
-            (NesButton::Right, None),
-            (NesButton::B, None),
-            (NesButton::A, None),
-            (NesButton::Start, None),
-            (NesButton::Select, None),
-        ]);
-
         PersistentData {
             volume: 1.0,
-            keyboard_input_mapping: (input_mapping.clone(), input_mapping.clone()),
+            keyboard_input_mapping: (InputMapping::default(), InputMapping::default()),
             controllers_input_mapping: HashMap::new(),
             selected_controllers: (None, None),
         }
@@ -49,8 +63,9 @@ pub struct MyApp {
     pub emulator: Emulator,
     pub show_cpu_debugger: bool,
     pub show_controller_config: bool,
-    pub controllers_input_mapping: HashMap<Uuid, InputMapping>,
+    pub controllers_input_mapping: HashMap<Uuid, ControllerConfig>,
     pub keyboard_input_mapping: (InputMapping, InputMapping),
+    pub selected_controllers: (Option<Uuid>, Option<Uuid>),
     pub pressed_input: HashSet<Input>,
     pub gilrs: Gilrs,
 }
@@ -79,27 +94,33 @@ impl MyApp {
 
         egui_extras::install_image_loaders(&eframe_creation_ctx.egui_ctx);
 
-        let persistent_state = match fs::read(CONFIG_FILE) {
+        let persistent_state = Self::read_from_config_file_or_default();
+
+        let mut emulator = Emulator::new(screen_texture, audio_stream);
+        emulator.get_set_volume(Some(persistent_state.volume));
+
+        Self {
+            emulator,
+            show_cpu_debugger: false,
+            show_controller_config: false,
+            gilrs: Gilrs::new().unwrap(),
+            keyboard_input_mapping: persistent_state.keyboard_input_mapping,
+            controllers_input_mapping: persistent_state.controllers_input_mapping,
+            selected_controllers: persistent_state.selected_controllers,
+            pressed_input: HashSet::with_capacity(32),
+        }
+    }
+
+    pub fn read_from_config_file_or_default() -> PersistentData {
+        match fs::read(CONFIG_FILE) {
             Ok(data) => serde_cbor::from_slice(&data).unwrap_or_else(|_| {
                 eprintln!("Failed to decode config file");
                 PersistentData::default()
             }),
             Err(_) => {
-                let blank_data = PersistentData::default();
-                Self::write_to_config_file(&blank_data)
-                    .unwrap_or_else(|err| eprintln!("Failed to write blank config"));
-                blank_data
+                eprintln!("Config file does not exist");
+                PersistentData::default()
             }
-        };
-
-        Self {
-            emulator: Emulator::new(screen_texture, audio_stream),
-            show_cpu_debugger: false,
-            show_controller_config: false,
-            gilrs: Gilrs::new().unwrap(),
-            pressed_input: HashSet::with_capacity(16),
-            keyboard_input_mapping: persistent_state.keyboard_input_mapping,
-            controllers_input_mapping: persistent_state.controllers_input_mapping,
         }
     }
 
@@ -154,6 +175,16 @@ impl MyApp {
             }
         }
 
+        for (_id, gamepad) in self.gilrs.gamepads() {
+            let _ = self.controllers_input_mapping.try_insert(
+                Uuid::from_slice(&gamepad.uuid()).unwrap(),
+                ControllerConfig {
+                    name: gamepad.name().to_owned(),
+                    input_mapping: InputMapping::default(),
+                },
+            );
+        }
+
         ctx.input(|i| {
             for event in i.events.iter() {
                 match event {
@@ -181,18 +212,6 @@ impl MyApp {
 }
 
 impl eframe::App for MyApp {
-    fn save(&mut self, _storage: &mut dyn Storage) {
-        let new_config = PersistentData {
-            controllers_input_mapping: self.controllers_input_mapping.clone(),
-            keyboard_input_mapping: self.keyboard_input_mapping.clone(),
-            volume: self.emulator.get_set_volume(None),
-            // TODO: implement this later
-            selected_controllers: (None, None),
-        };
-        Self::write_to_config_file(&new_config)
-            .unwrap_or_else(|err| eprintln!("Couldn't save config state"));
-    }
-
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint();
 
@@ -215,25 +234,42 @@ impl eframe::App for MyApp {
             }
         });
 
-        let pressed_button_set: HashSet<NesButton> = self
-            .keyboard_input_mapping
+        let k_con1 = self.keyboard_input_mapping.0;
+        let c_con1 = self
+            .selected_controllers
             .0
-            .iter()
-            .filter_map(|(nes_button, mapped_input)| {
-                if let Some(m) = mapped_input {
-                    if self.pressed_input.contains(m) {
-                        Some(*nes_button)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect();
+            .map(|c| self.controllers_input_mapping.get(&c).unwrap());
 
-        self.emulator.update_controller(1, pressed_button_set);
+        let nes_button_state = NesButtonState {
+            up: k_con1.up.specified_and(|i| self.pressed_input.contains(&i))
+                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.up)),
+            down: k_con1
+                .down
+                .specified_and(|i| self.pressed_input.contains(&i))
+                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.down)),
+            left: k_con1
+                .left
+                .specified_and(|i| self.pressed_input.contains(&i))
+                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.left)),
+            right: k_con1
+                .right
+                .specified_and(|i| self.pressed_input.contains(&i))
+                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.right)),
+            b: k_con1.b.specified_and(|i| self.pressed_input.contains(&i))
+                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.b)),
+            a: k_con1.a.specified_and(|i| self.pressed_input.contains(&i))
+                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.a)),
+            start: k_con1
+                .start
+                .specified_and(|i| self.pressed_input.contains(&i))
+                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.start)),
+            select: k_con1
+                .select
+                .specified_and(|i| self.pressed_input.contains(&i))
+                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.select)),
+        };
 
+        self.emulator.update_controller(1, nes_button_state);
         self.emulator.update(ctx.input(|input| input.time));
 
         self.define_main_top_panel(ctx);
@@ -246,5 +282,16 @@ impl eframe::App for MyApp {
         if self.show_controller_config {
             self.define_controller_config(ctx);
         }
+    }
+
+    fn save(&mut self, _storage: &mut dyn Storage) {
+        let new_config = PersistentData {
+            controllers_input_mapping: self.controllers_input_mapping.clone(),
+            keyboard_input_mapping: self.keyboard_input_mapping,
+            volume: self.emulator.get_set_volume(None),
+            selected_controllers: self.selected_controllers,
+        };
+        Self::write_to_config_file(&new_config)
+            .unwrap_or_else(|err| eprintln!("Couldn't save config state"));
     }
 }
