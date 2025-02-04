@@ -12,6 +12,8 @@ pub enum Input {
     Unspecified,
 }
 
+const SPACING: f32 = 8.0;
+
 impl Input {
     pub fn specified_and(self, f: impl FnOnce(Self) -> bool) -> bool {
         match self {
@@ -58,14 +60,14 @@ impl<'a> Widget for InputSelect<'a> {
             self.stored_input
                 .as_ref()
                 .map_or("".to_owned(), |input| input.to_string()),
-            FontId::default(),
+            FontId::monospace(11.0),
             Color32::WHITE,
         );
 
         let (rect, mut response) = ui.allocate_exact_size(
             Vec2 {
-                y: ui.spacing().interact_size.y,
-                x: text_layout.size().x.max(25.0),
+                y: text_layout.size().y + SPACING,
+                x: (text_layout.size().x + SPACING).max(25.0),
             },
             egui::Sense::click(),
         );
@@ -102,7 +104,7 @@ impl<'a> Widget for InputSelect<'a> {
         if ui.is_rect_visible(rect) {
             let visuals = ui.style().interact_selectable(&response, listening);
             ui.painter()
-                .rect(rect, 1.0, visuals.bg_fill, visuals.bg_stroke);
+                .rect(rect, 3.0, visuals.bg_fill, visuals.bg_stroke);
 
             let offset_pos = rect.center() - text_layout.rect.center();
             ui.painter()
