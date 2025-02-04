@@ -115,7 +115,8 @@ impl Emulator {
 
     pub fn get_set_pause(&mut self, pause: Option<bool>) -> bool {
         if let Some(pause) = pause {
-            if !pause && !self.rewind_states.is_empty() {
+            if self.paused && !pause && !self.rewind_states.is_empty() {
+                // self.rewind_states.truncate(self.rewind_state_index as usize + 1);
                 while self.rewind_states.len() - 1 != self.rewind_state_index as usize {
                     self.rewind_states.pop();
                 }

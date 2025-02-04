@@ -1,5 +1,5 @@
 use eframe::egui;
-use nes_emu_egui::app::MyApp;
+use nes_emu_egui::app::App;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
@@ -12,6 +12,6 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "nes-emu-egui",
         options,
-        Box::new(|cc| Box::new(MyApp::new(cc))),
+        Box::new(|cc| Box::new(App::new(cc))),
     )
 }

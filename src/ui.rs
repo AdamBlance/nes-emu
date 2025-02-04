@@ -1,11 +1,11 @@
-use crate::app::MyApp;
+use crate::app::App;
 use crate::setup;
-use crate::widgets::input_select::InputSelect;
+use crate::widgets::input_select::{InputSelect, InputType};
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{include_image, Color32, Image, RichText, ViewportBuilder, ViewportId};
 
-impl MyApp {
+impl App {
     pub fn define_main_top_panel(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("my_panel").show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
@@ -42,14 +42,12 @@ impl MyApp {
                         .speed(0.005),
                 );
 
-                ui.add_enabled_ui(self.emulator.get_set_pause(None), |ui| {
-                    let mut rewind_speed_offset = 0.0;
-                    ui.add(egui::Slider::new(&mut rewind_speed_offset, -3.0..=3.0));
-                    self.emulator.scrub_by(rewind_speed_offset);
+                ui.add_enabled_ui(self.is_paused, |ui| {
+                    ui.add(egui::Slider::new(&mut self.scrubbing_rate, -3.0..=3.0));
                 });
 
                 if ui
-                    .add(match self.emulator.get_set_pause(None) {
+                    .add(match self.is_paused {
                         true => egui::Button::image(Image::new(include_image!(
                             "../resources/play_light.png"
                         ))),
@@ -59,9 +57,7 @@ impl MyApp {
                     })
                     .clicked()
                 {
-                    // TODO: get_set isn't a great pattern, change
-                    let temp = !self.emulator.get_set_pause(None);
-                    self.emulator.get_set_pause(Some(temp));
+                    self.is_paused = !self.is_paused;
                 }
 
                 ui.add(
@@ -74,10 +70,24 @@ impl MyApp {
 
     pub fn define_main_central_panel(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.add(
+            let emulator_screen = ui.add(
                 egui::Image::from_texture(SizedTexture::from_handle(&self.emulator.video_output))
                     .shrink_to_fit(),
             );
+            let screen_centre_rect = emulator_screen.rect.expand(-200.0);
+            if self.scrubbing_rate < 0.0 && self.is_paused {
+                ui.put(
+                    screen_centre_rect,
+                    Image::new(include_image!("../resources/rewind-svgrepo-com-light.svg")),
+                );
+            } else if self.scrubbing_rate > 0.0 && self.is_paused {
+                ui.put(
+                    screen_centre_rect,
+                    Image::new(include_image!(
+                        "../resources/fast-forward-svgrepo-com-light.svg"
+                    )),
+                );
+            }
         });
     }
 
@@ -94,7 +104,7 @@ impl MyApp {
 
                     ui.separator();
 
-                    ui.add_enabled_ui(self.emulator.get_set_pause(None), |ui| {
+                    ui.add_enabled_ui(self.is_paused, |ui| {
                         let mut scroll_builder = egui::ScrollArea::vertical().auto_shrink(false);
                         if advance_button.clicked() {
                             let row = self
@@ -150,7 +160,7 @@ impl MyApp {
                             self.get_pressed_input(ctx);
                         }
 
-                        let maybe_input = self.pressed_input.iter().next().copied();
+                        let maybe_input = self.held_input.iter().next().copied();
 
                         ui.label("");
                         ui.image(include_image!("../resources/keyboard-line.svg"));
@@ -162,6 +172,7 @@ impl MyApp {
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.up),
                             "con1-up-key",
+                            InputType::Keyboard,
                         ));
                         ui.add_enabled(
                             self.selected_controllers.0.is_some(),
@@ -176,6 +187,7 @@ impl MyApp {
                                         .up
                                 }),
                                 "con1-up-gamepad",
+                                InputType::Controller,
                             ),
                         );
                         ui.end_row();
@@ -185,6 +197,7 @@ impl MyApp {
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.down),
                             "con1-down-key",
+                            InputType::Keyboard,
                         ));
                         ui.add_enabled(
                             self.selected_controllers.0.is_some(),
@@ -199,6 +212,7 @@ impl MyApp {
                                         .down
                                 }),
                                 "con1-down-gamepad",
+                                InputType::Controller,
                             ),
                         );
                         ui.end_row();
@@ -208,6 +222,7 @@ impl MyApp {
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.left),
                             "con1-left-key",
+                            InputType::Keyboard,
                         ));
                         ui.add_enabled(
                             self.selected_controllers.0.is_some(),
@@ -222,6 +237,7 @@ impl MyApp {
                                         .left
                                 }),
                                 "con1-left-gamepad",
+                                InputType::Controller,
                             ),
                         );
                         ui.end_row();
@@ -231,6 +247,7 @@ impl MyApp {
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.right),
                             "con1-right-key",
+                            InputType::Keyboard,
                         ));
                         ui.add_enabled(
                             self.selected_controllers.0.is_some(),
@@ -245,6 +262,7 @@ impl MyApp {
                                         .right
                                 }),
                                 "con1-right-gamepad",
+                                InputType::Controller,
                             ),
                         );
                         ui.end_row();
@@ -254,6 +272,7 @@ impl MyApp {
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.b),
                             "con1-b-key",
+                            InputType::Keyboard,
                         ));
                         ui.add_enabled(
                             self.selected_controllers.0.is_some(),
@@ -268,6 +287,7 @@ impl MyApp {
                                         .b
                                 }),
                                 "con1-b-gamepad",
+                                InputType::Controller,
                             ),
                         );
                         ui.end_row();
@@ -277,6 +297,7 @@ impl MyApp {
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.a),
                             "con1-a-key",
+                            InputType::Keyboard,
                         ));
                         ui.add_enabled(
                             self.selected_controllers.0.is_some(),
@@ -291,6 +312,7 @@ impl MyApp {
                                         .a
                                 }),
                                 "con1-a-gamepad",
+                                InputType::Controller,
                             ),
                         );
                         ui.end_row();
@@ -300,6 +322,7 @@ impl MyApp {
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.select),
                             "con1-select-key",
+                            InputType::Keyboard,
                         ));
 
                         ui.add_enabled(
@@ -315,6 +338,7 @@ impl MyApp {
                                         .select
                                 }),
                                 "con1-select-gamepad",
+                                InputType::Controller,
                             ),
                         );
 
@@ -325,6 +349,7 @@ impl MyApp {
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.start),
                             "con1-start-key",
+                            InputType::Keyboard,
                         ));
                         ui.add_enabled(
                             self.selected_controllers.0.is_some(),
@@ -339,6 +364,87 @@ impl MyApp {
                                         .start
                                 }),
                                 "con1-start-gamepad",
+                                InputType::Controller,
+                            ),
+                        );
+                        ui.end_row();
+
+                        ui.separator();
+                        ui.separator();
+                        ui.separator();
+                        ui.end_row();
+
+                        ui.label("Pause:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            Some(&mut self.keyboard_input_mapping.0.pause),
+                            "pause-key",
+                            InputType::Keyboard,
+                        ));
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .pause
+                                }),
+                                "pause-gamepad",
+                                InputType::Controller,
+                            ),
+                        );
+                        ui.end_row();
+
+                        ui.label("Rewind:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            Some(&mut self.keyboard_input_mapping.0.rewind),
+                            "rewind-key",
+                            InputType::Keyboard,
+                        ));
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .rewind
+                                }),
+                                "rewind-gamepad",
+                                InputType::Controller,
+                            ),
+                        );
+                        ui.end_row();
+
+                        ui.label("Fast forward:");
+                        ui.add(InputSelect::new(
+                            maybe_input,
+                            Some(&mut self.keyboard_input_mapping.0.fast_forward),
+                            "fast-forward-key",
+                            InputType::Keyboard,
+                        ));
+                        ui.add_enabled(
+                            self.selected_controllers.0.is_some(),
+                            InputSelect::new(
+                                maybe_input,
+                                self.selected_controllers.0.map(|id| {
+                                    &mut self
+                                        .controllers_input_mapping
+                                        .get_mut(&id)
+                                        .unwrap()
+                                        .input_mapping
+                                        .fast_forward
+                                }),
+                                "fast-forward-gamepad",
+                                InputType::Controller,
                             ),
                         );
                         ui.end_row();

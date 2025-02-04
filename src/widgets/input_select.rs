@@ -12,6 +12,12 @@ pub enum Input {
     Unspecified,
 }
 
+#[derive(PartialEq, Eq)]
+pub enum InputType {
+    Keyboard,
+    Controller,
+}
+
 const SPACING: f32 = 8.0;
 
 impl Input {
@@ -38,6 +44,7 @@ pub struct InputSelect<'a> {
     pub pressed_input: Option<Input>,
     pub stored_input: Option<&'a mut Input>,
     pub unique_id: &'static str,
+    pub input_type: InputType,
 }
 
 impl<'a> InputSelect<'a> {
@@ -45,11 +52,13 @@ impl<'a> InputSelect<'a> {
         pressed_input: Option<Input>,
         stored_input: Option<&'a mut Input>,
         unique_id: &'static str,
+        input_type: InputType,
     ) -> Self {
         InputSelect {
             pressed_input,
             stored_input,
             unique_id,
+            input_type,
         }
     }
 }
@@ -89,7 +98,13 @@ impl<'a> Widget for InputSelect<'a> {
         {
             listening = false;
             response.mark_changed();
-        } else if listening && self.pressed_input.is_some() {
+        } else if listening
+            && self.pressed_input.is_some_and(|i| {
+                (self.input_type == InputType::Keyboard && matches!(i, Input::Key(_)))
+                    || (self.input_type == InputType::Controller
+                        && matches!(i, Input::ControllerAxis(_, _) | Input::ControllerButton(_)))
+            })
+        {
             listening = false;
             if let Some(si) = self.stored_input {
                 if let Some(pressed_input) = self.pressed_input {

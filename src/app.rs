@@ -27,6 +27,9 @@ pub struct InputMapping {
     pub a: Input,
     pub start: Input,
     pub select: Input,
+    pub pause: Input,
+    pub rewind: Input,
+    pub fast_forward: Input,
 }
 
 pub struct NesButtonState {
@@ -59,21 +62,24 @@ impl Default for PersistentData {
     }
 }
 
-pub struct MyApp {
+pub struct App {
     pub emulator: Emulator,
     pub show_cpu_debugger: bool,
     pub show_controller_config: bool,
     pub controllers_input_mapping: HashMap<Uuid, ControllerConfig>,
     pub keyboard_input_mapping: (InputMapping, InputMapping),
     pub selected_controllers: (Option<Uuid>, Option<Uuid>),
+    pub held_input: HashSet<Input>,
     pub pressed_input: HashSet<Input>,
+    pub is_paused: bool,
+    pub scrubbing_rate: f32,
     pub gilrs: Gilrs,
 }
 
 const AXIS_DEADZONE: f32 = 0.1;
 const CONFIG_FILE: &str = "config.json";
 
-impl MyApp {
+impl App {
     pub fn new(eframe_creation_ctx: &CreationContext) -> Self {
         let screen_texture = eframe_creation_ctx.egui_ctx.load_texture(
             "emu",
@@ -108,7 +114,10 @@ impl MyApp {
             keyboard_input_mapping: persistent_state.keyboard_input_mapping,
             controllers_input_mapping: persistent_state.controllers_input_mapping,
             selected_controllers: persistent_state.selected_controllers,
+            held_input: HashSet::with_capacity(32),
             pressed_input: HashSet::with_capacity(32),
+            is_paused: false,
+            scrubbing_rate: 0.0,
         }
     }
 
@@ -132,45 +141,37 @@ impl MyApp {
     }
 
     pub fn get_pressed_input(&mut self, ctx: &egui::Context) {
+        // TODO: Only process selected controller with UUID
+        self.pressed_input.clear();
         for event in iter::from_fn(|| self.gilrs.next_event()) {
             match event {
                 Event {
                     event: EventType::ButtonPressed(button, _),
                     ..
                 } => {
+                    self.held_input.insert(Input::ControllerButton(button));
                     self.pressed_input.insert(Input::ControllerButton(button));
                 }
                 Event {
                     event: EventType::ButtonReleased(button, _),
                     ..
                 } => {
-                    self.pressed_input.remove(&Input::ControllerButton(button));
+                    self.held_input.remove(&Input::ControllerButton(button));
                 }
                 Event {
                     event: EventType::AxisChanged(axis, position, _),
                     ..
-                } if (-1.0..=-AXIS_DEADZONE).contains(&position) => {
-                    self.pressed_input
-                        .remove(&Input::ControllerAxis(axis, true));
-                    self.pressed_input
-                        .insert(Input::ControllerAxis(axis, false));
-                }
-                Event {
-                    event: EventType::AxisChanged(axis, position, _),
-                    ..
-                } if (AXIS_DEADZONE..=1.0).contains(&position) => {
-                    self.pressed_input
-                        .remove(&Input::ControllerAxis(axis, false));
-                    self.pressed_input.insert(Input::ControllerAxis(axis, true));
-                }
-                Event {
-                    event: EventType::AxisChanged(axis, position, _),
-                    ..
-                } if (-AXIS_DEADZONE..=AXIS_DEADZONE).contains(&position) => {
-                    self.pressed_input
-                        .remove(&Input::ControllerAxis(axis, false));
-                    self.pressed_input
-                        .remove(&Input::ControllerAxis(axis, true));
+                } => {
+                    if (-1.0..=-AXIS_DEADZONE).contains(&position) {
+                        self.held_input.remove(&Input::ControllerAxis(axis, true));
+                        self.held_input.insert(Input::ControllerAxis(axis, false));
+                    } else if (AXIS_DEADZONE..=1.0).contains(&position) {
+                        self.held_input.remove(&Input::ControllerAxis(axis, false));
+                        self.held_input.insert(Input::ControllerAxis(axis, true));
+                    } else if (-AXIS_DEADZONE..=AXIS_DEADZONE).contains(&position) {
+                        self.held_input.remove(&Input::ControllerAxis(axis, false));
+                        self.held_input.remove(&Input::ControllerAxis(axis, true));
+                    }
                 }
                 _ => {}
             }
@@ -195,7 +196,7 @@ impl MyApp {
                         repeat: false,
                         ..
                     } => {
-                        self.pressed_input.insert(Input::Key(*key));
+                        self.held_input.insert(Input::Key(*key));
                     }
                     egui::Event::Key {
                         key,
@@ -203,7 +204,7 @@ impl MyApp {
                         repeat: false,
                         ..
                     } => {
-                        self.pressed_input.remove(&Input::Key(*key));
+                        self.held_input.remove(&Input::Key(*key));
                     }
                     _ => {}
                 }
@@ -212,7 +213,7 @@ impl MyApp {
     }
 }
 
-impl eframe::App for MyApp {
+impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint();
 
@@ -221,61 +222,69 @@ impl eframe::App for MyApp {
             self.get_pressed_input(ctx);
         }
 
-        ctx.input(|ui| {
-            if ui.key_pressed(Key::Space) {
-                // TODO: get_set isn't a great pattern, change
-                let temp = !self.emulator.get_set_pause(None);
-                self.emulator.get_set_pause(Some(temp));
-            }
-            if ui.key_down(Key::L) {
-                self.emulator.scrub_by(-1.0);
-            }
-            if ui.key_down(Key::U) {
-                self.emulator.scrub_by(1.0);
-            }
-        });
-
         let k_con1 = self.keyboard_input_mapping.0;
         let c_con1 = self
             .selected_controllers
             .0
             .map(|c| self.controllers_input_mapping.get(&c).unwrap());
 
+        // This input stuff DESPERATELY needs a refactor
+        // Need to decide on a proper strategy instead of this spaghetti
+        // Should have an event list, pressed, held, all accessible
+
+        self.scrubbing_rate = 0.0;
+
+        if self
+            .pressed_input
+            .contains(&self.keyboard_input_mapping.0.pause)
+            || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.pause))
+        {
+            self.is_paused = !self.is_paused;
+        }
+        if self
+            .held_input
+            .contains(&self.keyboard_input_mapping.0.rewind)
+            || c_con1.is_some_and(|c| self.held_input.contains(&c.input_mapping.rewind))
+        {
+            self.scrubbing_rate = -1.0;
+        } else if self
+            .held_input
+            .contains(&self.keyboard_input_mapping.0.fast_forward)
+            || c_con1.is_some_and(|c| self.held_input.contains(&c.input_mapping.fast_forward))
+        {
+            self.scrubbing_rate = 1.0;
+        }
+
         let nes_button_state = NesButtonState {
-            up: k_con1.up.specified_and(|i| self.pressed_input.contains(&i))
-                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.up)),
-            down: k_con1
-                .down
-                .specified_and(|i| self.pressed_input.contains(&i))
-                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.down)),
-            left: k_con1
-                .left
-                .specified_and(|i| self.pressed_input.contains(&i))
-                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.left)),
-            right: k_con1
-                .right
-                .specified_and(|i| self.pressed_input.contains(&i))
-                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.right)),
-            b: k_con1.b.specified_and(|i| self.pressed_input.contains(&i))
-                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.b)),
-            a: k_con1.a.specified_and(|i| self.pressed_input.contains(&i))
-                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.a)),
-            start: k_con1
-                .start
-                .specified_and(|i| self.pressed_input.contains(&i))
-                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.start)),
+            up: k_con1.up.specified_and(|i| self.held_input.contains(&i))
+                || c_con1.is_some_and(|c| self.held_input.contains(&c.input_mapping.up)),
+            down: k_con1.down.specified_and(|i| self.held_input.contains(&i))
+                || c_con1.is_some_and(|c| self.held_input.contains(&c.input_mapping.down)),
+            left: k_con1.left.specified_and(|i| self.held_input.contains(&i))
+                || c_con1.is_some_and(|c| self.held_input.contains(&c.input_mapping.left)),
+            right: k_con1.right.specified_and(|i| self.held_input.contains(&i))
+                || c_con1.is_some_and(|c| self.held_input.contains(&c.input_mapping.right)),
+            b: k_con1.b.specified_and(|i| self.held_input.contains(&i))
+                || c_con1.is_some_and(|c| self.held_input.contains(&c.input_mapping.b)),
+            a: k_con1.a.specified_and(|i| self.held_input.contains(&i))
+                || c_con1.is_some_and(|c| self.held_input.contains(&c.input_mapping.a)),
+            start: k_con1.start.specified_and(|i| self.held_input.contains(&i))
+                || c_con1.is_some_and(|c| self.held_input.contains(&c.input_mapping.start)),
             select: k_con1
                 .select
-                .specified_and(|i| self.pressed_input.contains(&i))
-                || c_con1.is_some_and(|c| self.pressed_input.contains(&c.input_mapping.select)),
+                .specified_and(|i| self.held_input.contains(&i))
+                || c_con1.is_some_and(|c| self.held_input.contains(&c.input_mapping.select)),
         };
+
+        self.define_main_top_panel(ctx);
+        self.define_main_bottom_panel(ctx);
+        self.define_main_central_panel(ctx);
+
+        self.emulator.get_set_pause(Some(self.is_paused));
+        self.emulator.scrub_by(self.scrubbing_rate);
 
         self.emulator.update_controller(1, nes_button_state);
         self.emulator.update(ctx.input(|input| input.time));
-
-        self.define_main_top_panel(ctx);
-        self.define_main_central_panel(ctx);
-        self.define_main_bottom_panel(ctx);
 
         if self.show_cpu_debugger {
             self.define_cpu_debugger(ctx);

@@ -58,7 +58,7 @@ impl Apu {
         let sq1_output = apu::square_channel_output(&self.square1) * 1.0;
         let sq2_output = apu::square_channel_output(&self.square2) * 1.0;
         let tri_output = apu::triangle_channel_output(&self.triangle) * 1.0;
-        let noise = apu::noise_channel_output(&self.noise) * 1.0;
+        let noise = apu::noise_channel_output(&self.noise) * 0.5; // Noise is way too loud!
         let sample = apu::sample_channel_output(&self.sample) * 1.0;
 
         let epsilon = 0.00001;
