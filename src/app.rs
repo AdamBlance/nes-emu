@@ -71,7 +71,7 @@ pub struct MyApp {
 }
 
 const AXIS_DEADZONE: f32 = 0.1;
-const CONFIG_FILE: &str = "config.cbor";
+const CONFIG_FILE: &str = "config.json";
 
 impl MyApp {
     pub fn new(eframe_creation_ctx: &CreationContext) -> Self {
@@ -81,6 +81,7 @@ impl MyApp {
             TextureOptions {
                 magnification: TextureFilter::Nearest,
                 minification: TextureFilter::Nearest,
+                wrap_mode: Default::default(),
             },
         );
 
@@ -113,7 +114,7 @@ impl MyApp {
 
     pub fn read_from_config_file_or_default() -> PersistentData {
         match fs::read(CONFIG_FILE) {
-            Ok(data) => serde_cbor::from_slice(&data).unwrap_or_else(|_| {
+            Ok(data) => serde_json::from_slice(&data).unwrap_or_else(|_| {
                 eprintln!("Failed to decode config file");
                 PersistentData::default()
             }),
@@ -126,7 +127,7 @@ impl MyApp {
 
     pub fn write_to_config_file(data: &PersistentData) -> Result<(), &'static str> {
         let file_handle = File::create(CONFIG_FILE).map_err(|err| "Error opening config file")?;
-        serde_cbor::to_writer(file_handle, data).map_err(|err| "Error serializing config data")?;
+        serde_json::to_writer(file_handle, data).map_err(|err| "Error serializing config data")?;
         Ok(())
     }
 

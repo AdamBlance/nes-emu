@@ -1,3 +1,4 @@
 target/
 roms/
 .idea/
+config.json

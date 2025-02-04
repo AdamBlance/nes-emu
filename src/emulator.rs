@@ -210,6 +210,7 @@ impl Emulator {
                 TextureOptions {
                     magnification: TextureFilter::Nearest,
                     minification: TextureFilter::Nearest,
+                    wrap_mode: Default::default(),
                 },
             );
             true

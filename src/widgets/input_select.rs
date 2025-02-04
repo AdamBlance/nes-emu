@@ -105,7 +105,8 @@ impl<'a> Widget for InputSelect<'a> {
                 .rect(rect, 1.0, visuals.bg_fill, visuals.bg_stroke);
 
             let offset_pos = rect.center() - text_layout.rect.center();
-            ui.painter().galley(offset_pos.to_pos2(), text_layout);
+            ui.painter()
+                .galley(offset_pos.to_pos2(), text_layout, Color32::WHITE);
         }
         response
     }
