@@ -1,6 +1,6 @@
 use eframe::egui::{Color32, ColorImage, Key, TextureFilter, TextureOptions};
 use eframe::{egui, CreationContext, Storage};
-use gilrs::{Event, EventType, Gilrs};
+use gilrs::{Event, EventType, GamepadId, Gilrs};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
@@ -176,6 +176,8 @@ impl MyApp {
         }
 
         for (_id, gamepad) in self.gilrs.gamepads() {
+            // println!("gamepad: {} {:?} {}", gamepad.id(), gamepad.uuid(), gamepad.name());
+            println!("os name: {}", gamepad.os_name());
             let _ = self.controllers_input_mapping.try_insert(
                 Uuid::from_slice(&gamepad.uuid()).unwrap(),
                 ControllerConfig {

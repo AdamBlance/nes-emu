@@ -3,7 +3,7 @@ use crate::setup;
 use crate::widgets::input_select::InputSelect;
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
-use eframe::egui::{include_image, Color32, Image, RichText, ViewportBuilder, ViewportId};
+use eframe::egui::{include_image, Button, Color32, Image, RichText, ViewportBuilder, ViewportId};
 
 impl MyApp {
     pub fn define_main_top_panel(&mut self, ctx: &egui::Context) {
@@ -145,24 +145,6 @@ impl MyApp {
             ViewportBuilder::default().with_inner_size([500.0, 500.0]),
             |ctx, _class| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    egui::ComboBox::from_id_source("fuck")
-                        .selected_text(self.selected_controllers.0.map_or("None", |con| {
-                            self.controllers_input_mapping
-                                .get(&con)
-                                .unwrap()
-                                .name
-                                .as_str()
-                        }))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.selected_controllers.0, None, "None");
-                            for (uuid, controller_config) in self.controllers_input_mapping.iter() {
-                                ui.selectable_value(
-                                    &mut self.selected_controllers.0,
-                                    Some(*uuid),
-                                    &controller_config.name,
-                                );
-                            }
-                        });
                     egui::Grid::new("cool-grid").show(ui, |ui| {
                         if ctx.input(|ui| ui.focused) {
                             self.get_pressed_input(ctx);
@@ -171,11 +153,11 @@ impl MyApp {
                         let maybe_input = self.pressed_input.iter().next().copied();
 
                         ui.label("");
-                        ui.label("Keyboard");
-                        ui.label("Controller");
+                        ui.image(include_image!("../resources/keyboard-line.svg"));
+                        ui.image(include_image!("../resources/gamepad-line.svg"));
                         ui.end_row();
 
-                        ui.label("Up:");
+                        ui.label("UP:");
                         ui.add(InputSelect::new(
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.up),
@@ -198,7 +180,7 @@ impl MyApp {
                         );
                         ui.end_row();
 
-                        ui.label("Down:");
+                        ui.label("DOWN:");
                         ui.add(InputSelect::new(
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.down),
@@ -221,7 +203,7 @@ impl MyApp {
                         );
                         ui.end_row();
 
-                        ui.label("Left:");
+                        ui.label("LEFT:");
                         ui.add(InputSelect::new(
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.left),
@@ -244,7 +226,7 @@ impl MyApp {
                         );
                         ui.end_row();
 
-                        ui.label("Right:");
+                        ui.label("RIGHT:");
                         ui.add(InputSelect::new(
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.right),
@@ -313,7 +295,7 @@ impl MyApp {
                         );
                         ui.end_row();
 
-                        ui.label("Select:");
+                        ui.label("SELECT:");
                         ui.add(InputSelect::new(
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.select),
@@ -338,7 +320,7 @@ impl MyApp {
 
                         ui.end_row();
 
-                        ui.label("Start:");
+                        ui.label("START:");
                         ui.add(InputSelect::new(
                             maybe_input,
                             Some(&mut self.keyboard_input_mapping.0.start),
@@ -360,7 +342,40 @@ impl MyApp {
                             ),
                         );
                         ui.end_row();
+
+                        ui.label("");
+                        ui.label("");
+
+                        egui::ComboBox::from_id_source("fuck")
+                            .selected_text(self.selected_controllers.0.map_or("None", |con| {
+                                self.controllers_input_mapping
+                                    .get(&con)
+                                    .unwrap()
+                                    .name
+                                    .as_str()
+                            }))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut self.selected_controllers.0, None, "None");
+                                // println!("{:?}", &self.controllers_input_mapping);
+                                for (uuid, controller_config) in
+                                    self.controllers_input_mapping.iter()
+                                {
+                                    ui.horizontal(|ui| {
+                                        ui.selectable_value(
+                                            &mut self.selected_controllers.0,
+                                            Some(*uuid),
+                                            &controller_config.name,
+                                        );
+                                    });
+                                }
+                            });
+
+                        ui.end_row();
                     });
+
+                    // ui.horizontal(|ui| {
+                    // ui.label("Controller:");
+                    // });
                 });
 
                 if ctx.input(|i| i.viewport().close_requested()) {
