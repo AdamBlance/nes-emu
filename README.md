@@ -31,7 +31,7 @@ A handful of games are known to not work (one of which is Battletoads) due to a 
 Compiled binaries aren't yet available, so you must build from source.
 First install [Rust](https://www.rust-lang.org/tools/install) if you haven't already.
 
-    git clone https://github.com/AdamBlance/nes-emu
+    git clone https://github.com/AdamBlance/nes-emu.git
     cd nes-emu
     cargo build --release
 
