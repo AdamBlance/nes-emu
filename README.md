@@ -37,7 +37,7 @@ First install [Rust](https://www.rust-lang.org/tools/install) if you haven't alr
 
 A specific version of Rust nightly (as defined in `rust-toolchain.toml`) should be automatically installed when attempting to build (as the emulator depends on unstable features). 
 
-Run with `cargo run --release`.
+Run with `cargo run --release`. Note that without the `--release` flag the emulator will not perform well.
 
 If the emulator is struggling to keep up, try uncommenting the following lines in `Cargo.toml` and building again. 
 
@@ -46,7 +46,7 @@ If the emulator is struggling to keep up, try uncommenting the following lines i
     lto = "fat"
     codegen-units = 1
 
-This will take a long time but should yield the best performance.
+The compilation will take a long time but this should yield a binary that performs better. 
 
 ## References
 This project is not based on any existing emulator and was not developed with reference to any existing emulator code. 
