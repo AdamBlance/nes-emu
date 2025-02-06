@@ -42,7 +42,6 @@ Run with `cargo run --release`. Note that without the `--release` flag the emula
 If the emulator is struggling to keep up, try uncommenting the following lines in `Cargo.toml` and building again. 
 
     [profile.release]
-    panic = "abort"
     lto = "fat"
     codegen-units = 1
 
