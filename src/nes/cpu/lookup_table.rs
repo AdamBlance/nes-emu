@@ -211,8 +211,7 @@ impl Instruction {
             (_, LAS) => las,
             (_, LAX) => load_a_and_x,
             (_, SAX) => store_a_and_x,
-            (AbsoluteY, SHA) => sha_absolute,
-            (IndirectY, SHA) => sha_indirect,
+            (_, SHA) => sha,
             (_, SHX) => shx,
             (_, SHY) => shy,
             (_, SHS) => shs,
@@ -227,6 +226,7 @@ impl Instruction {
             (_, JAM) => jam,
             (_, ISB) => isb,
             (_, SBX) => sbx,
+            (_, XAA) => xaa,
             (_, _) => none,
         }
     }
@@ -1053,7 +1053,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction {
         name: XAA,
         mode: Immediate,
-        category: Unimplemented,
+        category: Imm,
     },
     Instruction {
         name: STY,

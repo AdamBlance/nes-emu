@@ -1,7 +1,6 @@
 use crate::nes::Nes;
 use crate::util::*;
 
-#[inline(always)]
 pub fn update_p_nz(nes: &mut Nes, val: u8) {
     nes.cpu.p_n = val > 0x7F;
     nes.cpu.p_z = val == 0;
@@ -295,30 +294,39 @@ pub fn arr(nes: &mut Nes) {
     update_p_nz(nes, nes.cpu.a);
 }
 
-// I think some of these are slightly wrong but nestest doesn't test them
-
 pub fn shs(nes: &mut Nes) {
     nes.cpu.s = nes.cpu.a & nes.cpu.x;
-    nes.cpu.data = (nes.cpu.s & nes.cpu.upper_address).wrapping_add(1);
+    nes.cpu.data = (nes.cpu.s & nes.cpu.upper_address.wrapping_sub(nes.cpu.internal_carry_out as u8).wrapping_add(1));
+    if nes.cpu.internal_carry_out {
+        nes.cpu.upper_address = nes.cpu.data;
+    }
 }
 
 pub fn shy(nes: &mut Nes) {
     nes.cpu.data = nes.cpu.y
-        & (nes
-            .cpu
-            .upper_address
-            .wrapping_add(1)
-            .wrapping_sub(nes.cpu.y));
+        & (nes.cpu.upper_address.wrapping_sub(nes.cpu.internal_carry_out as u8).wrapping_add(1));
+    if nes.cpu.internal_carry_out {
+        nes.cpu.upper_address = nes.cpu.data;
+    }
 }
 
 pub fn shx(nes: &mut Nes) {
-    nes.cpu.data = (nes.cpu.x & nes.cpu.upper_address).wrapping_add(1);
+    nes.cpu.data = nes.cpu.x & (nes.cpu.upper_address.wrapping_sub(nes.cpu.internal_carry_out as u8).wrapping_add(1));
+    if nes.cpu.internal_carry_out {
+        nes.cpu.upper_address = nes.cpu.data;
+    }
 }
 
-pub fn sha_indirect(nes: &mut Nes) {
-    nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.low_indirect_address;
+pub fn sha(nes: &mut Nes) {
+    let val = nes.cpu.a & nes.cpu.x & nes.cpu.upper_address.wrapping_sub(nes.cpu.internal_carry_out as u8).wrapping_add(1);
+    nes.cpu.data = val;
+    if nes.cpu.internal_carry_out {
+        nes.cpu.upper_address = nes.cpu.data;
+    }
 }
 
-pub fn sha_absolute(nes: &mut Nes) {
-    nes.cpu.data = nes.cpu.a & nes.cpu.x & nes.cpu.upper_address;
+pub fn xaa(nes: &mut Nes) {
+    // 0xEE - Magic nondeterministic value
+    nes.cpu.a = (nes.cpu.a | 0xEE) & nes.cpu.x & nes.cpu.data;
+    update_p_nz(nes, nes.cpu.a);
 }
