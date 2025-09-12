@@ -56,11 +56,8 @@ impl CartridgeM1 {
 #[typetag::serde]
 impl Cartridge for CartridgeM1 {
     // MMC1 can optionally have PRG RAM
-    fn read_prg_ram(&mut self, addr: u16) -> u8 {
-        match self.rom_data.prg_ram.as_ref() {
-            Some(ram) => ram[(addr - 0x6000) as usize],
-            None => 0,
-        }
+    fn read_prg_ram(&mut self, addr: u16) -> Option<u8> {
+        self.rom_data.prg_ram.as_ref()?.get((addr - 0x6000) as usize).cloned()
     }
     fn write_prg_ram(&mut self, addr: u16, byte: u8) {
         if let Some(ram) = self.rom_data.prg_ram.as_mut() {

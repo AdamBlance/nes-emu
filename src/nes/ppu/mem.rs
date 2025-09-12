@@ -61,3 +61,16 @@ pub fn vram_addr_to_nametables(addr: u16, mirroring: Mirroring) -> u16 {
         Mirroring::SingleScreenUpper => 0x400 + (truncated % 0x400),
     }
 }
+
+pub fn set_dynamic_latch(val: u8, nes: &mut Nes) {
+    nes.ppu.dynamic_latch = val;
+    nes.ppu.dynamic_latch_last_set_cycle = nes.ppu.cycles;
+}
+
+const PPU_DYNAMIC_LATCH_DECAY_TIME: u64 = 500000;
+pub fn get_dynamic_latch(nes: &mut Nes) -> u8 {
+    if nes.ppu.cycles - nes.ppu.dynamic_latch_last_set_cycle > PPU_DYNAMIC_LATCH_DECAY_TIME {
+        nes.ppu.dynamic_latch = 0;
+    }
+    nes.ppu.dynamic_latch
+}

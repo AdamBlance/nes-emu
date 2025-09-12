@@ -80,7 +80,9 @@ pub fn control_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
                 take_operand_as_low_address_byte(nes);
                 increment_pc(nes);
             }
-            2 => {}
+            2 => {
+                dummy_read_from_stack(nes);
+            }
             3 => {
                 push_upper_pc_to_stack(nes);
                 decrement_s(nes);

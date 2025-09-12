@@ -90,8 +90,8 @@ pub const KB: usize = 0x400;
 // All cartridges must implement this
 #[typetag::serde(tag = "type")]
 pub trait Cartridge: DynClone {
-    fn read_prg_ram(&mut self, _addr: u16) -> u8 {
-        0
+    fn read_prg_ram(&mut self, _addr: u16) -> Option<u8> {
+        None
     }
     fn write_prg_ram(&mut self, _addr: u16, _byte: u8) {}
 

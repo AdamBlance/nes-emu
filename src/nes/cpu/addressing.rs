@@ -95,6 +95,11 @@ pub fn dummy_read_from_address(nes: &mut Nes) {
     let addr = nes.cpu.get_address();
     nes.cpu.data = read_mem(addr, nes);
 }
+
+pub fn dummy_read_from_stack(nes: &mut Nes) {
+    nes.cpu.data = read_mem(nes.cpu.s as u16, nes);
+}
+
 pub fn dummy_read_from_pc_address(nes: &mut Nes) {
     nes.cpu.data = read_mem(nes.cpu.pc, nes);
 }

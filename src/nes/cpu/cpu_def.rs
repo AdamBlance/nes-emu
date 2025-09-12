@@ -38,6 +38,7 @@ pub struct Cpu {
     pub internal_carry_out: bool,
     pub cycles: u64,
     pub ppustatus_read_time: (i32, i32),
+    pub open_bus: u8,
     // Debugging
     pub instruction_count: u64,
 }

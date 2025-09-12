@@ -1,5 +1,6 @@
 use crate::nes::ppu;
 use crate::nes::Nes;
+use crate::nes::ppu::{get_dynamic_latch, set_dynamic_latch};
 
 const PPUCTRL: u16 = 0x2000;
 const PPUMASK: u16 = 0x2001;
@@ -47,13 +48,13 @@ pub fn read_mem(addr: u16, nes: &mut Nes) -> u8 {
 }
 
 pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
-    match addr {
+    let value = match addr {
         // Main memory, mirrored 4 times
-        0x0000..=0x1FFF => nes.wram[(addr % 0x800) as usize],
+        ..=0x1FFF => nes.wram[(addr % 0x800) as usize],
 
         // PPU memory mapped registers are mirrored through this range
         0x2000..=0x3FFF => match 0x2000 + (addr % 8) {
-            PPUCTRL | PPUMASK | OAMADDR | PPUSCROLL | PPUADDR => nes.ppu.dynamic_latch,
+            PPUCTRL | PPUMASK | OAMADDR | PPUSCROLL | PPUADDR => get_dynamic_latch(nes),
 
             // Reading PPUSTATUS clears flags
             PPUSTATUS => {
@@ -86,32 +87,32 @@ pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
 
                 */
 
-                let status = nes.ppu.get_ppustatus_byte() | (nes.ppu.dynamic_latch & 0b0001_1111);
+                let status = nes.ppu.get_ppustatus_byte() | (get_dynamic_latch(nes) & 0b0001_1111);
 
                 if !safe_read {
                     nes.ppu.in_vblank = false;
                     nes.ppu.w = false;
-                    nes.ppu.dynamic_latch = status
+                    set_dynamic_latch(status, nes);
                 }
                 status
             }
             OAMDATA => {
                 let addr = nes.ppu.oam_addr;
                 if !safe_read {
-                    nes.ppu.dynamic_latch = addr;
+                    set_dynamic_latch(addr, nes);
                 }
                 addr
             }
             PPUDATA => {
                 // PPUDATA latch behaves differently when reading palette data
-                if addr < 0x3F00 {
+                if nes.ppu.addr_bus < 0x3F00 {
                     // Read what was already in the buffer
                     let prev_data_in_buffer = nes.ppu.ppudata_buffer;
                     if !safe_read {
                         // Fill the buffer with the value read from VRAM
                         nes.ppu.ppudata_buffer = ppu::read_vram(nes.ppu.v, nes);
                         ppu::increment_v_after_ppudata_access(nes);
-                        nes.ppu.dynamic_latch = prev_data_in_buffer;
+                        set_dynamic_latch(prev_data_in_buffer, nes);
                     }
                     // Return what was in the buffer before memory read
                     prev_data_in_buffer
@@ -123,14 +124,16 @@ pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
                         nes.ppu.ppudata_buffer =
                             ppu::read_vram(nes.ppu.v.wrapping_sub(0x1000), nes);
                         ppu::increment_v_after_ppudata_access(nes);
-                        nes.ppu.dynamic_latch = data_in_memory;
+                        set_dynamic_latch(data_in_memory, nes);
                     }
                     // Return palette data from memory
                     data_in_memory
                 }
             }
-            _ => 0,
+            _ => unreachable!(),
         },
+
+        0x4000..=0x4014 => nes.cpu.open_bus,
 
         APU_STATUS_REG => {
             let result = nes.apu.square1.length_counter.min(1)
@@ -138,6 +141,7 @@ pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
                 | (nes.apu.triangle.length_counter.min(1) << 2)
                 | (nes.apu.noise.length_counter.min(1) << 3)
                 | ((nes.apu.sample.remaining_sample_bytes.min(1) as u8) << 4)
+                | (nes.cpu.open_bus & 0b0010_0000)
                 | ((nes.apu.interrupt_request as u8) << 6)
                 | ((nes.apu.sample.interrupt_request as u8) << 7);
             if !safe_read {
@@ -146,22 +150,27 @@ pub fn read_mem_with_safety(nes: &mut Nes, addr: u16, safe_read: bool) -> u8 {
             result
         }
 
-        CONTROLLER_1 => nes.con1.shift_out_button_state(),
-        CONTROLLER_2_AND_FRAME_COUNTER_REG => nes.con2.shift_out_button_state(),
+        CONTROLLER_1 => nes.con1.shift_out_button_state() | (nes.cpu.open_bus & 0b1110_0000),
+        CONTROLLER_2_AND_FRAME_COUNTER_REG => nes.con2.shift_out_button_state() | (nes.cpu.open_bus & 0b1110_0000),
 
         // Cartridge space
 
-        // TODO: Proper open bus behaviour
-        // https://www.nesdev.org/wiki/Open_bus_behavior
-        0x6000..=0x7FFF => nes.cart.read_prg_ram(addr),
+        0x4018..=0x5FFF => nes.cpu.open_bus,
 
-        0x8000..=0xFFFF => nes.cart.read_prg_rom(addr),
-
-        _ => 0,
+        0x6000..=0x7FFF => nes.cart.read_prg_ram(addr).unwrap_or(nes.cpu.open_bus),
+        0x8000.. => nes.cart.read_prg_rom(addr),
+    };
+    // 0x4015 is the only address that when read doesn't update the bus because the data bus isn't used
+    if addr != APU_STATUS_REG {
+        nes.cpu.open_bus = value;
     }
+    value
 }
 
+// PPU Memory operations should not be in this file
+
 pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
+    nes.cpu.open_bus = val;
     let val_u16 = val as u16;
     match addr {
         // Main memory, mirrored 4 times
@@ -171,7 +180,7 @@ pub fn write_mem(addr: u16, val: u8, nes: &mut Nes) {
 
         // PPU memory mapped registers are mirrored through this range
         0x2000..=0x3FFF => {
-            nes.ppu.dynamic_latch = val;
+            set_dynamic_latch(val, nes);
             match 0x2000 + (addr % 8) {
                 PPUCTRL => {
                     if nes.cpu.cycles < PPU_WARMUP {

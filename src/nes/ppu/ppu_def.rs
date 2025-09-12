@@ -70,6 +70,7 @@ pub struct Ppu {
     pub addr_bus: u16,
 
     pub dynamic_latch: u8,
+    pub dynamic_latch_last_set_cycle: u64
 }
 
 impl fmt::Debug for Ppu {
@@ -152,6 +153,7 @@ impl Ppu {
             addr_bus: 0,
 
             dynamic_latch: 0,
+            dynamic_latch_last_set_cycle: 0
         }
     }
 
