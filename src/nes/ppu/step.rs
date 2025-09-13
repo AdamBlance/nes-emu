@@ -438,7 +438,8 @@ pub fn step_ppu(nes: &mut Nes) {
 
         let vertically_flipped = (sprite_properties >> 7) == 1;
 
-        let tile_y = nes.ppu.scanline - (sprite_y as u32 as i32);
+        // TODO: On the pre-render scanline, we should just reuse what was fetched on the last scanline
+        let tile_y = (nes.ppu.scanline - (sprite_y as u32 as i32)).max(0);
 
         let offset = match (vertically_flipped, nes.ppu.tall_sprites) {
             (false, false) => tile_y,

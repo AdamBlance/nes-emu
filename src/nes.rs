@@ -4,6 +4,7 @@ pub mod controller;
 pub mod cpu;
 mod mem;
 pub mod ppu;
+pub mod mem_consts;
 
 use crate::nes::apu::Apu;
 use crate::nes::cartridge::Cartridge;
