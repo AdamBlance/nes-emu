@@ -64,6 +64,8 @@ fn clock_sample_timer(nes: &mut Nes) {
             && nes.apu.sample.remaining_sample_bytes > 0
             && nes.apu.sample.enabled
         {
+            // DMC DMA
+
             let new_sample_data = read_mem(nes.apu.sample.curr_sample_addr, nes);
             // println!("Sample curr addr {:04X}", nes.apu.sample.curr_sample_addr);
             // std::thread::sleep(std::time::Duration::from_millis(5));

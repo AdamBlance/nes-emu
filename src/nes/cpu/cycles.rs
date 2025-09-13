@@ -2,7 +2,6 @@ use crate::nes::cpu::addressing::*;
 use crate::nes::cpu::lookup_table::{Category::*, Mode::*, Name::*};
 use crate::nes::cpu::operation_funcs::{set_interrupt_inhibit_flag, update_p_nz};
 use crate::nes::Nes;
-use crate::util::is_neg;
 
 pub fn control_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
     match (nes.cpu.instruction.name, nes.cpu.instruction.mode) {
@@ -317,7 +316,7 @@ pub fn branch_instruction_cycles(nes: &mut Nes, instruction_cycle: i8) {
         }
         3 => {
             // Fix upper PC if page was crossed
-            if is_neg(nes.cpu.branch_offset) {
+            if nes.cpu.branch_offset > 0x7F {
                 nes.cpu.pc = nes.cpu.pc.wrapping_sub(1 << 8);
             } else {
                 nes.cpu.pc = nes.cpu.pc.wrapping_add(1 << 8);

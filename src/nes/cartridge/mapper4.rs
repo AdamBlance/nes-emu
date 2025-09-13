@@ -1,5 +1,5 @@
 use super::cartridge_def::{CartMemory, Cartridge, Mirroring, RomConfig, KB};
-use crate::util::get_bit_u16;
+use crate::util::get_bit;
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 
@@ -192,7 +192,7 @@ impl Cartridge for CartridgeM4 {
 
         self.a12_filtering_counter = self.a12_filtering_counter.saturating_sub(1);
 
-        let new_a12_value = get_bit_u16(addr_bus, 12);
+        let new_a12_value = get_bit(addr_bus, 12);
 
         // If PPU has gone from fetching background tiles to fetching sprite tiles
         if !self.last_a12_value && new_a12_value {

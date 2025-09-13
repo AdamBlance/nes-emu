@@ -193,8 +193,8 @@ pub fn step_ppu(nes: &mut Nes) {
         // Next, determine background pixel
 
         // Get background pattern
-        let bg_patt_lsb = get_bit_u16(nes.ppu.bg_ptable_lsb_sr, 15 - nes.ppu.x);
-        let bg_patt_msb = get_bit_u16(nes.ppu.bg_ptable_msb_sr, 15 - nes.ppu.x);
+        let bg_patt_lsb = get_bit(nes.ppu.bg_ptable_lsb_sr, 15 - nes.ppu.x);
+        let bg_patt_msb = get_bit(nes.ppu.bg_ptable_msb_sr, 15 - nes.ppu.x);
 
         for i in 0..8 {
             // If a sprite's x counter has reached zero, shift pattern table registers
@@ -471,7 +471,7 @@ pub fn step_ppu(nes: &mut Nes) {
                     data = 0;
                 }
                 if flip_horizontally {
-                    data = flip_byte(data);
+                    data = data.reverse_bits();
                 }
                 nes.ppu.sprite_ptable_lsb_srs[current_sprite] = data;
             }
@@ -482,7 +482,7 @@ pub fn step_ppu(nes: &mut Nes) {
                     data = 0;
                 }
                 if flip_horizontally {
-                    data = flip_byte(data);
+                    data = data.reverse_bits();
                 }
                 nes.ppu.sprite_ptable_msb_srs[current_sprite] = data;
             }
