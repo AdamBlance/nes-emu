@@ -1,173 +1,104 @@
-use super::addressing::*;
-use super::cycles::{
-    address_resolution_cycles, branch_instruction_cycles, control_instruction_cycles,
-    processing_cycles,
-};
-use super::lookup_table::{Category::*, INSTRUCTIONS};
-use super::operation_funcs::set_interrupt_inhibit_flag;
-use crate::nes::mem::read_mem;
+use std::thread::sleep;
+use std::time::Duration;
+use crate::nes::cpu::control_cycles::control_instruction_cycles;
+use crate::nes::cpu::lookup_table::{handle_address_resolution, Category, InstructionProgress::*, InterruptType::*, Mode};
+use super::cycles::{branch_instruction_cycles, processing_cycles};
+use super::lookup_table::{Category::*, InstructionProgress};
 use crate::nes::Nes;
+
+// Helper structs for readability
+struct StateMatch {
+    category: Option<Category>,
+    mode: Option<Mode>,
+    state: InstructionProgress,
+}
+use crate::nes::cpu::interrupt::interrupt_cycles;
+use crate::nes::cpu::simple_cycles::{fetch_opcode_from_pc_and_increment_pc, immediate_instruction_cycles, nonmemory_instruction_cycles};
 
 pub fn step_cpu(nes: &mut Nes) -> bool {
     nes.cart.cpu_tick();
 
-    if nes.cpu.instruction_cycle == 0 {
-        if nes.cpu.nmi_pending {
-            match nes.cpu.interrupt_cycle {
-                0 => {
-                    dummy_read_from_pc_address(nes);
-                    nes.cpu.irq_pending = false;
-                    nes.cpu.interrupt_vector = 0xFFFA;
-                }
-                1 => dummy_read_from_pc_address(nes),
-                2 => {
-                    push_upper_pc_to_stack(nes);
-                    decrement_s(nes);
-                }
-                3 => {
-                    push_lower_pc_to_stack(nes);
-                    decrement_s(nes);
-                }
-                4 => {
-                    push_p_to_stack_during_interrupt(nes);
-                    decrement_s(nes);
-                }
-                5 => {
-                    fetch_lower_pc_from_interrupt_vector(nes);
-                    set_interrupt_inhibit_flag(nes)
-                }
-                6 => {
-                    fetch_upper_pc_from_interrupt_vector(nes);
-                    nes.cpu.nmi_edge_detector_output = false;
-                    nes.cpu.nmi_pending = false;
-                    nes.cpu.interrupt_cycle = -1;
-                }
-                _ => unreachable!(),
-            }
-            nes.cpu.interrupt_cycle += 1;
-        }
-        // Ignore IRQ until the interrupt inhibit status flag is cleared
-        else if nes.cpu.irq_pending && !nes.cpu.p_i {
-            match nes.cpu.interrupt_cycle {
-                0 => {
-                    dummy_read_from_pc_address(nes);
-                    nes.cpu.interrupt_vector = 0xFFFE;
-                }
-                1 => dummy_read_from_pc_address(nes),
-                2 => {
-                    push_upper_pc_to_stack(nes);
-                    decrement_s(nes);
-                }
-                3 => {
-                    push_lower_pc_to_stack(nes);
-                    decrement_s(nes);
-                }
-                4 => {
-                    push_p_to_stack_during_interrupt(nes);
-                    decrement_s(nes);
-                }
-                5 => {
-                    fetch_lower_pc_from_interrupt_vector(nes);
-                }
-                6 => {
-                    set_interrupt_inhibit_flag(nes);
-                    fetch_upper_pc_from_interrupt_vector(nes);
-                    nes.cpu.irq_pending = false;
-                    nes.cpu.interrupt_cycle = -1;
-                }
-                _ => unreachable!(),
-            }
-            nes.cpu.interrupt_cycle += 1;
-        } else {
-            let opcode = read_mem(nes.cpu.pc, nes);
-            nes.cpu.instruction = INSTRUCTIONS[opcode as usize];
-            if nes.cpu.instruction.category == Unimplemented {
-                unimplemented!(
-                    "Unofficial instruction {:?} not implemented!",
-                    nes.cpu.instruction.name
-                );
-            }
+    let state = StateMatch {
+        state: nes.cpu.proc_state.progress,
+        category: try {nes.cpu.proc_state.instr?.category},
+        mode: try {nes.cpu.proc_state.instr?.mode},
+    };
 
-            increment_pc(nes);
+    // println!("{:?} -> {:?}", nes.cpu.proc_state.instr, state.state);
+    // sleep(Duration::from_millis(100));
 
-            // acknowledge interrupts on opcode fetch cycle for 2 cycle instructions
-            if nes.cpu.instruction.does_interrupt_poll_early() {
-                nes.cpu.nmi_pending = nes.cpu.nmi_edge_detector_output;
-                nes.cpu.irq_pending = nes.cpu.prev_irq_signal && !nes.cpu.p_i;
-            }
+    nes.cpu.proc_state.progress = match state {
 
-            end_cycle(nes);
-        }
-        return false;
-    }
-
-    let instr = nes.cpu.instruction;
-    let func = nes.cpu.instruction.func();
-
-    match instr.category {
-        Control => control_instruction_cycles(nes, nes.cpu.instruction_cycle),
-        Branch => branch_instruction_cycles(nes, nes.cpu.instruction_cycle),
-        Imm => {
-            fetch_immediate_from_pc(nes);
-            func(nes);
-            increment_pc(nes);
-            nes.cpu.instruction_done = true;
-        }
-        Read | Write | ReadModifyWrite => {
-            address_resolution_cycles(nes, nes.cpu.instruction_cycle);
-            let offset_cycles = nes.cpu.instruction_cycle - instr.address_resolution_cycles();
-            if offset_cycles > 0 {
-                processing_cycles(nes, offset_cycles);
+        // If no instruction is being executed, fetch the next opcode or start handling pending interrupts
+        StateMatch {
+            state: NotStarted, ..
+        } => {
+            if nes.cpu.interrupts.nmi_pending {
+                interrupt_cycles(NMI, NotStarted, nes)
+            } else if nes.cpu.interrupts.irq_pending && !nes.cpu.reg.p_i {
+                interrupt_cycles(IRQ, NotStarted, nes)
+            } else {
+                fetch_opcode_from_pc_and_increment_pc(nes)
             }
         }
-        NonMemory => {
-            func(nes);
-            dummy_read_from_pc_address(nes);
-            nes.cpu.instruction_done = true;
+
+        StateMatch {
+            state: s @ InInterrupt(interrupt_type, _), ..
+        } =>
+            interrupt_cycles(interrupt_type, s, nes),
+
+        // Handle instructions
+        StateMatch {
+            category: Some(Read | Write | ReadModifyWrite),
+            mode: Some(mode),
+            state: state @ (FetchedOpcode | AddrResolution(_))
+        } =>
+            handle_address_resolution(mode, state, nes),
+
+        StateMatch {
+            category: Some(category @ (Read | Write | ReadModifyWrite)),
+            state: s @ (FinishedAddrResolution | Processing(_)), ..
+        } =>
+            processing_cycles(category, s, nes),
+
+        StateMatch {
+            category: Some(category),
+            state: s @ (FetchedOpcode | Processing(_)), ..
+        } => match category {
+            Branch => branch_instruction_cycles(s, nes),
+            Control => control_instruction_cycles(s, nes),
+            Imm => immediate_instruction_cycles(s, nes),
+            NonMemory => nonmemory_instruction_cycles(s, nes),
+            _ => unreachable!(),
         }
         _ => unreachable!(),
+    };
+
+    if nes.cpu.proc_state.progress == NotStarted {
+        // println!("{:?}", nes.cpu.proc_state.instr.unwrap().name);
+        // if !nes.cpu.proc_state.instr.unwrap().does_interrupt_poll_early() {
+         {
+             nes.cpu.clear_internal_registers();
+             nes.cpu.proc_state.instr = None;
+            nes.cpu.interrupts.nmi_pending = nes.cpu.interrupts.nmi_edge_detector_output;
+            nes.cpu.interrupts.irq_pending = nes.cpu.interrupts.prev_irq_signal && !nes.cpu.reg.p_i;
+        }
     }
 
-    let instr_done = nes.cpu.instruction_done;
-    if nes.cpu.instruction_done {
-        end_instr(nes);
-    }
     end_cycle(nes);
-    instr_done
+
+
+
+
+    nes.cpu.proc_state.progress == NotStarted
 }
 
 fn end_cycle(nes: &mut Nes) {
-    if !nes.cpu.prev_nmi_signal && nes.ppu.nmi_line {
-        nes.cpu.nmi_edge_detector_output = true;
+    if !nes.cpu.interrupts.prev_nmi_signal && nes.ppu.nmi_line {
+        nes.cpu.interrupts.nmi_edge_detector_output = true;
     }
-    nes.cpu.prev_nmi_signal = nes.ppu.nmi_line;
-    nes.cpu.prev_irq_signal = nes.apu.asserting_irq() || nes.cart.asserting_irq();
+    nes.cpu.interrupts.prev_nmi_signal = nes.ppu.nmi_line;
+    nes.cpu.interrupts.prev_irq_signal = nes.apu.asserting_irq() || nes.cart.asserting_irq();
 
-    nes.cpu.cycles += 1;
-    nes.cpu.instruction_cycle += 1;
-}
-
-fn end_instr(nes: &mut Nes) {
-    nes.cpu.data = 0;
-    nes.cpu.lower_address = 0;
-    nes.cpu.upper_address = 0;
-    nes.cpu.low_indirect_address = 0;
-    nes.cpu.high_indirect_address = 0;
-    nes.cpu.internal_carry_out = false;
-    nes.cpu.branch_offset = 0;
-    nes.cpu.branching = false;
-
-    // For most instructions, interrupt polling happens on final cycle, so here
-    // Two cycle instructions do the polling at the end of the first cycle instead
-    // PLP also? It's not a two cycle instruction though.
-
-    if !nes.cpu.instruction.does_interrupt_poll_early() {
-        nes.cpu.nmi_pending = nes.cpu.nmi_edge_detector_output;
-        nes.cpu.irq_pending = nes.cpu.prev_irq_signal && !nes.cpu.p_i;
-    }
-
-    nes.cpu.instruction_cycle = -1;
-    nes.cpu.instruction_done = false;
-
-    nes.cpu.instruction_count += 1;
+    nes.cpu.debug.cycles += 1;
 }

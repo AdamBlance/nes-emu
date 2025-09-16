@@ -6,7 +6,7 @@ pub fn apu_status_read(nes: &mut crate::nes::Nes) -> u8 {
         | (nes.apu.triangle.length_counter.min(1) << 2)
         | (nes.apu.noise.length_counter.min(1) << 3)
         | ((nes.apu.sample.remaining_sample_bytes.min(1) as u8) << 4)
-        | (nes.cpu.open_bus & 0b0010_0000)
+        | (nes.cpu.ireg.open_bus & 0b0010_0000)
         | ((nes.apu.interrupt_request as u8) << 6)
         | ((nes.apu.sample.interrupt_request as u8) << 7);
     nes.apu.interrupt_request = false;

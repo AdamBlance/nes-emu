@@ -1,79 +1,3 @@
-/*
-+------+-------------------+---+--------------------------------------------------------------+
-| ACC  | Accumulator       | 1 | operates on the accumulator                                  |
-| IMM  | Immediate         | 2 | 2nd byte contains operand                                    |
-| ABS  | Absolute          | 3 | 2nd and 3rd bytes (lower, higher) encode address             |
-| ABSX | Indexed absolute  | 3 | 2nd and 3rd bytes (lower, higher) encode address, X is added |
-| ABSY | Indexed absolute  | 3 | 2nd and 3rd bytes (lower, higher) encode address, Y is added |
-| ZPG  | Zero page         | 2 | 2nd byte encodes address                                     |
-| ZPGX | Indexed zero page | 2 | 2nd byte encodes address, X is added (mod 2^8)               |
-| ZPGY | Indexed zero page | 2 | 2nd byte encodes address, Y is added (mod 2^8)               |
-| INDX | Indexed indirect  | 2 | 2nd byte encodes address, X is added (mod 2^8),              |
-|      |                   |   | location and neighbour contain indirect address              |
-| INDY | Indirect indexed  | 2 | 2nd byte encodes address, Y is added to value in address,    |
-|      |                   |   | producing new indirect address                               |
-| ---- | Implied           | 1 | address is hard coded into instruction                       |
-| ---- | Relative          | 2 | used for conditional branch, 2nd byte is an offset for PC    |
-| ---- | Absolute indirect | 3 | used for JMP only                                            |
-+------+-------------------+---+--------------------------------------------------------------+
-*/
-
-/*
-Immediate
-LDA F4
-
-Zero page
-LDA MEM[AB]
-LDA MEM[AB] = F4
-
-Zero page X/Y
-LDA MEM[B1]
-LDA MEM[AB + Y]
-LDA MEM[AB + Y] = F4
-LDA MEM[AB + Y(06)] = F4
-LDA MEM[AB + Y(06) = B1] = F4
-LDA MEM[AB + Y(06) mod 100 = B1] = F4
-
-Absolute
-LDA MEM[89AB]
-LDA MEM[89AB] = F4
-
-Absolute X/Y
-LDA MEM[89AB + Y]
-LDA MEM[89AB + Y] = F4
-LDA MEM[89AB + Y(06)] = F4
-LDA MEM[89AB + Y(06) = 89B1] = F4
-
-Indirect X
-LDA MEM[ ZP[AB+X,+1] = 89B1 ] = F4
-
-
-Indirect Y
-LDA MEM[ MEM[AB+1]::MEM[AB] + Y ]
-LDA MEM[ MEM[AB+1]::MEM[AB] + Y(06) ]
-LDA MEM[ ZP[AB,+1] + Y(06) = 89AB ]
-
-Attributes:
- - What's in memory there (right at the end)
- - What's the value of that register
-
-
-Columns should be like this
-
-Address of instruction
-Instruction
-Value being used (either immediate or read from memory)
-
-Address value was retrieved from
-So maybe this could be shown like
-89B1 = 89AB + Y(06)
-
-
-
-
-
- */
-
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Error,
@@ -83,7 +7,8 @@ use std::{
 use Category::*;
 use Mode::*;
 use Name::*;
-
+use crate::nes::cpu::addressing::{add_lower_address_carry_bit_to_upper_address, add_x_to_low_address_byte, add_x_to_low_indirect_address_byte, add_y_to_low_address_byte, dummy_read_from_address, dummy_read_from_indirect_address, dummy_write_to_address, fetch_high_address_byte_using_indirect_address, fetch_low_address_byte_using_indirect_address, increment_pc, read_from_address, take_operand_as_high_address_byte, take_operand_as_low_address_byte, take_operand_as_low_indirect_address_byte, write_to_address};
+use crate::nes::cpu::lookup_table::InstructionProgress::*;
 use super::operation_funcs::*;
 use crate::nes::Nes;
 
@@ -94,12 +19,31 @@ pub struct Instruction {
     pub category: Category,
 }
 
+
+type Cycle = u8;
+#[derive(Copy, Clone, Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum InstructionProgress {
+    #[default]
+    NotStarted,
+    FetchedOpcode,
+    InInterrupt(InterruptType, Cycle),
+    AddrResolution(Cycle),
+    FinishedAddrResolution,
+    Processing(Cycle),
+}
+#[derive(Copy, Clone, Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum InterruptType {
+    #[default]
+    NMI,
+    IRQ,
+}
+
 impl Default for Instruction {
     fn default() -> Self {
         Instruction {
             name: NOP,
             mode: Implied,
-            category: Unimplemented,
+            category: NonMemory,
         }
     }
 }
@@ -332,6 +276,125 @@ pub enum Mode {
     AbsoluteI,
 }
 
+    pub fn handle_address_resolution(addr_mode: Mode, cycle: InstructionProgress, nes: &mut Nes) -> InstructionProgress {
+        match addr_mode {
+            ZeroPage => match cycle  {
+                FetchedOpcode => {
+                    take_operand_as_low_address_byte(nes);
+                    increment_pc(nes);
+                    FinishedAddrResolution
+                }
+                _ => unreachable!(),
+            },
+            ZeroPageX => match cycle {
+                FetchedOpcode => {
+                    take_operand_as_low_address_byte(nes);
+                    increment_pc(nes);
+                    AddrResolution(0)
+                }
+                AddrResolution(0) => {
+                    dummy_read_from_address(nes);
+                    add_x_to_low_address_byte(nes);
+                    FinishedAddrResolution
+                }
+                _ => unreachable!(),
+            },
+            ZeroPageY => match cycle {
+                FetchedOpcode => {
+                    take_operand_as_low_address_byte(nes);
+                    increment_pc(nes);
+                    AddrResolution(0)
+                }
+                AddrResolution(0) => {
+                    dummy_read_from_address(nes);
+                    add_y_to_low_address_byte(nes);
+                    FinishedAddrResolution
+                }
+                _ => unreachable!(),
+            },
+            Absolute => match cycle {
+                FetchedOpcode => {
+                    take_operand_as_low_address_byte(nes);
+                    increment_pc(nes);
+                    AddrResolution(0)
+                }
+                AddrResolution(0) => {
+                    take_operand_as_high_address_byte(nes);
+                    increment_pc(nes);
+                    FinishedAddrResolution
+                }
+                _ => unreachable!(),
+            },
+            AbsoluteX => match cycle {
+                FetchedOpcode => {
+                    take_operand_as_low_address_byte(nes);
+                    increment_pc(nes);
+                    AddrResolution(0)
+                }
+                AddrResolution(0) => {
+                    take_operand_as_high_address_byte(nes);
+                    add_x_to_low_address_byte(nes);
+                    increment_pc(nes);
+                    FinishedAddrResolution
+                }
+                _ => unreachable!(),
+            },
+            AbsoluteY => match cycle {
+                FetchedOpcode => {
+                    take_operand_as_low_address_byte(nes);
+                    increment_pc(nes);
+                    AddrResolution(0)
+                }
+                AddrResolution(0) => {
+                    take_operand_as_high_address_byte(nes);
+                    add_y_to_low_address_byte(nes);
+                    increment_pc(nes);
+                    FinishedAddrResolution
+                }
+                _ => unreachable!(),
+            },
+            IndirectX => match cycle {
+                FetchedOpcode => {
+                    take_operand_as_low_indirect_address_byte(nes);
+                    increment_pc(nes);
+                    AddrResolution(0)
+                }
+                AddrResolution(0) => {
+                    dummy_read_from_indirect_address(nes);
+                    add_x_to_low_indirect_address_byte(nes);
+                    AddrResolution(1)
+                }
+                AddrResolution(1) => {
+                    fetch_low_address_byte_using_indirect_address(nes);
+                    AddrResolution(2)
+                }
+                AddrResolution(2) => {
+                    fetch_high_address_byte_using_indirect_address(nes);
+                    FinishedAddrResolution
+                }
+                _ => unreachable!(),
+            },
+            IndirectY => match cycle {
+                FetchedOpcode => {
+                    take_operand_as_low_indirect_address_byte(nes);
+                    increment_pc(nes);
+                    AddrResolution(0)
+                }
+                AddrResolution(0) => {
+                    fetch_low_address_byte_using_indirect_address(nes);
+                    AddrResolution(1)
+                }
+                AddrResolution(1) => {
+                    fetch_high_address_byte_using_indirect_address(nes);
+                    add_y_to_low_address_byte(nes);
+                    FinishedAddrResolution
+                }
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        }
+    }
+
 #[derive(Default, Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Category {
     Control,
@@ -341,8 +404,7 @@ pub enum Category {
     Read,
     ReadModifyWrite,
     Write,
-    Imm,
-    Unimplemented,
+    Imm, // Might be redundant, could be nonmemory
 }
 
 pub static INSTRUCTIONS: [Instruction; 256] = [

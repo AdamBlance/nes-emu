@@ -12,7 +12,7 @@ const STEP_5: u16 = 18641;
 // dividers, counters, sequencers are so common here that an "abstract" implementation might be nice
 
 pub fn step_apu(nes: &mut Nes) {
-    if nes.cpu.cycles % 2 == 0 {
+    if nes.cpu.debug.cycles % 2 == 0 {
         clock_frame_sequencer(nes);
         clock_pulse_timer(&mut nes.apu.square1); // why is this possible?
         clock_pulse_timer(&mut nes.apu.square2);

@@ -263,7 +263,7 @@ impl Emulator {
     fn try_audio_sample(&mut self) {
         if !self.paused {
             if let Some(nes) = self.nes.as_mut() {
-                let cycle_diff = nes.cpu.cycles - self.cpu_cycle_at_last_sample;
+                let cycle_diff = nes.cpu.debug.cycles - self.cpu_cycle_at_last_sample;
 
                 if (cycle_diff == self.cached_cycles_per_sample.floor() as u64
                     && self.avg_sample_rate > self.cached_cycles_per_sample as f64)
@@ -308,9 +308,9 @@ impl Emulator {
 
             let rolling_average = EXPONENTIAL_MOVING_AVG_BETA * self.avg_sample_rate
                 + (1.0 - EXPONENTIAL_MOVING_AVG_BETA)
-                    * (nes.cpu.cycles - self.cpu_cycle_at_last_sample) as f64;
+                    * (nes.cpu.debug.cycles - self.cpu_cycle_at_last_sample) as f64;
 
-            self.cpu_cycle_at_last_sample = nes.cpu.cycles;
+            self.cpu_cycle_at_last_sample = nes.cpu.debug.cycles;
             self.avg_sample_rate = rolling_average;
         }
     }

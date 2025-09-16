@@ -17,120 +17,139 @@ use crate::util::concat_u8;
 // PC
 
 pub fn increment_pc(nes: &mut Nes) {
-    nes.cpu.pc = nes.cpu.pc.wrapping_add(1);
+    nes.cpu.reg.pc = nes.cpu.reg.pc.wrapping_add(1);
 }
 pub fn copy_address_to_pc(nes: &mut Nes) {
-    nes.cpu.pc = nes.cpu.get_address();
+    nes.cpu.reg.pc = nes.cpu.get_address();
 }
 pub fn fetch_lower_pc_from_interrupt_vector(nes: &mut Nes) {
-    let lower = read_mem(nes.cpu.interrupt_vector, nes);
+    let lower = read_mem(nes.cpu.interrupts.interrupt_vector, nes);
     nes.cpu.set_lower_pc(lower);
 }
 pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
-    let upper = read_mem(nes.cpu.interrupt_vector + 1, nes);
+    let upper = read_mem(nes.cpu.interrupts.interrupt_vector + 1, nes);
     nes.cpu.set_upper_pc(upper);
 }
 
 // Immediate
 
 pub fn fetch_immediate_from_pc(nes: &mut Nes) {
-    nes.cpu.data = read_mem(nes.cpu.pc, nes);
+    nes.cpu.ireg.data = read_mem(nes.cpu.reg.pc, nes);
 }
 
 // Address
 
 pub fn take_operand_as_low_address_byte(nes: &mut Nes) {
-    nes.cpu.lower_address = read_mem(nes.cpu.pc, nes);
+    nes.cpu.ireg.lower_address = read_mem(nes.cpu.reg.pc, nes);
 }
 pub fn take_operand_as_high_address_byte(nes: &mut Nes) {
-    nes.cpu.upper_address = read_mem(nes.cpu.pc, nes);
+    nes.cpu.ireg.upper_address = read_mem(nes.cpu.reg.pc, nes);
 }
 pub fn fetch_low_address_byte_using_indirect_address(nes: &mut Nes) {
-    nes.cpu.lower_address = read_mem(nes.cpu.get_pointer(), nes);
+    nes.cpu.ireg.lower_address = read_mem(nes.cpu.get_pointer(), nes);
 }
 pub fn fetch_high_address_byte_using_indirect_address(nes: &mut Nes) {
-    nes.cpu.upper_address = read_mem(
+    nes.cpu.ireg.upper_address = read_mem(
         concat_u8(
-            nes.cpu.high_indirect_address,
-            nes.cpu.low_indirect_address.wrapping_add(1),
+            nes.cpu.ireg.high_indirect_address,
+            nes.cpu.ireg.low_indirect_address.wrapping_add(1),
         ),
         nes,
     );
 }
 fn add_index_to_lower_address_and_set_carry(index: u8, nes: &mut Nes) {
-    let (new_val, was_overflow) = nes.cpu.lower_address.overflowing_add(index);
-    nes.cpu.lower_address = new_val;
-    nes.cpu.internal_carry_out = was_overflow;
+    let (new_val, was_overflow) = nes.cpu.ireg.lower_address.overflowing_add(index);
+    nes.cpu.ireg.lower_address = new_val;
+    nes.cpu.ireg.carry_out = was_overflow;
 }
 pub fn add_x_to_low_address_byte(nes: &mut Nes) {
-    add_index_to_lower_address_and_set_carry(nes.cpu.x, nes);
+    add_index_to_lower_address_and_set_carry(nes.cpu.reg.x, nes);
 }
 pub fn add_y_to_low_address_byte(nes: &mut Nes) {
-    add_index_to_lower_address_and_set_carry(nes.cpu.y, nes);
+    add_index_to_lower_address_and_set_carry(nes.cpu.reg.y, nes);
 }
 pub fn add_lower_address_carry_bit_to_upper_address(nes: &mut Nes) {
-    let carry_in = nes.cpu.internal_carry_out as u8;
-    nes.cpu.upper_address = nes.cpu.upper_address.wrapping_add(carry_in);
+    let carry_in = nes.cpu.ireg.carry_out as u8;
+    nes.cpu.ireg.upper_address = nes.cpu.ireg.upper_address.wrapping_add(carry_in);
 }
 
 // Pointer (indirect addressing)
 
 pub fn take_operand_as_low_indirect_address_byte(nes: &mut Nes) {
-    nes.cpu.low_indirect_address = read_mem(nes.cpu.pc, nes);
+    nes.cpu.ireg.low_indirect_address = read_mem(nes.cpu.reg.pc, nes);
 }
 pub fn take_operand_as_high_indirect_address_byte(nes: &mut Nes) {
-    nes.cpu.high_indirect_address = read_mem(nes.cpu.pc, nes);
+    nes.cpu.ireg.high_indirect_address = read_mem(nes.cpu.reg.pc, nes);
 }
 pub fn add_x_to_low_indirect_address_byte(nes: &mut Nes) {
-    nes.cpu.low_indirect_address = nes.cpu.low_indirect_address.wrapping_add(nes.cpu.x);
+    nes.cpu.ireg.low_indirect_address = nes.cpu.ireg.low_indirect_address.wrapping_add(nes.cpu.reg.x);
 }
 
 // Data read
 
 pub fn read_from_address(nes: &mut Nes) {
     let addr = nes.cpu.get_address();
-    nes.cpu.data = read_mem(addr, nes);
+    nes.cpu.ireg.data = read_mem(addr, nes);
 }
 pub fn dummy_read_from_address(nes: &mut Nes) {
     let addr = nes.cpu.get_address();
-    nes.cpu.data = read_mem(addr, nes);
+    nes.cpu.ireg.data = read_mem(addr, nes);
 }
 
 pub fn dummy_read_from_stack(nes: &mut Nes) {
-    nes.cpu.data = read_mem(nes.cpu.s as u16, nes);
+    nes.cpu.ireg.data = read_mem(nes.cpu.reg.s as u16, nes);
 }
 
 pub fn dummy_read_from_pc_address(nes: &mut Nes) {
-    nes.cpu.data = read_mem(nes.cpu.pc, nes);
+    nes.cpu.ireg.data = read_mem(nes.cpu.reg.pc, nes);
 }
 pub fn dummy_read_from_indirect_address(nes: &mut Nes) {
-    nes.cpu.data = read_mem(nes.cpu.get_pointer(), nes);
+    nes.cpu.ireg.data = read_mem(nes.cpu.get_pointer(), nes);
 }
 
 // Write data
 
 pub fn write_to_address(nes: &mut Nes) {
     let addr = nes.cpu.get_address();
-    write_mem(addr, nes.cpu.data, nes);
+    write_mem(addr, nes.cpu.ireg.data, nes);
+}
+
+pub fn dummy_write_to_address(nes: &mut Nes) {
+    write_to_address(nes);
 }
 
 // Relative addressing (branches)
 
 pub fn fetch_branch_offset_from_pc(nes: &mut Nes) {
-    nes.cpu.branch_offset = read_mem(nes.cpu.pc, nes);
+    nes.cpu.ireg.branch_offset = read_mem(nes.cpu.reg.pc, nes);
+}
+
+pub fn add_branch_offset_to_lower_pc_and_set_carry(nes: &mut Nes) {
+    let (new_pcl, overflow) = (nes.cpu.reg.pc as u8)
+        .overflowing_add_signed(nes.cpu.ireg.branch_offset as i8);
+    nes.cpu.set_lower_pc(new_pcl);
+    nes.cpu.ireg.carry_out = overflow;
+}
+
+pub fn fix_upper_pc_after_page_crossing_branch(nes: &mut Nes) {
+    if (nes.cpu.ireg.branch_offset as i8).is_negative() {
+        nes.cpu.reg.pc = nes.cpu.reg.pc.wrapping_sub(1 << 8);
+    } else {
+        nes.cpu.reg.pc = nes.cpu.reg.pc.wrapping_add(1 << 8);
+    }
 }
 
 // Stack push
 
 fn push_to_stack(value: u8, nes: &mut Nes) {
-    let stack_addr = 0x0100 + nes.cpu.s as u16;
+    let stack_addr = 0x0100 + nes.cpu.reg.s as u16;
     write_mem(stack_addr, value, nes);
 }
 pub fn push_lower_pc_to_stack(nes: &mut Nes) {
-    push_to_stack(nes.cpu.pc as u8, nes);
+    push_to_stack(nes.cpu.reg.pc as u8, nes);
 }
 pub fn push_upper_pc_to_stack(nes: &mut Nes) {
-    push_to_stack((nes.cpu.pc >> 8) as u8, nes);
+    push_to_stack((nes.cpu.reg.pc >> 8) as u8, nes);
 }
 pub fn push_p_to_stack_during_break_or_php(nes: &mut Nes) {
     push_to_stack(nes.cpu.get_p() | 0b0011_0000, nes);
@@ -139,13 +158,13 @@ pub fn push_p_to_stack_during_interrupt(nes: &mut Nes) {
     push_to_stack(nes.cpu.get_p() | 0b0010_0000, nes);
 }
 pub fn push_a_to_stack(nes: &mut Nes) {
-    push_to_stack(nes.cpu.a, nes);
+    push_to_stack(nes.cpu.reg.a, nes);
 }
 
 // Stack pull
 
 fn pull_from_stack(nes: &mut Nes) -> u8 {
-    let stack_addr = 0x0100 + nes.cpu.s as u16;
+    let stack_addr = 0x0100 + nes.cpu.reg.s as u16;
     read_mem(stack_addr, nes)
 }
 pub fn pull_lower_pc_from_stack(nes: &mut Nes) {
@@ -162,14 +181,14 @@ pub fn pull_p_from_stack(nes: &mut Nes) {
 }
 pub fn pull_a_from_stack(nes: &mut Nes) {
     let a_reg = pull_from_stack(nes);
-    nes.cpu.a = a_reg;
+    nes.cpu.reg.a = a_reg;
 }
 
 // Register operations
 
 pub fn increment_s(nes: &mut Nes) {
-    nes.cpu.s = nes.cpu.s.wrapping_add(1);
+    nes.cpu.reg.s = nes.cpu.reg.s.wrapping_add(1);
 }
 pub fn decrement_s(nes: &mut Nes) {
-    nes.cpu.s = nes.cpu.s.wrapping_sub(1);
+    nes.cpu.reg.s = nes.cpu.reg.s.wrapping_sub(1);
 }

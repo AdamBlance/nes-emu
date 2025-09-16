@@ -111,7 +111,7 @@ impl App {
                                 .emulator
                                 .instruction_cache
                                 .binary_search_by_key(
-                                    &self.emulator.nes.as_ref().unwrap().cpu.pc,
+                                    &self.emulator.nes.as_ref().unwrap().cpu.reg.pc,
                                     |x| x.opc_addr,
                                 )
                                 .unwrap_or_else(|i| i);
@@ -130,7 +130,7 @@ impl App {
                                         let debug_instr = self.emulator.instruction_cache[row];
                                         let text =
                                             RichText::new(debug_instr.debug_string()).monospace();
-                                        if debug_instr.opc_addr == nes.cpu.pc {
+                                        if debug_instr.opc_addr == nes.cpu.reg.pc {
                                             ui.label(text.color(Color32::RED));
                                         } else {
                                             ui.label(text);

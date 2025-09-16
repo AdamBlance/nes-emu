@@ -1,6 +1,7 @@
 use crate::nes::cartridge::Mirroring;
 use crate::nes::{ppu, Nes};
 use crate::nes::mem_consts::*;
+use crate::nes::ppu::consts::*;
 
 
 
@@ -40,14 +41,14 @@ pub fn memory_mapped_register_read(addr: u16, nes: &mut Nes) -> u8 {
 
 pub fn memory_mapped_register_write(addr: u16, val: u8, nes: &mut Nes) {
     const PPU_WARMUP: u64 = 29658;
-    if matches!(addr, PPUCTRL_2000 | PPUMASK_2001 | PPUSCROLL_2005 | PPUADDR_2006) && nes.cpu.cycles < PPU_WARMUP {
+    if matches!(addr, PPUCTRL_2000 | PPUMASK_2001 | PPUSCROLL_2005 | PPUADDR_2006) && nes.cpu.debug.cycles < PPU_WARMUP {
         return
     }
     set_dynamic_latch(val, nes);
     match 0x2000 + (addr % 8) {
         PPUCTRL_2000 => {
             nes.ppu.set_ppuctrl_from_byte(val);
-            nes.ppu.t &= !ppu::NAMETABLE;
+            nes.ppu.t &= !NAMETABLE;
             nes.ppu.t |= (val as u16 & 0b11) << 10;
         }
         PPUMASK_2001 =>
@@ -60,14 +61,14 @@ pub fn memory_mapped_register_write(addr: u16, val: u8, nes: &mut Nes) {
         }
         PPUSCROLL_2005 if !nes.ppu.w => {
             // Put x-scroll into t and x after first write
-            nes.ppu.t &= !ppu::COARSE_X;
+            nes.ppu.t &= !COARSE_X;
             nes.ppu.t |= val as u16 >> 3;
             nes.ppu.x = val & 0b111;
             nes.ppu.w = !nes.ppu.w;
         }
         PPUSCROLL_2005 if nes.ppu.w => {
             // Put y-scroll into, t after second write
-            nes.ppu.t &= !(ppu::COARSE_Y | ppu::FINE_Y);
+            nes.ppu.t &= !(COARSE_Y | FINE_Y);
             nes.ppu.t |= (val as u16 & 0b11111_000) << 2;
             nes.ppu.t |= (val as u16 & 0b00000_111) << 12;
             nes.ppu.w = !nes.ppu.w;
