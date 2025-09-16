@@ -1,5 +1,6 @@
 use std::thread::sleep;
 use std::time::Duration;
+use crate::nes::cpu::addressing::{add_lower_address_carry_bit_to_upper_address, dummy_read_from_address, read_from_address};
 use crate::nes::cpu::control_cycles::control_instruction_cycles;
 use crate::nes::cpu::lookup_table::{handle_address_resolution, Category, InstructionProgress::*, InterruptType::*, Mode};
 use super::cycles::{branch_instruction_cycles, processing_cycles};
@@ -27,16 +28,20 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
     // println!("{:?} -> {:?}", nes.cpu.proc_state.instr, state.state);
     // sleep(Duration::from_millis(100));
 
+    // Probably should change these functions knowing about the function by just addressing nes.cpu.blah
+    // Like the functions should just change the register state.
+
+
     nes.cpu.proc_state.progress = match state {
 
         // If no instruction is being executed, fetch the next opcode or start handling pending interrupts
         StateMatch {
-            state: NotStarted, ..
+            state: Finished, ..
         } => {
             if nes.cpu.interrupts.nmi_pending {
-                interrupt_cycles(NMI, NotStarted, nes)
+                interrupt_cycles(NMI, Finished, nes)
             } else if nes.cpu.interrupts.irq_pending && !nes.cpu.reg.p_i {
-                interrupt_cycles(IRQ, NotStarted, nes)
+                interrupt_cycles(IRQ, Finished, nes)
             } else {
                 fetch_opcode_from_pc_and_increment_pc(nes)
             }
@@ -55,12 +60,39 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
         } =>
             handle_address_resolution(mode, state, nes),
 
+        // Handle instructions
+        StateMatch {
+            category: Some(Write | ReadModifyWrite),
+            state: PendingCarry, ..
+        } => {
+            dummy_read_from_address(nes);
+            add_lower_address_carry_bit_to_upper_address(nes);
+            FinishedAddrResolution
+        }
+
+        // Handle instructions
+        StateMatch {
+            category: Some(Read),
+            state: PendingCarry, ..
+        } => {
+            if nes.cpu.ireg.carry_out {
+                dummy_read_from_address(nes);
+                add_lower_address_carry_bit_to_upper_address(nes);
+                FinishedAddrResolution
+            } else {
+                read_from_address(nes);
+                nes.cpu.proc_state.instr.unwrap().func()(nes);
+                Finished
+            }
+
+        }
+
         StateMatch {
             category: Some(category @ (Read | Write | ReadModifyWrite)),
             state: s @ (FinishedAddrResolution | Processing(_)), ..
         } =>
             processing_cycles(category, s, nes),
-
+//         Absolute | ZeroPage | ZeroPageX | ZeroPageY | IndirectX | Immediate => 1,
         StateMatch {
             category: Some(category),
             state: s @ (FetchedOpcode | Processing(_)), ..
@@ -74,7 +106,7 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
         _ => unreachable!(),
     };
 
-    if nes.cpu.proc_state.progress == NotStarted {
+    if nes.cpu.proc_state.progress == Finished {
         // println!("{:?}", nes.cpu.proc_state.instr.unwrap().name);
         // if !nes.cpu.proc_state.instr.unwrap().does_interrupt_poll_early() {
          {
@@ -90,7 +122,7 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
 
 
 
-    nes.cpu.proc_state.progress == NotStarted
+    nes.cpu.proc_state.progress == Finished
 }
 
 fn end_cycle(nes: &mut Nes) {

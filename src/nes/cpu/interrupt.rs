@@ -1,13 +1,13 @@
 use crate::nes::cpu::addressing::{decrement_s, dummy_read_from_pc_address, fetch_lower_pc_from_interrupt_vector, fetch_upper_pc_from_interrupt_vector, push_lower_pc_to_stack, push_p_to_stack_during_interrupt, push_upper_pc_to_stack};
 use crate::nes::cpu::lookup_table::{InstructionProgress, InterruptType};
-use crate::nes::cpu::lookup_table::InstructionProgress::{InInterrupt, NotStarted};
+use crate::nes::cpu::lookup_table::InstructionProgress::{InInterrupt, Finished};
 use crate::nes::cpu::lookup_table::InterruptType::{IRQ, NMI};
 use crate::nes::cpu::operation_funcs::set_interrupt_inhibit_flag;
 use crate::nes::Nes;
 
 pub fn interrupt_cycles(i_type: InterruptType, cycle: InstructionProgress, nes: &mut Nes) -> InstructionProgress {
     match cycle {
-        NotStarted => {
+        Finished => {
             dummy_read_from_pc_address(nes);
             match i_type {
                 NMI => {
@@ -56,7 +56,7 @@ pub fn interrupt_cycles(i_type: InterruptType, cycle: InstructionProgress, nes: 
                 }
             }
             fetch_upper_pc_from_interrupt_vector(nes);
-            NotStarted
+            Finished
         }
         _ => unreachable!(),
     }

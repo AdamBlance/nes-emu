@@ -24,10 +24,11 @@ type Cycle = u8;
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum InstructionProgress {
     #[default]
-    NotStarted,
+    Finished,
     FetchedOpcode,
     InInterrupt(InterruptType, Cycle),
     AddrResolution(Cycle),
+    PendingCarry,
     FinishedAddrResolution,
     Processing(Cycle),
 }
@@ -276,6 +277,8 @@ pub enum Mode {
     AbsoluteI,
 }
 
+
+
     pub fn handle_address_resolution(addr_mode: Mode, cycle: InstructionProgress, nes: &mut Nes) -> InstructionProgress {
         match addr_mode {
             ZeroPage => match cycle  {
@@ -335,7 +338,7 @@ pub enum Mode {
                     take_operand_as_high_address_byte(nes);
                     add_x_to_low_address_byte(nes);
                     increment_pc(nes);
-                    FinishedAddrResolution
+                    PendingCarry
                 }
                 _ => unreachable!(),
             },
@@ -349,7 +352,7 @@ pub enum Mode {
                     take_operand_as_high_address_byte(nes);
                     add_y_to_low_address_byte(nes);
                     increment_pc(nes);
-                    FinishedAddrResolution
+                    PendingCarry
                 }
                 _ => unreachable!(),
             },
@@ -387,7 +390,7 @@ pub enum Mode {
                 AddrResolution(1) => {
                     fetch_high_address_byte_using_indirect_address(nes);
                     add_y_to_low_address_byte(nes);
-                    FinishedAddrResolution
+                    PendingCarry
                 }
                 _ => unreachable!(),
             },
