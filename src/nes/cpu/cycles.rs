@@ -1,16 +1,15 @@
 use crate::nes::cpu::addressing::*;
-use crate::nes::cpu::lookup_table::{Category, Category::*, Instruction, InstructionProgress, Mode, Mode::*, Name::*};
-use crate::nes::cpu::lookup_table::InstructionProgress::{AddrResolution, FetchedOpcode, FinishedAddrResolution, Finished, Processing};
-use crate::nes::cpu::operation_funcs::{set_interrupt_inhibit_flag, update_p_nz};
+use crate::nes::cpu::lookup_table::ProcessingState::{FetchedOpcode, Finished, FinishedAddrResolution, PendingCarry, RmwWrites, SimpleCycle};
+use crate::nes::cpu::lookup_table::{handle_upper_address_overflow, Category, Category::*, Mode::*, Name::*, ProcessingState};
 use crate::nes::Nes;
 
 
-pub fn branch_instruction_cycles(cycle: InstructionProgress, nes: &mut Nes) -> InstructionProgress {
+pub fn branch_instruction_cycles(cycle: ProcessingState, nes: &mut Nes) -> ProcessingState {
     match cycle {
         FetchedOpcode => {
             fetch_branch_offset_from_pc(nes);
             increment_pc(nes);
-            let taking_branch = match nes.cpu.proc_state.instr.unwrap().name {
+            let taking_branch = match nes.cpu.instr.name {
                 BCC => !nes.cpu.reg.p_c,
                 BCS => nes.cpu.reg.p_c,
                 BVC => !nes.cpu.reg.p_v,
@@ -22,20 +21,20 @@ pub fn branch_instruction_cycles(cycle: InstructionProgress, nes: &mut Nes) -> I
                 _ => unreachable!(),
             };
             if taking_branch {
-                Processing(0)
+                SimpleCycle(0)
             } else {
                 Finished
             }
         }
-        Processing(0) => {
+        SimpleCycle(0) => {
             add_branch_offset_to_lower_pc_and_set_carry(nes);
             if nes.cpu.ireg.carry_out {
-                Processing(1)
+                SimpleCycle(1)
             } else {
                 Finished
             }
         }
-        Processing(1) => {
+        SimpleCycle(1) => {
             fix_upper_pc_after_page_crossing_branch(nes);
             Finished
         }
@@ -44,43 +43,36 @@ pub fn branch_instruction_cycles(cycle: InstructionProgress, nes: &mut Nes) -> I
 }
 
 
-pub fn processing_cycles(category: Category, cycle: InstructionProgress, nes: &mut Nes) -> InstructionProgress {
-    match category {
-        Read => match cycle {
-            FinishedAddrResolution => {
+pub fn processing_cycles(category: Category, cycle: ProcessingState, nes: &mut Nes) -> ProcessingState {
+    match cycle {
+        PendingCarry => handle_upper_address_overflow(category, nes),
+        FinishedAddrResolution => match category {
+            Read => {
                 read_from_address(nes);
-                nes.cpu.proc_state.instr.unwrap().func()(nes);
+                nes.cpu.instr.func()(nes);
                 Finished
             }
-            _ => unreachable!(),
-
-        },
-        Write => match cycle {
-            FinishedAddrResolution => {
-                nes.cpu.proc_state.instr.unwrap().func()(nes);
+            Write => {
+                nes.cpu.instr.func()(nes);
                 write_to_address(nes);
                 Finished
-
             }
-            _ => unreachable!(),
-        },
-        ReadModifyWrite => match cycle {
-            FinishedAddrResolution => {
+            ReadModifyWrite => {
                 read_from_address(nes);
-                Processing(0)
+                RmwWrites(0)
             }
-            Processing(0) => {
-                dummy_write_to_address(nes);
-                nes.cpu.proc_state.instr.unwrap().func()(nes);
-                Processing(1)
-            }
-            Processing(1) => {
-                write_to_address(nes);
-                Finished
-
-            }
-            _ => unreachable!(),
-        },
+            _ => unreachable!()
+        }
+        RmwWrites(0) => {
+            dummy_write_to_address(nes);
+            nes.cpu.instr.func()(nes);
+            RmwWrites(1)
+        }
+        RmwWrites(1) => {
+            write_to_address(nes);
+            Finished
+        }
         _ => unreachable!(),
     }
 }
+

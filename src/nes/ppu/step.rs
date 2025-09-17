@@ -4,7 +4,7 @@ use crate::util::*;
 use crate::nes::ppu::consts::*;
 
 pub fn step_ppu(nes: &mut Nes) {
-    nes.cart.ppu_tick(nes.ppu.addr_bus);
+    nes.cart.ppu_tick(nes.ppu.v);
 
     // Aliases
     let cycle = nes.ppu.scanline_cycle;

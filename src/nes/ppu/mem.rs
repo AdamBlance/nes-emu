@@ -1,8 +1,7 @@
 use crate::nes::cartridge::Mirroring;
-use crate::nes::{ppu, Nes};
 use crate::nes::mem_consts::*;
 use crate::nes::ppu::consts::*;
-
+use crate::nes::Nes;
 
 
 pub fn memory_mapped_register_read(addr: u16, nes: &mut Nes) -> u8 {
@@ -20,14 +19,14 @@ pub fn memory_mapped_register_read(addr: u16, nes: &mut Nes) -> u8 {
             set_dynamic_latch(nes.ppu.oam_addr, nes);
             nes.ppu.oam_addr
         }
-        PPUDATA_2007 if nes.ppu.addr_bus < 0x3F00=> {
+        PPUDATA_2007 if nes.ppu.v < 0x3F00 => {
             let existing_data_in_read_buffer = nes.ppu.ppudata_buffer;
             nes.ppu.ppudata_buffer = read_vram(nes.ppu.v, nes);
             increment_v_after_ppudata_access(nes);
             set_dynamic_latch(existing_data_in_read_buffer, nes);
             existing_data_in_read_buffer
         }
-        PPUDATA_2007 if nes.ppu.addr_bus >= 0x3F00 => {
+        PPUDATA_2007 if nes.ppu.v >= 0x3F00 => {
             let data_in_memory = read_vram(nes.ppu.v, nes);
             // Some weird behaviour when the PPU reads from palette memory
             nes.ppu.ppudata_buffer = read_vram(nes.ppu.v.wrapping_sub(0x1000), nes);
@@ -85,7 +84,6 @@ pub fn memory_mapped_register_write(addr: u16, val: u8, nes: &mut Nes) {
             nes.ppu.t |= val as u16;
             // Copy t into v
             nes.ppu.v = nes.ppu.t;
-            nes.ppu.addr_bus = nes.ppu.v;
             nes.ppu.w = false;
         }
         PPUDATA_2007 => {
@@ -97,10 +95,6 @@ pub fn memory_mapped_register_write(addr: u16, val: u8, nes: &mut Nes) {
 }
 
 pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
-    // Colour palette reads don't put anything on the PPU address bus
-    if addr < PALETTE_RAM_START_3F00 {
-        nes.ppu.addr_bus = addr;
-    }
     match addr {
         0x0000..=PATTERN_TABLE_END_1FFF => nes.cart.read_chr(addr),
         VRAM_START_2000..=VRAM_END_3EFF => {
@@ -120,9 +114,6 @@ pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
 }
 
 pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
-    if addr < PALETTE_RAM_START_3F00 {
-        nes.ppu.addr_bus = addr;
-    }
     match addr {
         ..=PATTERN_TABLE_END_1FFF => nes.cart.write_chr(addr, val),
         VRAM_START_2000..=VRAM_END_3EFF => {
@@ -138,7 +129,6 @@ pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
 pub fn increment_v_after_ppudata_access(nes: &mut Nes) {
     let increment = if !nes.ppu.increment_select { 1 } else { 32 };
     nes.ppu.v = nes.ppu.v.wrapping_add(increment);
-    nes.ppu.addr_bus = nes.ppu.v;
 }
 
 fn map_vram_addr_to_palette_addr(addr: u16) -> usize {

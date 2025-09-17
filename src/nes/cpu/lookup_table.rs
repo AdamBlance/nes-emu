@@ -4,13 +4,13 @@ use std::{
     fmt::{self, Formatter},
 };
 
+use super::operation_funcs::*;
+use crate::nes::cpu::addressing::{add_lower_address_carry_bit_to_upper_address, add_x_to_low_address_byte, add_x_to_low_indirect_address_byte, add_y_to_low_address_byte, dummy_read_from_address, dummy_read_from_indirect_address, fetch_high_address_byte_using_indirect_address, fetch_low_address_byte_using_indirect_address, increment_pc, read_from_address, take_operand_as_high_address_byte, take_operand_as_low_address_byte, take_operand_as_low_indirect_address_byte};
+use crate::nes::cpu::lookup_table::ProcessingState::*;
+use crate::nes::Nes;
 use Category::*;
 use Mode::*;
 use Name::*;
-use crate::nes::cpu::addressing::{add_lower_address_carry_bit_to_upper_address, add_x_to_low_address_byte, add_x_to_low_indirect_address_byte, add_y_to_low_address_byte, dummy_read_from_address, dummy_read_from_indirect_address, dummy_write_to_address, fetch_high_address_byte_using_indirect_address, fetch_low_address_byte_using_indirect_address, increment_pc, read_from_address, take_operand_as_high_address_byte, take_operand_as_low_address_byte, take_operand_as_low_indirect_address_byte, write_to_address};
-use crate::nes::cpu::lookup_table::InstructionProgress::*;
-use super::operation_funcs::*;
-use crate::nes::Nes;
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct Instruction {
@@ -22,15 +22,18 @@ pub struct Instruction {
 
 type Cycle = u8;
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum InstructionProgress {
+pub enum ProcessingState {
     #[default]
-    Finished,
+    NotStarted,
     FetchedOpcode,
-    InInterrupt(InterruptType, Cycle),
+    InNMI(Cycle),
+    InIRQ(Cycle),
     AddrResolution(Cycle),
     PendingCarry,
     FinishedAddrResolution,
-    Processing(Cycle),
+    RmwWrites(Cycle),
+    SimpleCycle(Cycle),
+    Finished,
 }
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum InterruptType {
@@ -278,8 +281,31 @@ pub enum Mode {
 }
 
 
+    pub fn handle_upper_address_overflow(category: Category, nes: &mut Nes) -> ProcessingState {
 
-    pub fn handle_address_resolution(addr_mode: Mode, cycle: InstructionProgress, nes: &mut Nes) -> InstructionProgress {
+            match category {
+                Read if nes.cpu.ireg.carry_out => {
+                    dummy_read_from_address(nes);
+                    add_lower_address_carry_bit_to_upper_address(nes);
+                    FinishedAddrResolution
+                }
+                // Early finish if addr + index doesn't cross page
+                Read if !nes.cpu.ireg.carry_out => {
+                    read_from_address(nes);
+                    nes.cpu.instr.func()(nes);
+                    Finished
+                }
+                Write | ReadModifyWrite => {
+                    dummy_read_from_address(nes);
+                    add_lower_address_carry_bit_to_upper_address(nes);
+                    FinishedAddrResolution
+                }
+                _ => unreachable!(),
+            }
+
+    }
+
+    pub fn handle_address_resolution(addr_mode: Mode, cycle: ProcessingState, nes: &mut Nes) -> ProcessingState {
         match addr_mode {
             ZeroPage => match cycle  {
                 FetchedOpcode => {
@@ -399,6 +425,14 @@ pub enum Mode {
     }
 
 #[derive(Default, Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+// TODO: If I were to bake category into the instruction struct/enum, I could get rid of
+/*
+    NonMemory is always paired with either Implied or Accumulator. The same cycles get run either way.
+    Imm is always paired with Immediate
+    Branch is always paired with Relative
+    Control is always paired with Implied
+
+ */
 pub enum Category {
     Control,
     NonMemory,

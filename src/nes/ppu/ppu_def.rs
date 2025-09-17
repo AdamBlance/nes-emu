@@ -67,7 +67,6 @@ pub struct Ppu {
     pub nmi_line: bool,
     pub ppudata_buffer: u8,
     pub cycles: u64,
-    pub addr_bus: u16,
 
     pub dynamic_latch: u8,
     pub dynamic_latch_last_set_cycle: u64
@@ -150,7 +149,6 @@ impl Ppu {
             nmi_line: false,
             ppudata_buffer: 0,
             cycles: 0,
-            addr_bus: 0,
 
             dynamic_latch: 0,
             dynamic_latch_last_set_cycle: 0

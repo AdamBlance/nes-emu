@@ -1,4 +1,4 @@
-use super::lookup_table::{Instruction, InstructionProgress};
+use super::lookup_table::{Instruction, ProcessingState};
 use crate::util::{concat_u8, get_bit};
 use serde::{Deserialize, Serialize};
 
@@ -7,7 +7,10 @@ pub struct Cpu {
     pub reg: Registers,
     pub interrupts: Interrupts,
     pub ireg: WorkingRegisters,
-    pub proc_state: ProcessingState,
+    pub state: ProcessingState,
+    // Should be optional (as instruction unknown before opcode is fetched),
+    // but for readability and convenience it isn't.
+    pub instr: Instruction,
     pub debug: CpuDebug,
 }
 
@@ -48,14 +51,6 @@ pub struct WorkingRegisters {
     pub open_bus: u8,              // Data bus that can be read by reading unused memory locations
 }
 
-#[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
-pub struct ProcessingState {
-    // Current instruction being executed
-    // This is None if we haven't read opcode yet
-    pub instr: Option<Instruction>,
-    // What the CPU is busy doing
-    pub progress: InstructionProgress,
-}
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct CpuDebug {
