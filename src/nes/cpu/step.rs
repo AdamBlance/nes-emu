@@ -1,18 +1,19 @@
 use super::cycles::{branch_instruction_cycles, processing_cycles};
-use super::lookup_table::{Category::*, ProcessingState};
 use crate::nes::cpu::control_cycles::control_instruction_cycles;
-use crate::nes::cpu::lookup_table::{handle_address_resolution, Instruction, InterruptType::*, ProcessingState::*};
 use crate::nes::Nes;
 
-use crate::nes::cpu::interrupt::{irq_cycles, nmi_cycles};
+use crate::nes::cpu::interrupt::{interrupt_cycles};
+use crate::nes::cpu::processing_state::{InterruptType, State};
 use crate::nes::cpu::simple_cycles::{fetch_opcode_from_pc_and_increment_pc, immediate_instruction_cycles, nonmemory_instruction_cycles};
 
 pub fn step_cpu(nes: &mut Nes) -> bool {
     nes.cart.cpu_tick();
     nes.cpu.state = get_next_cpu_state(nes.cpu.state, nes);
 
-    if nes.cpu.state == Finished {
-        nes.cpu.state = NotStarted;
+    let instruction_finished = nes.cpu.state == State::Finished;
+
+    if nes.cpu.state == State::Finished {
+        nes.cpu.state = State::NotStarted;
 
         // TODO: Interrupt polling on the correct cycle
 
@@ -26,30 +27,29 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
     interrupt_line_polling(nes);
     nes.cpu.debug.cycles += 1;
 
-    nes.cpu.state == Finished
+    instruction_finished
 }
 
-fn get_next_cpu_state(state: ProcessingState, nes: &mut Nes) -> ProcessingState {
+fn get_next_cpu_state(state: State, nes: &mut Nes) -> State {
     match (state, nes.cpu.instr) {
 
-        (NotStarted, _) => {
+        (State::NotStarted, _) => {
             if nes.cpu.interrupts.nmi_pending {
-                nmi_cycles(NotStarted, nes)
+                interrupt_cycles(State::InInterrupt(InterruptType::NMI, 0), nes)
             } else if nes.cpu.interrupts.irq_pending && !nes.cpu.reg.p_i {
-                irq_cycles(NotStarted, nes)
+                interrupt_cycles(State::InInterrupt(InterruptType::IRQ, 0), nes)
             } else {
-                fetch_opcode_from_pc_and_increment_pc(nes)
+                fetch_opcode_from_pc_and_increment_pc(nes);
+                State::FetchedOpcode
             }
         }
 
-        (InNMI(cycle), _) =>
-            nmi_cycles(InNMI(cycle), nes),
-        (InIRQ(cycle), _) =>
-            irq_cycles(InIRQ(cycle), nes),
+        (state @ State::InInterrupt(_, _), _) =>
+            interrupt_cycles(state, nes),
 
         (
-            state @ (FetchedOpcode | AddrResolution(_)),
-            Instruction {
+            state @ (State::FetchedOpcode | State::AddrResolution(_)),
+            Instruction::MemoryInstruction {
                 category: Read | Write | ReadModifyWrite,
                 mode, ..
             }

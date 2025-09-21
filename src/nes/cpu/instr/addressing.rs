@@ -2,17 +2,6 @@ use crate::nes::mem::{read_mem, write_mem};
 use crate::nes::Nes;
 use crate::util::concat_u8;
 
-/*
-
-    Much of this is redundant or unnecessary, will refactor another time.
-    Most of this could also be made into methods.
-    The advantage of all these methods is the method names document how the instructions work
-    cycle-by-cycle in plain English.
-    It ended up this way because I was storing these in static arrays previously and needed
-    all the functions to have the same signature so I could call them all in the same way at
-    runtime using function pointers.
-
-*/
 
 // PC
 

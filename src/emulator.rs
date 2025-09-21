@@ -9,7 +9,7 @@ use std::sync::mpsc::SyncSender;
 use crate::nes::apu;
 use crate::nes::cartridge::cartridge_def::RomConfig;
 use crate::nes::cpu;
-use crate::nes::cpu::lookup_table::INSTRUCTIONS;
+use crate::nes::cpu::instr::lookup_table::INSTRUCTIONS;
 use crate::nes::ppu;
 
 use crate::nes::cpu::debugger::{CpuDebuggerInstruction, InstrBytes};
@@ -143,14 +143,14 @@ impl Emulator {
         }
     }
 
-    fn update_prg_rom_debug_cache(&mut self) {
-        if let Some(nes) = self.nes.as_mut() {
-            let prg_rom_snapshot: Vec<u8> = (0x8000..=0xFFFF)
-                .map(|i| nes.cart.read_prg_rom(i))
-                .collect();
-            self.instruction_cache = Emulator::instructions_for_debug(prg_rom_snapshot.as_slice());
-        }
-    }
+    // fn update_prg_rom_debug_cache(&mut self) {
+    //     if let Some(nes) = self.nes.as_mut() {
+    //         let prg_rom_snapshot: Vec<u8> = (0x8000..=0xFFFF)
+    //             .map(|i| nes.cart.read_prg_rom(i))
+    //             .collect();
+    //         self.instruction_cache = Emulator::instructions_for_debug(prg_rom_snapshot.as_slice());
+    //     }
+    // }
 
     pub fn update(&mut self, time: f64) -> bool {
         self.time = time;
@@ -314,26 +314,26 @@ impl Emulator {
             self.avg_sample_rate = rolling_average;
         }
     }
-
-    fn instructions_for_debug(prg_rom: &[u8]) -> Vec<CpuDebuggerInstruction> {
-        assert_eq!(prg_rom.len(), 0x8000);
-        let mut opcodes: Vec<CpuDebuggerInstruction> = Vec::new();
-        let mut window = prg_rom.array_windows().enumerate();
-        while let Some((index, [opc, arg1, arg2])) = window.next() {
-            let instr = INSTRUCTIONS[*opc as usize];
-            if !instr.is_unofficial() {
-                opcodes.push(CpuDebuggerInstruction {
-                    opc_addr: 0x8000 + index as u16,
-                    bytes: match instr.number_of_operands() {
-                        0 => InstrBytes::I1(*opc),
-                        1 => InstrBytes::I2(*opc, *arg1),
-                        2 => InstrBytes::I3(*opc, *arg1, *arg2),
-                        _ => unreachable!(),
-                    },
-                });
-                let _ = window.advance_by(instr.number_of_operands() as usize);
-            }
-        }
-        opcodes
-    }
+    //
+    // fn instructions_for_debug(prg_rom: &[u8]) -> Vec<CpuDebuggerInstruction> {
+    //     assert_eq!(prg_rom.len(), 0x8000);
+    //     let mut opcodes: Vec<CpuDebuggerInstruction> = Vec::new();
+    //     let mut window = prg_rom.array_windows().enumerate();
+    //     while let Some((index, [opc, arg1, arg2])) = window.next() {
+    //         let instr = INSTRUCTIONS[*opc as usize];
+    //         if !instr.is_unofficial() {
+    //             opcodes.push(CpuDebuggerInstruction {
+    //                 opc_addr: 0x8000 + index as u16,
+    //                 bytes: match instr.number_of_operands() {
+    //                     0 => InstrBytes::I1(*opc),
+    //                     1 => InstrBytes::I2(*opc, *arg1),
+    //                     2 => InstrBytes::I3(*opc, *arg1, *arg2),
+    //                     _ => unreachable!(),
+    //                 },
+    //             });
+    //             let _ = window.advance_by(instr.number_of_operands() as usize);
+    //         }
+    //     }
+    //     opcodes
+    // }
 }

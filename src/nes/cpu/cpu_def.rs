@@ -1,4 +1,4 @@
-use super::lookup_table::{Instruction, ProcessingState};
+use crate::nes::cpu::instr::lookup_table::{Instruction, ProcessingState};
 use crate::util::{concat_u8, get_bit};
 use serde::{Deserialize, Serialize};
 
@@ -7,7 +7,6 @@ pub struct Cpu {
     pub reg: Registers,
     pub interrupts: Interrupts,
     pub ireg: WorkingRegisters,
-    pub state: ProcessingState,
     // Should be optional (as instruction unknown before opcode is fetched),
     // but for readability and convenience it isn't.
     pub instr: Instruction,

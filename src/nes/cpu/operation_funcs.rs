@@ -61,7 +61,7 @@ pub fn store_y(nes: &mut Nes) {
     nes.cpu.ireg.data = nes.cpu.reg.y;
 }
 
-pub fn xor(nes: &mut Nes) {
+pub fn exclusive_or(nes: &mut Nes) {
     nes.cpu.reg.a ^= nes.cpu.ireg.data;
     update_p_nz(nes, nes.cpu.reg.a);
 }
@@ -73,7 +73,7 @@ pub fn and(nes: &mut Nes) {
     nes.cpu.reg.a &= nes.cpu.ireg.data;
     update_p_nz(nes, nes.cpu.reg.a);
 }
-pub fn bit(nes: &mut Nes) {
+pub fn test_bits_in_memory_with_a(nes: &mut Nes) {
     let result = nes.cpu.ireg.data & nes.cpu.reg.a;
     nes.cpu.reg.p_n = get_bit(nes.cpu.ireg.data, 7);
     nes.cpu.reg.p_v = get_bit(nes.cpu.ireg.data, 6);
@@ -205,7 +205,7 @@ pub fn set_interrupt_inhibit_flag(nes: &mut Nes) {
     nes.cpu.reg.p_i = true;
 }
 
-pub fn none(_nes: &mut Nes) {}
+pub fn no_op(_nes: &mut Nes) {}
 
 // unofficial
 
@@ -213,7 +213,7 @@ pub fn jam(_nes: &mut Nes) {
     panic!("JAM instruction encountered!");
 }
 
-pub fn las(nes: &mut Nes) {
+pub fn and_memory_with_s_and_load_into_a_x_s(nes: &mut Nes) {
     let result = nes.cpu.ireg.data & nes.cpu.reg.s;
     nes.cpu.reg.a = result;
     nes.cpu.reg.x = result;
@@ -231,48 +231,48 @@ pub fn store_a_and_x(nes: &mut Nes) {
     nes.cpu.ireg.data = nes.cpu.reg.a & nes.cpu.reg.x;
 }
 
-pub fn dec_then_compare(nes: &mut Nes) {
+pub fn decrement_memory_then_compare_with_a(nes: &mut Nes) {
     nes.cpu.ireg.data = nes.cpu.ireg.data.wrapping_sub(1);
     compare_memory_with_a(nes);
 }
 
-pub fn isb(nes: &mut Nes) {
+pub fn increment_memory_then_subtract_from_a(nes: &mut Nes) {
     nes.cpu.ireg.data = nes.cpu.ireg.data.wrapping_add(1);
     add_value_to_a_with_carry(!nes.cpu.ireg.data, nes);
     update_p_nz(nes, nes.cpu.reg.a);
 }
 
-pub fn slo(nes: &mut Nes) {
+pub fn shift_left_then_or_result_with_a(nes: &mut Nes) {
     nes.cpu.ireg.data = shift_left(nes.cpu.ireg.data, false, nes);
     nes.cpu.reg.a |= nes.cpu.ireg.data;
     update_p_nz(nes, nes.cpu.reg.a);
 }
 
-pub fn rla(nes: &mut Nes) {
+pub fn rotate_left_then_and_result_with_a(nes: &mut Nes) {
     nes.cpu.ireg.data = shift_left(nes.cpu.ireg.data, true, nes);
     nes.cpu.reg.a &= nes.cpu.ireg.data;
     update_p_nz(nes, nes.cpu.reg.a);
 }
 
-pub fn sre(nes: &mut Nes) {
+pub fn shift_right_then_xor_result_with_a(nes: &mut Nes) {
     nes.cpu.ireg.data = shift_right(nes.cpu.ireg.data, false, nes);
     nes.cpu.reg.a ^= nes.cpu.ireg.data;
     update_p_nz(nes, nes.cpu.reg.a);
 }
 
-pub fn rra(nes: &mut Nes) {
+pub fn rotate_right_then_and_result_with_a(nes: &mut Nes) {
     nes.cpu.ireg.data = shift_right(nes.cpu.ireg.data, true, nes);
     add_value_to_a_with_carry(nes.cpu.ireg.data, nes);
     update_p_nz(nes, nes.cpu.reg.a);
 }
 
-pub fn anc(nes: &mut Nes) {
+pub fn and_memory_with_a_then_set_carry_flag_to_negative_flag(nes: &mut Nes) {
     nes.cpu.reg.a &= nes.cpu.ireg.data;
     update_p_nz(nes, nes.cpu.reg.a);
     nes.cpu.reg.p_c = nes.cpu.reg.p_n;
 }
 
-pub fn sbx(nes: &mut Nes) {
+pub fn and_x_with_a_then_subtract_memory_and_store_in_x(nes: &mut Nes) {
     nes.cpu.reg.x &= nes.cpu.reg.a;
     let (result, carry) = nes.cpu.reg.x.carrying_add(!nes.cpu.ireg.data, true);
     nes.cpu.reg.p_c = carry;
@@ -280,13 +280,13 @@ pub fn sbx(nes: &mut Nes) {
     update_p_nz(nes, nes.cpu.reg.x);
 }
 
-pub fn asr(nes: &mut Nes) {
+pub fn and_memory_with_a_then_shift_right(nes: &mut Nes) {
     nes.cpu.reg.a &= nes.cpu.ireg.data;
     nes.cpu.reg.a = shift_right(nes.cpu.reg.a, false, nes);
     update_p_nz(nes, nes.cpu.reg.a);
 }
 
-pub fn arr(nes: &mut Nes) {
+pub fn and_memory_with_a_then_rotate_right(nes: &mut Nes) {
     nes.cpu.reg.a &= nes.cpu.ireg.data;
     nes.cpu.reg.a = shift_right(nes.cpu.reg.a, true, nes);
     nes.cpu.reg.p_c = get_bit(nes.cpu.reg.a, 6);
@@ -294,7 +294,7 @@ pub fn arr(nes: &mut Nes) {
     update_p_nz(nes, nes.cpu.reg.a);
 }
 
-pub fn shs(nes: &mut Nes) {
+pub fn and_s_with_upper_address_then_store_in_memory(nes: &mut Nes) {
     nes.cpu.reg.s = nes.cpu.reg.a & nes.cpu.reg.x;
     nes.cpu.ireg.data = (nes.cpu.reg.s & nes.cpu.ireg.upper_address.wrapping_sub(nes.cpu.ireg.carry_out as u8).wrapping_add(1));
     if nes.cpu.ireg.carry_out {
@@ -302,7 +302,7 @@ pub fn shs(nes: &mut Nes) {
     }
 }
 
-pub fn shy(nes: &mut Nes) {
+pub fn and_y_with_upper_address_then_store_in_memory(nes: &mut Nes) {
     nes.cpu.ireg.data = nes.cpu.reg.y
         & (nes.cpu.ireg.upper_address.wrapping_sub(nes.cpu.ireg.carry_out as u8).wrapping_add(1));
     if nes.cpu.ireg.carry_out {
@@ -310,14 +310,14 @@ pub fn shy(nes: &mut Nes) {
     }
 }
 
-pub fn shx(nes: &mut Nes) {
+pub fn and_x_with_upper_address_then_store_in_memory(nes: &mut Nes) {
     nes.cpu.ireg.data = nes.cpu.reg.x & (nes.cpu.ireg.upper_address.wrapping_sub(nes.cpu.ireg.carry_out as u8).wrapping_add(1));
     if nes.cpu.ireg.carry_out {
         nes.cpu.ireg.upper_address = nes.cpu.ireg.data;
     }
 }
 
-pub fn sha(nes: &mut Nes) {
+pub fn and_a_with_x_with_upper_address_then_store_in_memory(nes: &mut Nes) {
     let val = nes.cpu.reg.a & nes.cpu.reg.x & nes.cpu.ireg.upper_address.wrapping_sub(nes.cpu.ireg.carry_out as u8).wrapping_add(1);
     nes.cpu.ireg.data = val;
     if nes.cpu.ireg.carry_out {
@@ -325,7 +325,7 @@ pub fn sha(nes: &mut Nes) {
     }
 }
 
-pub fn xaa(nes: &mut Nes) {
+pub fn nondeterministic_nonsense(nes: &mut Nes) {
     // 0xEE - Magic nondeterministic value
     nes.cpu.reg.a = (nes.cpu.reg.a | 0xEE) & nes.cpu.reg.x & nes.cpu.ireg.data;
     update_p_nz(nes, nes.cpu.reg.a);

@@ -1,4 +1,4 @@
-use crate::nes::cpu::lookup_table::{Mode, INSTRUCTIONS};
+use crate::nes::cpu::instr::lookup_table::{AddressingMode, INSTRUCTIONS};
 use crate::util::concat_u8;
 
 #[derive(Debug, Copy, Clone)]
@@ -23,53 +23,53 @@ impl CpuDebuggerInstruction {
         };
         match self.bytes {
             InstrBytes::I1(_) => match instr.mode {
-                Mode::Accumulator | Mode::Implied => {
+                AddressingMode::Accumulator | AddressingMode::Implied => {
                     format!("{:04X} {:#?}", self.opc_addr, instr.name)
                 }
                 _ => unreachable!(),
             },
             InstrBytes::I2(_, arg1) => match instr.mode {
-                Mode::Immediate => format!("{:04X} {:#?} {:02X}", self.opc_addr, instr.name, arg1),
-                Mode::ZeroPage => {
+                AddressingMode::Immediate => format!("{:04X} {:#?} {:02X}", self.opc_addr, instr.name, arg1),
+                AddressingMode::ZeroPage => {
                     format!("{:04X} {:#?} ZP[{:02X}]", self.opc_addr, instr.name, arg1)
                 }
-                Mode::ZeroPageX => {
+                AddressingMode::ZeroPageX => {
                     format!("{:04X} {:#?} ZP[{:02X}+X]", self.opc_addr, instr.name, arg1)
                 }
-                Mode::ZeroPageY => {
+                AddressingMode::ZeroPageY => {
                     format!("{:04X} {:#?} ZP[{:02X}+Y]", self.opc_addr, instr.name, arg1)
                 }
-                Mode::IndirectX => format!(
+                AddressingMode::IndirectX => format!(
                     "{:04X} {:#?} MEM[ ZP16[{:02X}+X] ]",
                     self.opc_addr, instr.name, arg1
                 ),
-                Mode::IndirectY => format!(
+                AddressingMode::IndirectY => format!(
                     "{:04X} {:#?} MEM[ ZP16[{:02X}]+Y ]",
                     self.opc_addr, instr.name, arg1
                 ),
-                Mode::Relative => format!("{:04X} {:#?} (offset)", self.opc_addr, instr.name),
+                AddressingMode::Relative => format!("{:04X} {:#?} (offset)", self.opc_addr, instr.name),
                 _ => unreachable!(),
             },
             InstrBytes::I3(_, arg1, arg2) => match instr.mode {
-                Mode::Absolute => format!(
+                AddressingMode::Absolute => format!(
                     "{:04X} {:#?} MEM[{:04X}]",
                     self.opc_addr,
                     instr.name,
                     concat_u8(arg2, arg1)
                 ),
-                Mode::AbsoluteX => format!(
+                AddressingMode::AbsoluteX => format!(
                     "{:04X} {:#?} MEM[{:04X}+X]",
                     self.opc_addr,
                     instr.name,
                     concat_u8(arg2, arg1)
                 ),
-                Mode::AbsoluteY => format!(
+                AddressingMode::AbsoluteY => format!(
                     "{:04X} {:#?} MEM[{:04X}+Y]",
                     self.opc_addr,
                     instr.name,
                     concat_u8(arg2, arg1)
                 ),
-                Mode::AbsoluteI => format!(
+                AddressingMode::AbsoluteI => format!(
                     "{:04X} {:#?} MEM[ MEM16[{:04X}] ]",
                     self.opc_addr,
                     instr.name,
