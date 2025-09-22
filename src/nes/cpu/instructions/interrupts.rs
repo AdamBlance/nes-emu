@@ -84,7 +84,7 @@ impl Interrupt {
                 nes.cpu.interrupts.irq_pending = false;
                 Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         };
     }
 }

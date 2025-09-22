@@ -47,11 +47,11 @@ impl ControlInstr {
             ControlOpc::PLP => Self::pull_status_register_from_stack_cycles(self.state, nes),
         };
     }
-    
+
     pub fn is_finished(&self) -> bool {
         self.state == ControlCycle::Finished
     }
-    
+
     fn break_cycles(state: ControlCycle, nes: &mut Nes) -> ControlCycle {
         match state {
             ControlCycle::Cycle(0) => {
@@ -84,7 +84,7 @@ impl ControlInstr {
                 fetch_upper_pc_from_interrupt_vector(nes);
                 ControlCycle::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         }
     }
     fn return_from_interrupt_cycles(state: ControlCycle, nes: &mut Nes) -> ControlCycle {
@@ -111,7 +111,7 @@ impl ControlInstr {
                 pull_upper_pc_from_stack(nes);
                 ControlCycle::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         }
     }
     fn return_from_subroutine_cycles(state: ControlCycle, nes: &mut Nes) -> ControlCycle {
@@ -137,7 +137,7 @@ impl ControlInstr {
                 increment_pc(nes);
                 ControlCycle::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         }
     }
     fn push_accumulator_to_stack_cycles(state: ControlCycle, nes: &mut Nes) -> ControlCycle {
@@ -151,7 +151,7 @@ impl ControlInstr {
                 decrement_s(nes);
                 ControlCycle::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         }
     }
     fn push_status_register_to_stack_cycles(state: ControlCycle, nes: &mut Nes) -> ControlCycle {
@@ -165,7 +165,7 @@ impl ControlInstr {
                 decrement_s(nes);
                 ControlCycle::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         }
     }
     fn pull_accumulator_from_stack_cycles(state: ControlCycle, nes: &mut Nes) -> ControlCycle {
@@ -183,7 +183,7 @@ impl ControlInstr {
                 update_p_nz(nes, nes.cpu.reg.a);
                 ControlCycle::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         }
     }
     fn pull_status_register_from_stack_cycles(state: ControlCycle, nes: &mut Nes) -> ControlCycle {
@@ -200,7 +200,7 @@ impl ControlInstr {
                 pull_p_from_stack(nes);
                 ControlCycle::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         }
     }
 }

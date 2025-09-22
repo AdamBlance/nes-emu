@@ -90,7 +90,7 @@ impl MemoryInstr {
                     Self::handle_upper_address_overflow(access_type, self.operation(), nes),
                 s @ MemoryState::MemoryCycles(_) =>
                     Self::memory_cycles(s, access_type, self.operation(), nes),
-                state => state,
+                state => panic!("{state:?}"),
             }
         };
     }
@@ -137,7 +137,7 @@ impl MemoryInstr {
                 add_x_to_low_address_byte(nes);
                 MemoryState::MemoryCycles(0)
             }
-            _ => state,
+            state => panic!("{state:?}"),
         }
     }
 
@@ -153,7 +153,7 @@ impl MemoryInstr {
                 add_y_to_low_address_byte(nes);
                 MemoryState::MemoryCycles(0)
             }
-            _ => state,
+            state => panic!("{state:?}"),
         }
     }
 
@@ -169,7 +169,7 @@ impl MemoryInstr {
                 increment_pc(nes);
                 MemoryState::MemoryCycles(0)
             }
-            _ => state,
+            _ => panic!("{state:?}"),
         }
     }
 
@@ -186,7 +186,7 @@ impl MemoryInstr {
                 increment_pc(nes);
                 MemoryState::PendingCarry
             }
-            _ => state,
+            _ => panic!("{state:?}"),
         }
     }
 
@@ -203,7 +203,7 @@ impl MemoryInstr {
                 increment_pc(nes);
                 MemoryState::PendingCarry
             }
-            _ => state,
+            _ => panic!("{state:?}"),
         }
     }
 
@@ -227,7 +227,7 @@ impl MemoryInstr {
                 fetch_high_address_byte_using_indirect_address(nes);
                 MemoryState::MemoryCycles(0)
             }
-            _ => state,
+            _ => panic!("{state:?}"),
         }
     }
 
@@ -247,7 +247,7 @@ impl MemoryInstr {
                 add_y_to_low_address_byte(nes);
                 MemoryState::PendingCarry
             }
-            _ => state,
+            _ => panic!("{state:?}"),
         }
     }
 
@@ -280,7 +280,7 @@ impl MemoryInstr {
                     operation(nes);
                     MemoryState::Finished
                 }
-                _ => state,
+                _ => panic!("{state:?}"),
             }
             MemoryAccessType::Write => match state {
                 MemoryState::MemoryCycles(0) => {
@@ -288,7 +288,7 @@ impl MemoryInstr {
                     write_to_address(nes);
                     MemoryState::Finished
                 }
-                _ => state,
+                _ => panic!("{state:?}"),
             }
             MemoryAccessType::ReadModifyWrite => match state {
                 MemoryState::MemoryCycles(0) => {
@@ -304,7 +304,7 @@ impl MemoryInstr {
                     write_to_address(nes);
                     MemoryState::Finished
                 }
-                _ => state,
+                _ => panic!("{state:?}"),
             }
         }
     }

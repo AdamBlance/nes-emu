@@ -4,11 +4,11 @@ use crate::nes::cpu::instructions::interrupts::InterruptType;
 use crate::nes::mem::read_mem;
 use crate::nes::Nes;
 
-pub fn step_cpu(nes: &mut Nes) -> bool {
+pub fn step_cpu(instr: &mut Instr, nes: &mut Nes) -> bool {
     nes.cart.cpu_tick();
 
-    if nes.cpu.instr.is_finished() {
-        nes.cpu.instr = if nes.cpu.interrupts.nmi_pending {
+    if instr.is_finished() {
+        *instr = if nes.cpu.interrupts.nmi_pending {
             Instr::new_interrupt(InterruptType::NMI)
         } else if nes.cpu.interrupts.irq_pending && !nes.cpu.reg.p_i {
             Instr::new_interrupt(InterruptType::IRQ)
@@ -18,11 +18,12 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
             Instr::from_opcode(new_opcode)
         };
     } else {
-        nes.do_next_cycle();
+        instr.do_next_cycle(nes);
     }
 
 
-    if nes.cpu.instr.is_finished() {
+
+    if instr.is_finished() {
         // TODO: Interrupt polling on the correct cycle
 
         {
@@ -34,7 +35,8 @@ pub fn step_cpu(nes: &mut Nes) -> bool {
 
     interrupt_line_polling(nes);
     nes.cpu.debug.cycles += 1;
-    nes.cpu.instr.is_finished()
+
+    instr.is_finished()
 
 }
 

@@ -5,9 +5,10 @@ use eframe::egui::{ColorImage, TextureFilter, TextureHandle, TextureOptions};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc::SyncSender;
-
+use std::thread::{sleep, Thread};
 use crate::nes::apu;
 use crate::nes::cartridge::cartridge_def::RomConfig;
+use crate::nes::cpu::instructions::Instr;
 use crate::nes::cpu::step::step_cpu;
 use crate::nes::ppu;
 
@@ -52,6 +53,8 @@ pub struct Emulator {
 
     nes_frame: Rc<RefCell<Vec<u8>>>,
 
+    instr: Instr,
+
     // pub instruction_cache: Vec<CpuDebuggerInstruction>,
 }
 
@@ -64,6 +67,7 @@ impl Emulator {
 
         Emulator {
             nes: None,
+            instr: Instr::DUMMY_INSTR,
             game_speed: 1.0,
             target_speed: 1.0,
             paused: false,
@@ -219,7 +223,7 @@ impl Emulator {
     pub fn run_one_cpu_instruction(&mut self) {
         if let Some(nes) = self.nes.as_mut() {
             loop {
-                let end_of_instr = step_cpu(nes);
+                let end_of_instr = step_cpu(&mut self.instr, nes);
 
                 ppu::step_ppu(nes);
                 ppu::step_ppu(nes);
@@ -238,7 +242,7 @@ impl Emulator {
         loop {
             self.try_audio_sample();
             if let Some(nes) = self.nes.as_mut() {
-                step_cpu(nes);
+                step_cpu(&mut self.instr, nes);
 
                 ppu::step_ppu(nes);
                 ppu::step_ppu(nes);

@@ -11,7 +11,7 @@ pub struct Cpu {
     pub reg: Registers,
     pub interrupts: Interrupts,
     pub ireg: WorkingRegisters,
-    pub instr: Instr,
+    // pub instr: Instr,
     pub debug: CpuDebug,
 }
 
@@ -72,7 +72,7 @@ impl Cpu {
                 cycles: 8,
                 instruction_count: 0,
             },
-            instr: Instr::DUMMY_INSTR,
+            // instr: Instr::DUMMY_INSTR,
             ..Default::default()
         }
     }

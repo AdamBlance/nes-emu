@@ -28,7 +28,7 @@ enum JumpState {
 }
 
 impl JumpInstr {
-    pub const fn new(opc: JumpOpc, jump_type: JumpType) -> Self {
+    pub fn new(opc: JumpOpc, jump_type: JumpType) -> Self {
         Self {
             opc,
             jump_type,
@@ -77,7 +77,7 @@ impl JumpInstr {
                 copy_address_to_pc(nes);
                 JumpState::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         }
     }
     fn jump_to_addr_cycles(state: JumpState, nes: &mut Nes) -> JumpState {
@@ -92,7 +92,7 @@ impl JumpInstr {
                 copy_address_to_pc(nes);
                 JumpState::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         }
     }
     fn jump_to_pointer_addr_cycles(state: JumpState, nes: &mut Nes) -> JumpState {
@@ -116,7 +116,7 @@ impl JumpInstr {
                 copy_address_to_pc(nes);
                 JumpState::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         }
     }
 }

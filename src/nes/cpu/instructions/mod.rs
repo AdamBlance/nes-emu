@@ -7,6 +7,7 @@ use crate::nes::cpu::instructions::memory::{
 };
 use crate::nes::cpu::instructions::nonmemory::{NonMemoryInstr, NonMemoryOpc};
 use serde::{Deserialize, Serialize};
+use crate::nes::{cpu, Nes};
 
 mod branch;
 mod control;
@@ -49,6 +50,18 @@ impl Instr {
     }
     pub fn new_interrupt(interrupt_type: InterruptType) -> Self {
         Self::Interrupt(Interrupt::new(interrupt_type))
+    }
+    pub fn do_next_cycle(&mut self, nes: &mut Nes) {
+        // println!("instr: {:?}", self);
+        match self {
+            Instr::Branch(instr) => instr.do_next_instruction_cycle(nes),
+            Instr::Control(instr) => instr.do_next_instruction_cycle(nes),
+            Instr::Jump(instr) => instr.do_next_instruction_cycle(nes),
+            Instr::Memory(instr) => instr.do_next_instruction_cycle(nes),
+            Instr::NonMemory(instr) => instr.do_next_instruction_cycle(nes),
+            Instr::Interrupt(interrupt) => interrupt.do_next_interrupt_cycle(nes),
+            Instr::Jam => panic!("JAM!")
+        };
     }
     pub fn from_opcode(opcode: u8) -> Self {
         match opcode {
@@ -610,7 +623,7 @@ impl Instr {
                 MemoryOpc::ARR,
                 AddressingConfig::Immediate,
             )),
-            0x6C => Instr::Jump(JumpInstr::new(JumpOpc::JMP, JumpType::JumpToAddr)),
+            0x6C => Instr::Jump(JumpInstr::new(JumpOpc::JMP, JumpType::JumpToPointerAddr)),
             0x6D => Instr::Memory(MemoryInstr::new(
                 MemoryOpc::ADC,
                 AddressingConfig::Addressed {

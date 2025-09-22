@@ -54,13 +54,13 @@ impl BranchInstr {
                 fix_upper_pc_after_page_crossing_branch(nes);
                 BranchCycle::Finished
             }
-            state => state,
+            state => panic!("{state:?}"),
         };
     }
     pub fn is_finished(&self) -> bool {
         self.state == BranchCycle::Finished
     }
-    
+
     fn is_branch_condition_true(&self, nes: &Nes) -> bool {
         match self.opc {
             BranchOpc::BCC => !nes.cpu.reg.p_c,
