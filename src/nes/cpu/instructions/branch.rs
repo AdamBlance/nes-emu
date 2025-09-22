@@ -1,18 +1,19 @@
-use crate::nes::cpu::instr::addressing::{add_branch_offset_to_lower_pc_and_set_carry, fetch_branch_offset_from_pc, fix_upper_pc_after_page_crossing_branch, increment_pc};
-use crate::nes::cpu::instr::{Instruction, IsInstructionFinished};
+use serde::{Deserialize, Serialize};
 use crate::nes::Nes;
+use crate::nes::cpu::addressing::*;
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct BranchInstr {
     opc: BranchOpc,
     state: BranchCycle,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum BranchOpc {
     BCC, BCS, BVC, BVS, BNE, BEQ, BPL, BMI,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BranchCycle {
     FetchBranchOffset,
     OffsetLowerPc,
@@ -27,25 +28,10 @@ impl BranchInstr {
             state: BranchCycle::FetchBranchOffset,
         }
     }
-    pub fn is_branch_condition_true(&self, nes: &Nes) -> bool {
-        match self.opc {
-            BranchOpc::BCC => !nes.cpu.reg.p_c,
-            BranchOpc::BCS => nes.cpu.reg.p_c,
-            BranchOpc::BVC => !nes.cpu.reg.p_v,
-            BranchOpc::BVS => nes.cpu.reg.p_v,
-            BranchOpc::BNE => !nes.cpu.reg.p_z,
-            BranchOpc::BEQ => nes.cpu.reg.p_z,
-            BranchOpc::BPL => !nes.cpu.reg.p_n,
-            BranchOpc::BMI => nes.cpu.reg.p_n,
-        }
-    }
-}
-
-impl Instruction for BranchInstr {
-    fn opcode(&self) -> String {
+    pub fn opcode(&self) -> String {
         format!("{:?}", self.opc)
     }
-    fn do_next_instruction_cycle(&mut self, nes: &mut Nes) -> IsInstructionFinished {
+    pub fn do_next_instruction_cycle(&mut self, nes: &mut Nes) {
         self.state = match self.state {
             BranchCycle::FetchBranchOffset => {
                 fetch_branch_offset_from_pc(nes);
@@ -70,10 +56,21 @@ impl Instruction for BranchInstr {
             }
             state => state,
         };
+    }
+    pub fn is_finished(&self) -> bool {
         self.state == BranchCycle::Finished
     }
+    
+    fn is_branch_condition_true(&self, nes: &Nes) -> bool {
+        match self.opc {
+            BranchOpc::BCC => !nes.cpu.reg.p_c,
+            BranchOpc::BCS => nes.cpu.reg.p_c,
+            BranchOpc::BVC => !nes.cpu.reg.p_v,
+            BranchOpc::BVS => nes.cpu.reg.p_v,
+            BranchOpc::BNE => !nes.cpu.reg.p_z,
+            BranchOpc::BEQ => nes.cpu.reg.p_z,
+            BranchOpc::BPL => !nes.cpu.reg.p_n,
+            BranchOpc::BMI => nes.cpu.reg.p_n,
+        }
+    }
 }
-
-
-
-

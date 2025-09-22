@@ -1,15 +1,17 @@
-use crate::nes::cpu::instr::lookup_table::{Instruction, ProcessingState};
+pub mod instructions;
+mod addressing;
+pub mod step;
+
 use crate::util::{concat_u8, get_bit};
 use serde::{Deserialize, Serialize};
+use crate::nes::cpu::instructions::Instr;
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Cpu {
     pub reg: Registers,
     pub interrupts: Interrupts,
     pub ireg: WorkingRegisters,
-    // Should be optional (as instruction unknown before opcode is fetched),
-    // but for readability and convenience it isn't.
-    pub instr: Instruction,
+    pub instr: Instr,
     pub debug: CpuDebug,
 }
 
@@ -70,6 +72,7 @@ impl Cpu {
                 cycles: 8,
                 instruction_count: 0,
             },
+            instr: Instr::DUMMY_INSTR,
             ..Default::default()
         }
     }

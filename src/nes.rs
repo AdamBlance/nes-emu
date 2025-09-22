@@ -6,6 +6,7 @@ mod mem;
 pub mod ppu;
 pub mod mem_consts;
 
+
 use crate::nes::apu::Apu;
 use crate::nes::cartridge::Cartridge;
 use crate::nes::controller::Controller;
@@ -63,6 +64,17 @@ impl Nes {
 
             // RGBA image (4 channels)
             frame: Some(frame),
+        }
+    }
+    pub fn do_next_cycle(&mut self) {
+        match self.cpu.instr {
+            cpu::instructions::Instr::Branch(mut instr) => instr.do_next_instruction_cycle(self),
+            cpu::instructions::Instr::Control(mut instr) => instr.do_next_instruction_cycle(self),
+            cpu::instructions::Instr::Jump(mut instr) => instr.do_next_instruction_cycle(self),
+            cpu::instructions::Instr::Memory(mut instr) => instr.do_next_instruction_cycle(self),
+            cpu::instructions::Instr::NonMemory(mut instr) => instr.do_next_instruction_cycle(self),
+            cpu::instructions::Instr::Interrupt(mut interrupt) => interrupt.do_next_interrupt_cycle(self),
+            cpu::instructions::Instr::Jam => panic!("JAM!")
         }
     }
 }

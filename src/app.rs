@@ -1,4 +1,4 @@
-use eframe::egui::{Color32, ColorImage, Key, TextureFilter, TextureOptions};
+use eframe::egui::{Color32, ColorImage, TextureFilter, TextureOptions};
 use eframe::{egui, CreationContext, Storage};
 use gilrs::{Event, EventType, Gilrs};
 use serde::{Deserialize, Serialize};
@@ -287,7 +287,7 @@ impl eframe::App for App {
         self.emulator.update(ctx.input(|input| input.time));
 
         if self.show_cpu_debugger {
-            self.define_cpu_debugger(ctx);
+            // self.define_cpu_debugger(ctx);
         }
         if self.show_controller_config {
             self.define_controller_config(ctx);

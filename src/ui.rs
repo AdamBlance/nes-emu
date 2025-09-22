@@ -3,7 +3,7 @@ use crate::setup;
 use crate::widgets::input_select::{InputSelect, InputType};
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
-use eframe::egui::{include_image, Color32, Image, RichText, ViewportBuilder, ViewportId};
+use eframe::egui::{include_image, Image, ViewportBuilder, ViewportId};
 
 impl App {
     pub fn define_main_top_panel(&mut self, ctx: &egui::Context) {
@@ -91,63 +91,63 @@ impl App {
         });
     }
 
-    pub fn define_cpu_debugger(&mut self, ctx: &egui::Context) {
-        ctx.show_viewport_immediate(
-            ViewportId::from_hash_of("cpu_debugger"),
-            ViewportBuilder::default().with_inner_size([500.0, 800.0]),
-            |ctx, _class| {
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    let advance_button = ui.button("Step");
-                    if advance_button.clicked() {
-                        self.emulator.run_one_cpu_instruction();
-                    }
-
-                    ui.separator();
-
-                    ui.add_enabled_ui(self.is_paused, |ui| {
-                        let mut scroll_builder = egui::ScrollArea::vertical().auto_shrink(false);
-                        if advance_button.clicked() {
-                            let row = self
-                                .emulator
-                                .instruction_cache
-                                .binary_search_by_key(
-                                    &self.emulator.nes.as_ref().unwrap().cpu.reg.pc,
-                                    |x| x.opc_addr,
-                                )
-                                .unwrap_or_else(|i| i);
-                            scroll_builder = scroll_builder.vertical_scroll_offset(
-                                (10.0 + ui.spacing().item_spacing.y) * (row as f32)
-                                    - (ui.available_height() / 2.5),
-                            );
-                        }
-                        scroll_builder.show_rows(
-                            ui,
-                            10.0,
-                            self.emulator.instruction_cache.len(),
-                            |ui, row_range| {
-                                for row in row_range {
-                                    if let Some(nes) = self.emulator.nes.as_ref() {
-                                        let debug_instr = self.emulator.instruction_cache[row];
-                                        let text =
-                                            RichText::new(debug_instr.debug_string()).monospace();
-                                        if debug_instr.opc_addr == nes.cpu.reg.pc {
-                                            ui.label(text.color(Color32::RED));
-                                        } else {
-                                            ui.label(text);
-                                        }
-                                    }
-                                }
-                            },
-                        )
-                    });
-                });
-
-                if ctx.input(|i| i.viewport().close_requested()) {
-                    self.show_cpu_debugger = false;
-                }
-            },
-        )
-    }
+    // pub fn define_cpu_debugger(&mut self, ctx: &egui::Context) {
+    //     ctx.show_viewport_immediate(
+    //         ViewportId::from_hash_of("cpu_debugger"),
+    //         ViewportBuilder::default().with_inner_size([500.0, 800.0]),
+    //         |ctx, _class| {
+    //             egui::CentralPanel::default().show(ctx, |ui| {
+    //                 let advance_button = ui.button("Step");
+    //                 if advance_button.clicked() {
+    //                     self.emulator.run_one_cpu_instruction();
+    //                 }
+    //
+    //                 ui.separator();
+    //
+    //                 ui.add_enabled_ui(self.is_paused, |ui| {
+    //                     let mut scroll_builder = egui::ScrollArea::vertical().auto_shrink(false);
+    //                     if advance_button.clicked() {
+    //                         let row = self
+    //                             .emulator
+    //                             .instruction_cache
+    //                             .binary_search_by_key(
+    //                                 &self.emulator.nes.as_ref().unwrap().cpu.reg.pc,
+    //                                 |x| x.opc_addr,
+    //                             )
+    //                             .unwrap_or_else(|i| i);
+    //                         scroll_builder = scroll_builder.vertical_scroll_offset(
+    //                             (10.0 + ui.spacing().item_spacing.y) * (row as f32)
+    //                                 - (ui.available_height() / 2.5),
+    //                         );
+    //                     }
+    //                     scroll_builder.show_rows(
+    //                         ui,
+    //                         10.0,
+    //                         self.emulator.instruction_cache.len(),
+    //                         |ui, row_range| {
+    //                             for row in row_range {
+    //                                 if let Some(nes) = self.emulator.nes.as_ref() {
+    //                                     let debug_instr = self.emulator.instruction_cache[row];
+    //                                     let text =
+    //                                         RichText::new(debug_instr.debug_string()).monospace();
+    //                                     if debug_instr.opc_addr == nes.cpu.reg.pc {
+    //                                         ui.label(text.color(Color32::RED));
+    //                                     } else {
+    //                                         ui.label(text);
+    //                                     }
+    //                                 }
+    //                             }
+    //                         },
+    //                     )
+    //                 });
+    //             });
+    //
+    //             if ctx.input(|i| i.viewport().close_requested()) {
+    //                 self.show_cpu_debugger = false;
+    //             }
+    //         },
+    //     )
+    // }
 
     pub fn define_controller_config(&mut self, ctx: &egui::Context) {
         ctx.show_viewport_immediate(

@@ -8,11 +8,8 @@ use std::sync::mpsc::SyncSender;
 
 use crate::nes::apu;
 use crate::nes::cartridge::cartridge_def::RomConfig;
-use crate::nes::cpu;
-use crate::nes::cpu::instr::lookup_table::INSTRUCTIONS;
+use crate::nes::cpu::step::step_cpu;
 use crate::nes::ppu;
-
-use crate::nes::cpu::debugger::{CpuDebuggerInstruction, InstrBytes};
 
 /*
     Would be nice to create a state machine diagram to show how the program works when pausing,
@@ -55,7 +52,7 @@ pub struct Emulator {
 
     nes_frame: Rc<RefCell<Vec<u8>>>,
 
-    pub instruction_cache: Vec<CpuDebuggerInstruction>,
+    // pub instruction_cache: Vec<CpuDebuggerInstruction>,
 }
 
 impl Emulator {
@@ -82,7 +79,6 @@ impl Emulator {
             rewind_state_index: 0.0,
             rewind_states: Vec::new(),
             nes_frame: Rc::new(RefCell::new(vec![0u8; 256usize * 240 * 4])),
-            instruction_cache: Vec::new(),
         }
     }
 
@@ -98,7 +94,7 @@ impl Emulator {
         };
 
         self.nes = Some(Nes::new(cartridge, Rc::clone(&self.nes_frame)));
-        self.update_prg_rom_debug_cache();
+        // self.update_prg_rom_debug_cache();
     }
 
     pub fn game_loaded(&self) -> bool {
@@ -223,7 +219,7 @@ impl Emulator {
     pub fn run_one_cpu_instruction(&mut self) {
         if let Some(nes) = self.nes.as_mut() {
             loop {
-                let end_of_instr = cpu::step_cpu(nes);
+                let end_of_instr = step_cpu(nes);
 
                 ppu::step_ppu(nes);
                 ppu::step_ppu(nes);
@@ -236,14 +232,13 @@ impl Emulator {
                 }
             }
         }
-        self.update_prg_rom_debug_cache();
     }
 
     fn run_to_vblank(&mut self) {
         loop {
             self.try_audio_sample();
             if let Some(nes) = self.nes.as_mut() {
-                cpu::step_cpu(nes);
+                step_cpu(nes);
 
                 ppu::step_ppu(nes);
                 ppu::step_ppu(nes);
@@ -320,18 +315,18 @@ impl Emulator {
     //     let mut opcodes: Vec<CpuDebuggerInstruction> = Vec::new();
     //     let mut window = prg_rom.array_windows().enumerate();
     //     while let Some((index, [opc, arg1, arg2])) = window.next() {
-    //         let instr = INSTRUCTIONS[*opc as usize];
-    //         if !instr.is_unofficial() {
+    //         let instructions = INSTRUCTIONS[*opc as usize];
+    //         if !instructions.is_unofficial() {
     //             opcodes.push(CpuDebuggerInstruction {
     //                 opc_addr: 0x8000 + index as u16,
-    //                 bytes: match instr.number_of_operands() {
+    //                 bytes: match instructions.number_of_operands() {
     //                     0 => InstrBytes::I1(*opc),
     //                     1 => InstrBytes::I2(*opc, *arg1),
     //                     2 => InstrBytes::I3(*opc, *arg1, *arg2),
     //                     _ => unreachable!(),
     //                 },
     //             });
-    //             let _ = window.advance_by(instr.number_of_operands() as usize);
+    //             let _ = window.advance_by(instructions.number_of_operands() as usize);
     //         }
     //     }
     //     opcodes

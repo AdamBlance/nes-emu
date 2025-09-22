@@ -2,9 +2,7 @@ use crate::nes::mem::{read_mem, write_mem};
 use crate::nes::Nes;
 use crate::util::concat_u8;
 
-
-// PC
-
+// Program counter
 pub fn increment_pc(nes: &mut Nes) {
     nes.cpu.reg.pc = nes.cpu.reg.pc.wrapping_add(1);
 }
@@ -20,8 +18,7 @@ pub fn fetch_upper_pc_from_interrupt_vector(nes: &mut Nes) {
     nes.cpu.set_upper_pc(upper);
 }
 
-// Immediate
-
+// Immediate addressing
 pub fn fetch_immediate_from_pc(nes: &mut Nes) {
     nes.cpu.ireg.data = read_mem(nes.cpu.reg.pc, nes);
 }

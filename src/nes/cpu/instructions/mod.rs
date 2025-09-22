@@ -1,26 +1,22 @@
-use crate::nes::cpu::instr::branch::{BranchInstr, BranchOpc};
-use crate::nes::cpu::instr::control::{ControlInstr, ControlOpc};
-use crate::nes::cpu::instr::jump::{JumpInstr, JumpOpc, JumpType};
-use crate::nes::cpu::instr::memory::{
+use crate::nes::cpu::instructions::branch::{BranchInstr, BranchOpc};
+use crate::nes::cpu::instructions::control::{ControlInstr, ControlOpc};
+use crate::nes::cpu::instructions::interrupts::{Interrupt, InterruptType};
+use crate::nes::cpu::instructions::jump::{JumpInstr, JumpOpc, JumpType};
+use crate::nes::cpu::instructions::memory::{
     AddressingConfig, AddressingMode, MemoryAccessType, MemoryInstr, MemoryOpc,
 };
-use crate::nes::cpu::instr::nonmemory::{NonMemoryInstr, NonMemoryOpc};
-use crate::nes::Nes;
+use crate::nes::cpu::instructions::nonmemory::{NonMemoryInstr, NonMemoryOpc};
+use serde::{Deserialize, Serialize};
 
-pub mod addressing;
 mod branch;
 mod control;
 mod jump;
 mod memory;
 mod nonmemory;
-mod interrupt;
+mod common;
+pub mod interrupts;
 
-pub type IsInstructionFinished = bool;
-pub trait Instruction {
-    fn opcode(&self) -> String;
-    fn do_next_instruction_cycle(&mut self, nes: &mut Nes) -> IsInstructionFinished;
-}
-
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Instr {
     Branch(BranchInstr),
     Control(ControlInstr),
@@ -28,6 +24,8 @@ pub enum Instr {
     Memory(MemoryInstr),
     NonMemory(NonMemoryInstr),
     Jam,
+    // For the sake of simplicity, an interrupt is considered an instruction
+    Interrupt(Interrupt)
 }
 
 impl Default for Instr {
@@ -35,9 +33,24 @@ impl Default for Instr {
         Self::NonMemory(Default::default())
     }
 }
-
 impl Instr {
-    fn from_opcode(opcode: u8) -> Self {
+    pub const DUMMY_INSTR: Instr = Self::NonMemory(NonMemoryInstr::DUMMY_INSTR);
+    // TODO: Figure out how to have the do_next_cycle method in here!
+    pub fn is_finished(&self) -> bool {
+        match self {
+            Self::Branch(instr) => instr.is_finished(),
+            Self::Control(instr) => instr.is_finished(),
+            Self::Jump(instr) => instr.is_finished(),
+            Self::Memory(instr) => instr.is_finished(),
+            Self::NonMemory(instr) => instr.is_finished(),
+            Self::Interrupt(interrupt) => interrupt.is_finished(),
+            Self::Jam => true
+        }
+    }
+    pub fn new_interrupt(interrupt_type: InterruptType) -> Self {
+        Self::Interrupt(Interrupt::new(interrupt_type))
+    }
+    pub fn from_opcode(opcode: u8) -> Self {
         match opcode {
             0x00 => Instr::Control(ControlInstr::new(ControlOpc::BRK)),
             0x01 => Instr::Memory(MemoryInstr::new(

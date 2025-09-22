@@ -1,22 +1,21 @@
 use serde::{Deserialize, Serialize};
-use crate::nes::cpu::instr::{Instruction, IsInstructionFinished};
-use crate::nes::cpu::instr::addressing::{decrement_s, dummy_read_from_pc_address, fetch_lower_pc_from_interrupt_vector, fetch_upper_pc_from_interrupt_vector, push_lower_pc_to_stack, push_p_to_stack_during_interrupt, push_upper_pc_to_stack};
-use crate::nes::cpu::instr::interrupt::InterruptState::{Finished, InterruptCycle};
-use crate::nes::cpu::operation_funcs::set_interrupt_inhibit_flag;
+use crate::nes::cpu::addressing::{decrement_s, dummy_read_from_pc_address, fetch_lower_pc_from_interrupt_vector, fetch_upper_pc_from_interrupt_vector, push_lower_pc_to_stack, push_p_to_stack_during_interrupt, push_upper_pc_to_stack};
+use crate::nes::cpu::instructions::interrupts::InterruptState::{Finished, InterruptCycle};
 use crate::nes::Nes;
 
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct Interrupt {
     interrupt_type: InterruptType,
     state: InterruptState
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum InterruptType {
     NMI,
     IRQ,
 }
 
-#[derive(PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 enum InterruptState {
     InterruptCycle(InterruptType, u8),
     Finished
@@ -29,14 +28,10 @@ impl Interrupt {
             state: InterruptCycle(interrupt_type, 0),
         }
     }
-}
-
-impl Instruction for Interrupt {
-    fn opcode(&self) -> String {
-        "not an instruction".to_string()
+    pub fn is_finished(&self) -> bool {
+        self.state == Finished
     }
-
-    fn do_next_instruction_cycle(&mut self, nes: &mut Nes) -> IsInstructionFinished {
+    pub fn do_next_interrupt_cycle(&mut self, nes: &mut Nes) {
         self.state = match self.state {
             InterruptCycle(InterruptType::NMI, 0) => {
                 dummy_read_from_pc_address(nes);
@@ -70,7 +65,7 @@ impl Instruction for Interrupt {
             }
             InterruptCycle(InterruptType::NMI, 5) => {
                 fetch_lower_pc_from_interrupt_vector(nes);
-                set_interrupt_inhibit_flag(nes);
+                nes.cpu.reg.p_i = true;
                 InterruptCycle(InterruptType::NMI, 6)
             }
             InterruptCycle(InterruptType::IRQ, 5) => {
@@ -84,13 +79,12 @@ impl Instruction for Interrupt {
                 Finished
             }
             InterruptCycle(InterruptType::IRQ, 6) => {
-                set_interrupt_inhibit_flag(nes);
+                nes.cpu.reg.p_i = true;
                 fetch_upper_pc_from_interrupt_vector(nes);
                 nes.cpu.interrupts.irq_pending = false;
                 Finished
             }
             state => state,
         };
-        self.state == Finished
     }
 }
