@@ -1,3 +1,5 @@
+## ⚠ In intermediate state - check main branch for latest compiling project!
+
 ## Summary
 
 A cycle-accurate NES emulator written in Rust 🦀 with an [egui](https://github.com/emilk/egui) frontend. 
