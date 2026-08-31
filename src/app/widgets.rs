@@ -1,8 +1,3 @@
-use eframe::egui;
-use eframe::egui::{Color32, FontId, Response, Ui, Vec2, Widget};
-use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum Input {
     Key(egui::Key),
@@ -92,18 +87,18 @@ impl<'a> Widget for InputSelect<'a> {
             response.mark_changed();
         } else if listening
             && (response.clicked_elsewhere()
-                || self
-                    .pressed_input
-                    .is_some_and(|b| b == Input::Key(egui::Key::Escape)))
+            || self
+            .pressed_input
+            .is_some_and(|b| b == Input::Key(egui::Key::Escape)))
         {
             listening = false;
             response.mark_changed();
         } else if listening
             && self.pressed_input.is_some_and(|i| {
-                (self.input_type == InputType::Keyboard && matches!(i, Input::Key(_)))
-                    || (self.input_type == InputType::Controller
-                        && matches!(i, Input::ControllerAxis(_, _) | Input::ControllerButton(_)))
-            })
+            (self.input_type == InputType::Keyboard && matches!(i, Input::Key(_)))
+                || (self.input_type == InputType::Controller
+                && matches!(i, Input::ControllerAxis(_, _) | Input::ControllerButton(_)))
+        })
         {
             listening = false;
             if let Some(si) = self.stored_input {

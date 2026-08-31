@@ -1,7 +1,16 @@
-use serde::{Deserialize, Serialize};
-use std::fmt;
+mod mem;
+mod ppu_def;
+mod step;
+mod consts;
 
+use std::fmt;
+use serde::{Deserialize, Serialize};
 use crate::util::get_bit;
+pub use self::mem::{memory_mapped_register_read, memory_mapped_register_write, increment_v_after_ppudata_access, read_vram, write_vram, set_dynamic_latch, get_dynamic_latch};
+pub use self::step::{
+    step_ppu,
+};
+
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Ppu {

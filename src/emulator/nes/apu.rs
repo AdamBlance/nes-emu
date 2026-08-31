@@ -1,6 +1,16 @@
-use super::channels::*;
-use crate::nes::apu;
+mod apu_def;
+mod channels;
+mod step;
+mod mem;
+
 use serde::{Deserialize, Serialize};
+use crate::nes::apu;
+use crate::nes::apu::channels::{Noise, Sample, Square, Triangle};
+pub use self::step::{
+    noise_channel_output, sample_channel_output, square_channel_output, step_apu,
+    triangle_channel_output
+};
+pub use self::mem::{apu_status_read, apu_status_write, apu_channels_write};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Apu {
@@ -70,7 +80,7 @@ impl Apu {
             95.88 / ((8128.0 / (pos_bias * sq2_output + neg_bias * sq1_output + epsilon)) + 100.0);
         let other_out = 159.79
             / ((1.0 / ((tri_output / 8227.0) + (noise / 12241.0) + (sample / 22638.0) + epsilon))
-                + 100.0);
+            + 100.0);
 
         (pulse1_out + other_out, pulse2_out + other_out)
     }

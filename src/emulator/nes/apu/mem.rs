@@ -1,4 +1,3 @@
-use crate::nes::mem_consts::*;
 
 pub fn apu_status_read(nes: &mut crate::nes::Nes) -> u8 {
     let result = nes.apu.square1.length_counter.min(1)

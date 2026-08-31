@@ -1,5 +1,16 @@
+#![feature(bigint_helper_methods)]
+#![feature(array_chunks)]
+#![feature(array_windows)]
+#![feature(iter_advance_by)]
+#![feature(map_try_insert)]
+#![allow(clippy::unusual_byte_groupings)]
+#![feature(try_blocks)]
+
+mod app;
+mod emulator;
+
 use eframe::egui;
-use nes_emu_egui::app::App;
+use crate::app::App;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {

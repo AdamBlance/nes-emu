@@ -1,3 +1,6 @@
+mod widgets;
+mod input;
+
 use eframe::egui::{Color32, ColorImage, TextureFilter, TextureOptions};
 use eframe::{egui, CreationContext, Storage};
 use gilrs::{Event, EventType, Gilrs};
@@ -6,10 +9,9 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::{fs, iter};
 use uuid::Uuid;
-
+use crate::app::widgets::Input;
 use crate::emulator::Emulator;
-use crate::setup;
-use crate::widgets::input_select::Input;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ControllerConfig {
@@ -62,6 +64,12 @@ impl Default for PersistentData {
     }
 }
 
+struct InputConfig {
+    show_controller_config: bool,
+    // Which controllers 
+    controller_input_mapping: HashMap<Uuid, ControllerConfig>,
+}
+
 pub struct App {
     pub emulator: Emulator,
     pub show_cpu_debugger: bool,
@@ -91,7 +99,7 @@ impl App {
             },
         );
 
-        let audio_stream = match setup::create_audio_stream() {
+        let audio_stream = match create_audio_stream() {
             Ok(stream) => Some(stream),
             Err(e) => {
                 eprintln!("Failed to create stream, emulator will have no audio output: {e}");

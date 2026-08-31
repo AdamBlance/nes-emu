@@ -72,7 +72,7 @@ impl Cpu {
                 cycles: 8,
                 instruction_count: 0,
             },
-            // instr: Instr::DUMMY_INSTR,
+            instr: Instr::DUMMY_INSTR,
             ..Default::default()
         }
     }

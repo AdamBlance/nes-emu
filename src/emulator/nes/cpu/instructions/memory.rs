@@ -272,7 +272,7 @@ impl MemoryInstr {
         }
     }
 
-    pub fn memory_cycles(state: MemoryState, access_type: MemoryAccessType, operation: fn(&mut Nes), nes: &mut Nes) -> MemoryState {
+    fn memory_cycles(state: MemoryState, access_type: MemoryAccessType, operation: fn(&mut Nes), nes: &mut Nes) -> MemoryState {
         match access_type {
             MemoryAccessType::Read => match state {
                 MemoryState::MemoryCycles(0) => {
