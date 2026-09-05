@@ -1,21 +1,20 @@
-mod widgets;
 mod input;
+pub mod ui;
+mod widgets;
 
-use eframe::egui::{Color32, ColorImage, TextureFilter, TextureHandle, TextureOptions};
-use eframe::{egui, CreationContext, Storage};
+use crate::app::widgets::Input;
+use crate::emulator::{AudioStream, Emulator};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use eframe::egui::{Color32, ColorImage, TextureFilter, TextureHandle, TextureOptions, Ui};
+use eframe::{CreationContext, Frame, Storage, egui};
 use gilrs::{Event, EventType, Gilrs};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::{fs, iter};
 use std::error::Error;
+use std::fs::File;
 use std::sync::mpsc;
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use std::{fs, iter};
 use uuid::Uuid;
-use crate::app::widgets::Input;
-use crate::emulator::{AudioStream, Emulator};
-
-
 
 #[derive(Serialize, Deserialize)]
 pub struct PersistentData {
@@ -44,7 +43,6 @@ struct InputConfig {
 struct AppConfig {
     pub show_controller_config: bool,
     pub show_cpu_debugger: bool,
-    pub show_controller_config: bool,
     pub controllers_input_mapping: HashMap<Uuid, ControllerConfig>,
     pub keyboard_input_mapping: (InputMapping, InputMapping),
     pub selected_controllers: (Option<Uuid>, Option<Uuid>),
@@ -59,7 +57,7 @@ struct EmuState {
 pub struct App {
     pub emulator: Emulator,
     pub screen_texture: TextureHandle,
-    pub emu_config: AppConfig,
+    pub app_config: AppConfig,
     pub emu_state: EmuState,
     pub gilrs: Gilrs,
 }
@@ -97,7 +95,7 @@ impl App {
 
         Self {
             emulator,
-            emu_config: AppConfig {
+            app_config: AppConfig {
                 show_cpu_debugger: false,
                 show_controller_config: false,
                 keyboard_input_mapping: persistent_state.keyboard_input_mapping,
@@ -206,6 +204,12 @@ impl App {
 }
 
 impl eframe::App for App {
+    fn ui(&mut self, ui: &mut Ui, frame: &mut Frame) {
+        self.define_main_top_panel(ui);
+        self.define_main_bottom_panel(ctx);
+        self.define_main_central_panel(ctx);
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint();
 

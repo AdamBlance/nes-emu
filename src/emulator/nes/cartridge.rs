@@ -5,53 +5,9 @@ pub mod mapper3;
 pub mod mapper4;
 pub mod mapper7;
 
-use std::rc::Rc;
 use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
-pub use self::cartridge_def::Cartridge;
-pub use self::cartridge_def::Mirroring;
-
-pub use self::mapper0::CartridgeM0;
-pub use self::mapper1::CartridgeM1;
-pub use self::mapper2::CartridgeM2;
-pub use self::mapper3::CartridgeM3;
-pub use self::mapper4::CartridgeM4;
-pub use self::mapper7::CartridgeM7;
-
-
-#[derive(Copy, Clone, Serialize, Deserialize)]
-pub enum Mirroring {
-    Vertical,
-    Horizontal,
-    SingleScreenLower,
-    SingleScreenUpper,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ChrMem {
-    Rom(Rc<Vec<u8>>),
-    Ram(Rc<Vec<u8>>),
-}
-impl ChrMem {
-    pub fn new(rom_data: Option<Vec<u8>>) -> Self {
-        match rom_data {
-            Some(data) => Self::Rom(Rc::new(data)),
-            None => Self::Ram(Rc::new(vec![0u8; 0x2000])),
-        }
-    }
-
-    pub fn read(&self, addr: usize) -> u8 {
-        match self {
-            ChrMem::Rom(rom) => rom[addr],
-            ChrMem::Ram(ram) => ram[addr],
-        }
-    }
-    pub fn write(&mut self, addr: usize, value: u8) {
-        if let ChrMem::Ram(ram) = self {
-            Rc::make_mut(ram)[addr] = value
-        }
-    }
-}
+use std::rc::Rc;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RomConfig {
@@ -91,6 +47,39 @@ impl CartMemory {
     }
 }
 
+#[derive(Copy, Clone, Serialize, Deserialize)]
+pub enum Mirroring {
+    Vertical,
+    Horizontal,
+    SingleScreenLower,
+    SingleScreenUpper,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum ChrMem {
+    Rom(Rc<Vec<u8>>),
+    Ram(Rc<Vec<u8>>),
+}
+impl ChrMem {
+    pub fn new(rom_data: Option<Vec<u8>>) -> Self {
+        match rom_data {
+            Some(data) => Self::Rom(Rc::new(data)),
+            None => Self::Ram(Rc::new(vec![0u8; 0x2000])),
+        }
+    }
+
+    pub fn read(&self, addr: usize) -> u8 {
+        match self {
+            ChrMem::Rom(rom) => rom[addr],
+            ChrMem::Ram(ram) => ram[addr],
+        }
+    }
+    pub fn write(&mut self, addr: usize, value: u8) {
+        if let ChrMem::Ram(ram) = self {
+            Rc::make_mut(ram)[addr] = value
+        }
+    }
+}
 
 // All cartridges must implement this
 #[typetag::serde(tag = "type")]
@@ -114,4 +103,16 @@ pub trait Cartridge: DynClone {
     fn ppu_tick(&mut self, _addr_bus: u16) {}
 
     fn mirroring(&self) -> Mirroring;
+}
+
+pub fn from_rom_config(rom_config: RomConfig) -> impl Cartridge {
+    match rom_config.ines_mapper_id {
+        0 => Box::new(mapper0::CartridgeM0::new(rom_config)),
+        1 => Box::new(mapper1::CartridgeM1::new(rom_config)),
+        2 => Box::new(mapper2::CartridgeM2::new(rom_config)),
+        3 => Box::new(mapper3::CartridgeM3::new(rom_config)),
+        4 => Box::new(mapper4::CartridgeM4::new(rom_config)),
+        7 => Box::new(mapper7::CartridgeM7::new(rom_config)),
+        id => unimplemented!("Mapper {id} not implemented"),
+    }
 }

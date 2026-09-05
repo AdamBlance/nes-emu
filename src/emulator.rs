@@ -1,13 +1,10 @@
+use self::nes::Nes;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc::SyncSender;
-use self::nes::Nes;
 
 pub mod nes;
 pub mod setup;
-pub mod ui;
-
-
 
 /*
     Would be nice to create a state machine diagram to show how the program works when pausing,
@@ -18,12 +15,23 @@ pub mod ui;
     lurches a frame.
 */
 
+/*
+
+   Right how does audio sample stuff work?
+
+
+*/
 
 const EXPONENTIAL_MOVING_AVG_BETA: f64 = 0.999;
 
-pub struct AudioStream {
-    pub sender: SyncSender<(f32, f32)>,
-    pub sample_rate: f32,
+pub struct Emulator {
+    // The emulator isn't gonna have a NES unless it has a game cartridge
+    // The cartridge is hardwired into the address bus so that seems fair
+    pub nes: Option<Nes>,
+    audio_config: Option<AudioConfig>,
+    stats: RunningStats,
+    rewind_data: RewindData,
+    nes_frame: Rc<RefCell<Vec<u8>>>,
 }
 
 struct AudioConfig {
@@ -34,28 +42,23 @@ struct AudioConfig {
     cached_cycles_per_sample: f32,
     stereo_pan: f32,
 }
+pub struct AudioStream {
+    pub sender: SyncSender<(f32, f32)>,
+    pub sample_rate: f32,
+}
 
 struct RunningStats {
     target_speed: f64,
     game_speed: f64,
     paused: bool,
+    // Should be used for counting the number of NES frames emulated
     frame: u64,
-    time: f64,
+    frame_progress_at_current_speed: f64,
 }
 
 struct RewindData {
     rewind_states: Vec<Nes>,
     rewind_state_index: f32,
-}
-
-pub struct Emulator {
-    // The emulator isn't gonna have a NES unless it has a game cartridge
-    // The cartridge is hardwired into the address bus so that seems fair
-    pub nes: Option<Nes>,
-    audio_config: Option<AudioConfig>,
-    running_stats: RunningStats,
-    rewind_data: RewindData,
-    nes_frame: Rc<RefCell<[u8]>>,
 }
 
 impl Emulator {
@@ -68,41 +71,29 @@ impl Emulator {
         Emulator {
             nes: None,
             audio_config: audio_output.map(|output| AudioConfig {
-                    audio_output: output,
-                    volume: 1.0,
-                    avg_sample_rate: 1000.0,
-                    cpu_cycle_at_last_sample: 0,
-                    cached_cycles_per_sample: init_cycles_per_sample,
-                    stereo_pan: 0.0,
-                }),
-            running_stats: RunningStats {
+                audio_output: output,
+                volume: 1.0,
+                avg_sample_rate: 1000.0,
+                cpu_cycle_at_last_sample: 0,
+                cached_cycles_per_sample: init_cycles_per_sample,
+                stereo_pan: 0.0,
+            }),
+            stats: RunningStats {
                 game_speed: 1.0,
                 target_speed: 1.0,
                 paused: false,
                 frame: 0,
-                time: 0.0,
+                frame_progress_at_current_speed: 0.0,
             },
-
-
-
-
-            rewind_state_index: 0.0,
-            rewind_states: Vec::new(),
+            rewind_data: RewindData {
+                rewind_state_index: 0.0,
+                rewind_states: Vec::new(),
+            },
             nes_frame: Rc::new(RefCell::new(vec![0u8; 256usize * 240 * 4])),
         }
     }
 
     pub fn load_game(&mut self, rom_config: RomConfig) {
-        let cartridge: Box<dyn Cartridge> = match rom_config.ines_mapper_id {
-            0 => Box::new(mapper0::CartridgeM0::new(rom_config)),
-            1 => Box::new(mapper1::CartridgeM1::new(rom_config)),
-            2 => Box::new(mapper2::CartridgeM2::new(rom_config)),
-            3 => Box::new(mapper3::CartridgeM3::new(rom_config)),
-            4 => Box::new(mapper4::CartridgeM4::new(rom_config)),
-            7 => Box::new(mapper7::CartridgeM7::new(rom_config)),
-            id => unimplemented!("Mapper {id} not implemented"),
-        };
-
         self.nes = Some(Nes::new(cartridge, Rc::clone(&self.nes_frame)));
     }
 
@@ -111,24 +102,36 @@ impl Emulator {
     }
 
     pub fn get_set_speed(&mut self, speed: Option<f64>) -> f64 {
-        if let Some(speed) = speed {
-            assert!(speed >= 0.0);
-            self.target_speed = speed;
-        }
-        self.target_speed
+        Self::get_set(self.get_speed, self.set_speed)(speed)
+    }
+    pub fn get_speed(&self) -> f64 {
+        self.stats.game_speed
+    }
+    pub fn set_speed(&mut self, speed: f64) {
+        assert!(speed > 0.0);
+        self.stats.game_speed = speed;
+        self.stats.frame_progress_at_current_speed = 0.0;
     }
 
-    pub fn get_set_pause(&mut self, pause: Option<bool>) -> bool {
-        if let Some(pause) = pause {
-            if self.paused && !pause && !self.rewind_states.is_empty() {
-                // self.rewind_states.truncate(self.rewind_state_index as usize + 1);
-                while self.rewind_states.len() - 1 != self.rewind_state_index as usize {
-                    self.rewind_states.pop();
-                }
-            }
-            self.paused = pause;
+    // Todo: Check which of these is actually being used
+    pub fn toggle_paused(&mut self) {
+        if self.stats.paused {
+            self.set_paused(false)
+        } else {
+            self.set_paused(true)
         }
-        self.paused
+    }
+
+    pub fn get_paused(&self) -> bool {
+        self.stats.paused
+    }
+    pub fn set_paused(&mut self, paused: bool) {
+        if self.stats.paused && !paused {
+            self.rewind_data
+                .rewind_states
+                .truncate(self.rewind_data.rewind_state_index as usize)
+        }
+        self.stats.paused = paused;
     }
 
     pub fn get_set_volume(&mut self, volume: Option<f64>) -> f64 {
@@ -149,14 +152,30 @@ impl Emulator {
     }
 
     pub fn update(&mut self, time: f64) -> bool {
-        self.time = time;
-
         if self.nes.is_none() {
             return false;
         }
 
-        let frame_length = 1.0 / (self.game_speed * DEFAULT_FRAMERATE);
-        let frame_number = (self.time / frame_length) as u64;
+        const NTSC_FRAMERATE: f32 = 60.0;
+        let length_of_one_frame = (self.stats.game_speed * NTSC_FRAMERATE).recip();
+        let frame_progress_when_update_called = length_of_one_frame / time;
+
+        if frame_progress_when_update_called.ceil() as u64 > self.stats.frame {}
+
+        /*
+
+        How should this be working?
+        So eframe will call update at the OS framerate which might be higher than 60.
+        So we should get the time update is called and convert it into a frame number
+        so if it starts at 0.0 and update is called 0.05 of the way through the frame,
+        round up to 1 and if round(frame) > last frame (0.0) then update.
+
+        Problem is if we change the game speed
+
+         */
+
+        let frame_length = (self.stats.game_speed * NTSC_FRAMERATE).recip();
+        let frame_number = (time / frame_length) as u64;
 
         if frame_number > self.frame {
             if self.game_speed != self.target_speed {
@@ -298,13 +317,22 @@ impl Emulator {
 
             let rolling_average = EXPONENTIAL_MOVING_AVG_BETA * self.avg_sample_rate
                 + (1.0 - EXPONENTIAL_MOVING_AVG_BETA)
-                * (nes.cpu.cycles - self.cpu_cycle_at_last_sample) as f64;
+                    * (nes.cpu.cycles - self.cpu_cycle_at_last_sample) as f64;
 
             self.cpu_cycle_at_last_sample = nes.cpu.cycles;
             self.avg_sample_rate = rolling_average;
         }
     }
 
-
+    pub(crate) fn get_set<T>(
+        get: fn(&Self) -> T,
+        set: fn(&mut Self, T),
+    ) -> impl FnMut(Option<T>) -> T {
+        |value| {
+            if let Some(v) = value {
+                set(&mut Self, v)
+            }
+            get(&Self)
+        }
+    }
 }
-
