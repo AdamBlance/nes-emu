@@ -1,4 +1,5 @@
 use self::nes::Nes;
+use crate::emulator::nes::cpu;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc::SyncSender;
@@ -36,10 +37,9 @@ pub struct Emulator {
 struct AudioConfig {
     audio_output: AudioStream,
     volume: f64,
-    avg_sample_rate: f64,
-    cpu_cycle_at_last_sample: u64,
-    cached_cycles_per_sample: f32,
     stereo_pan: f32,
+    apu_buffer: Vec<(f32, f32)>,
+    resampled_audio: Vec<(f32, f32)>,
 }
 pub struct AudioStream {
     pub sender: SyncSender<(f32, f32)>,
@@ -62,10 +62,9 @@ struct RewindData {
 
 impl Emulator {
     const NTSC_FRAMERATE: f32 = 60.0;
-    const CPU_CYCLES_PER_FRAME: f32 = 29780.5;
+    const CPU_CYCLES_PER_APU_SAMPLE_RAW: u64 = 10;
+    const INTERNAL_APU_SAMPLE_RATE: u32 = 2978;
     const SQUARE_WAVE_CHANNEL_STEREO_PAN: f32 = 0.0;
-    //
-    const EXPONENTIAL_MOVING_AVG_BETA: f64 = 0.999;
 
     /*
 
@@ -79,26 +78,19 @@ impl Emulator {
     */
 
     pub fn new(audio_output: Option<AudioStream>) -> Self {
-        let init_cycles_per_sample = match audio_output.as_ref() {
-            Some(s) => Self::cpu_cycles_to_run_before_next_audio_sample_due(s.sample_rate, 1.0),
-            None => 0.0,
-        };
-
         Emulator {
             audio_config: audio_output.map(|output| AudioConfig {
                 audio_output: output,
                 volume: 1.0,
-                avg_sample_rate: 0.0,
-                cpu_cycle_at_last_sample: 0,
-                cached_cycles_per_sample: init_cycles_per_sample,
                 stereo_pan: Self::SQUARE_WAVE_CHANNEL_STEREO_PAN,
+                ..Default::default()
             }),
             stats: RunningStats {
                 game_speed: 1.0,
                 ..Default::default()
             },
-            rewind_data: Default::default(),
             nes_frame: Rc::new(RefCell::new(vec![0u8; 256usize * 240 * 4])),
+            ..Default::default()
         }
     }
 
@@ -238,58 +230,51 @@ impl Emulator {
         }
     }
 
-    pub fn run_one_cpu_instruction(&mut self) {
+    fn run_to_vblank(&mut self) {
         if let Some(nes) = self.nes.as_mut() {
             loop {
-                let end_of_instr = cpu::step_cpu(nes);
-
-                ppu::step_ppu(nes);
-                ppu::step_ppu(nes);
-                ppu::step_ppu(nes);
-
-                apu::step_apu(nes);
-
-                if end_of_instr {
-                    break;
-                }
-            }
-        }
-        self.update_prg_rom_debug_cache();
-    }
-
-    fn run_to_vblank(&mut self) {
-        loop {
-            self.try_audio_sample();
-            if let Some(nes) = self.nes.as_mut() {
                 cpu::step_cpu(nes);
-
                 ppu::step_ppu(nes);
                 ppu::step_ppu(nes);
                 ppu::step_ppu(nes);
-
                 apu::step_apu(nes);
 
-                if nes.ppu.scanline == 239
-                    && (nes.ppu.scanline_cycle >= 257 && nes.ppu.scanline_cycle <= 259)
+                // Take audio sample every n CPU cycles
+                if let Some(AudioConfig {
+                    stereo_pan,
+                    mut apu_buffer,
+                    ..
+                }) = self.audio_config
+                    && nes.cpu.debug.cycles % Self::CPU_CYCLES_PER_APU_SAMPLE_RAW == 0
                 {
+                    apu_buffer.push(nes.apu.get_sample(stereo_pan))
+                }
+
+                if nes.ppu.in_vblank_final_cycles() {
                     break;
                 }
             }
-        }
-    }
 
-    fn try_audio_sample(&mut self) {
-        if !self.paused {
-            if let Some(nes) = self.nes.as_mut() {
-                let cycle_diff = nes.cpu.cycles - self.cpu_cycle_at_last_sample;
-
-                if (cycle_diff == self.cached_cycles_per_sample.floor() as u64
-                    && self.avg_sample_rate > self.cached_cycles_per_sample as f64)
-                    || cycle_diff >= self.cached_cycles_per_sample.ceil() as u64
-                {
-                    // TODO: This should technically be (cached_cycles_per_sample + 1).floor() I think
-                    self.do_sample();
+            // Send the samples to the other thread when done with the frame
+            if let Some(AudioConfig {
+                mut apu_buffer,
+                audio_output:
+                    AudioStream {
+                        sample_rate,
+                        sender,
+                    },
+                ..
+            }) = self.audio_config
+            {
+                let resampled_audio = resample(
+                    &apu_buffer,
+                    Self::INTERNAL_APU_SAMPLE_RATE,
+                    sample_rate as u32,
+                );
+                for sample in resampled_audio.iter() {
+                    let _ = sender.try_send(*sample);
                 }
+                apu_buffer.clear();
             }
         }
     }
@@ -302,11 +287,6 @@ impl Emulator {
                 _ => panic!("Controller doesn't exist"),
             }
         }
-    }
-
-    fn cpu_cycles_to_run_before_next_audio_sample_due(&self) -> f32 {
-        let samples_per_frame = self.audio_config.sample_rate / (game_speed * DEFAULT_FRAMERATE);
-        CPU_CYCLES_PER_FRAME / samples_per_frame
     }
 
     fn do_sample(&mut self) {
@@ -341,3 +321,141 @@ impl Emulator {
         get(&Self)
     }
 }
+
+/*
+
+   Running the emulator only a handful of CPU cycles until we have to stop to sample the APU
+   is probably not good for performance, but I'd need to benchmark to figure that out.
+   It just feels like an awkward way of doing things and we have to manage a rolling average
+   of the number of CPU cycles executed before polling for a sample.
+   Although it's going to introduce latency (will it really?), it would be much simpler to just
+   have the APU place a sample onto a buffer every X CPU cycles and then downsample that buffer
+   to the sample rate of your audio device.
+   Was going to use an audio processing library for this but I really don't think it'll be hard.
+   Let's see.
+
+*/
+
+/*
+   Not too bad; the ratio of one sample rate to the other tells us how much/many indices to jump
+   before taking another sample, then just do lerp.
+*/
+pub fn resample(
+    source_buffer: &[(f32, f32)],
+    source_sample_rate: u32,
+    output_sample_rate: u32,
+) -> Vec<(f32, f32)> {
+    // Estimate the sample that would follow to avoid audio clicking etc.
+    let [(penultimate_l, penultimate_r), (last_l, last_r)] = source_buffer
+        .last_chunk()
+        .copied()
+        .expect("You can't resample less than two values you twat");
+    let future_sample_guess = (
+        last_l + (last_l - penultimate_l),
+        last_r + (last_r - penultimate_r),
+    );
+
+    let in_out_ratio = source_sample_rate as f32 / output_sample_rate as f32;
+    let num_samples = (source_buffer.len() as f32 / in_out_ratio) as usize;
+    let sample_indices = (0..num_samples).map(|i| i as f32 * in_out_ratio);
+
+    sample_indices
+        .map(|sample_index_as_float| {
+            let (sample_l, sample_r) = source_buffer[sample_index_as_float as usize];
+            let (next_sample_l, next_sample_r) = source_buffer
+                .get(sample_index_as_float.ceil() as usize)
+                .copied()
+                .unwrap_or(future_sample_guess);
+            (
+                lerp(sample_l, next_sample_l, sample_index_as_float.fract()),
+                lerp(sample_r, next_sample_r, sample_index_as_float.fract()),
+            )
+        })
+        .collect()
+}
+
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
+    a + (b - a) * t
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn upsample() {
+        let source = vec![(0.0, 0.0), (250.0, 250.0), (500.0, 500.0), (750.0, 750.0)];
+        let output = resample(&source, 4, 8);
+
+        let expected_output_as_int = vec![0, 125, 250, 375, 500, 625, 750, 875];
+        let output_as_int: Vec<i32> = output.iter().copied().map(|x| x.0 as i32).collect();
+
+        assert_eq!(expected_output_as_int, output_as_int);
+    }
+
+    #[test]
+    fn downsample() {
+        let source = vec![
+            (0.0, 0.0),
+            (250.0, 250.0),
+            (500.0, 500.0),
+            (250.0, 250.0),
+            (0.0, 0.0),
+            (-250.0, -250.0),
+            (-500.0, -500.0),
+            (-250.0, -250.0),
+        ];
+        let output = resample(&source, 8, 4);
+
+        let expected_output_as_int = vec![0, 500, 0, -500];
+        let output_as_int: Vec<i32> = output.iter().copied().map(|x| x.0 as i32).collect();
+
+        assert_eq!(expected_output_as_int, output_as_int);
+    }
+
+    #[test]
+    #[should_panic]
+    fn no_samples() {
+        let source = vec![];
+        let output = resample(&source, 8, 4);
+    }
+
+    #[test]
+    fn sine_common_values() {
+        let source: Vec<(f32, f32)> = (0..120)
+            .map(|x| (x as f32 * 1.5f32).to_radians().sin())
+            .collect();
+        let output = resample(&source, 120, 9);
+
+        let expected: Vec<f32> = (0..9)
+            .map(|x| (x as f32 * 20f32).to_radians().sin())
+            .collect();
+
+        assert_eq!(output.len(), expected.len());
+        for (exp, out) in expected.iter().zip(output.iter()) {
+            assert!((exp - out).abs() < 0.001)
+        }
+    }
+}
+
+/*
+
+   120khz
+   44khz
+
+   44/120 = 0.3666...
+
+   1000 * 0.3666 = 367
+
+   1000 * 0.36666
+
+   1000 / 367 = 2.724795 index move per sample
+
+   Just do 120/44 and skip that much index space
+
+
+
+
+
+
+*/

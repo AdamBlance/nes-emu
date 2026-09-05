@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
+use crate::emulator::nes::cpu::addressing::fetch_branch_offset_from_pc;
 use crate::nes::Nes;
 use crate::nes::cpu::addressing::*;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct BranchInstr {
@@ -10,7 +11,14 @@ pub struct BranchInstr {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum BranchOpc {
-    BCC, BCS, BVC, BVS, BNE, BEQ, BPL, BMI,
+    BCC,
+    BCS,
+    BVC,
+    BVS,
+    BNE,
+    BEQ,
+    BPL,
+    BMI,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -18,7 +26,7 @@ pub enum BranchCycle {
     FetchBranchOffset,
     OffsetLowerPc,
     FixUpperPc,
-    Finished
+    Finished,
 }
 
 impl BranchInstr {
@@ -54,7 +62,7 @@ impl BranchInstr {
                 fix_upper_pc_after_page_crossing_branch(nes);
                 BranchCycle::Finished
             }
-            state => panic!("{state:?}"),
+            BranchCycle::Finished => BranchCycle::Finished,
         };
     }
     pub fn is_finished(&self) -> bool {

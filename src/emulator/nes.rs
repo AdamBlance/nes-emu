@@ -8,6 +8,8 @@ pub mod ppu;
 mod util;
 
 use self::cpu::Cpu;
+use crate::emulator::nes::apu::Apu;
+use crate::emulator::nes::ppu::Ppu;
 use crate::nes::apu::Apu;
 use crate::nes::cartridge::Cartridge;
 use crate::nes::controller::Controller;

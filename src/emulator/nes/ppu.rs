@@ -1,16 +1,15 @@
-mod mem;
-mod ppu_def;
-mod step;
 mod consts;
+mod mem;
+mod step;
 
-use std::fmt;
-use serde::{Deserialize, Serialize};
-use crate::util::get_bit;
-pub use self::mem::{memory_mapped_register_read, memory_mapped_register_write, increment_v_after_ppudata_access, read_vram, write_vram, set_dynamic_latch, get_dynamic_latch};
-pub use self::step::{
-    step_ppu,
+pub use self::mem::{
+    get_dynamic_latch, increment_v_after_ppudata_access, memory_mapped_register_read,
+    memory_mapped_register_write, read_vram, set_dynamic_latch, write_vram,
 };
-
+pub use self::step::step_ppu;
+use crate::util::get_bit;
+use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Ppu {
@@ -78,7 +77,7 @@ pub struct Ppu {
     pub cycles: u64,
 
     pub dynamic_latch: u8,
-    pub dynamic_latch_last_set_cycle: u64
+    pub dynamic_latch_last_set_cycle: u64,
 }
 
 impl fmt::Debug for Ppu {
@@ -88,7 +87,6 @@ impl fmt::Debug for Ppu {
             .finish()
     }
 }
-
 
 impl Default for Ppu {
     fn default() -> Self {
@@ -161,7 +159,7 @@ impl Ppu {
             cycles: 0,
 
             dynamic_latch: 0,
-            dynamic_latch_last_set_cycle: 0
+            dynamic_latch_last_set_cycle: 0,
         }
     }
 
@@ -190,5 +188,9 @@ impl Ppu {
         (self.in_vblank as u8) << 7
             | (self.sprite_zero_hit as u8) << 6
             | (self.sprite_overflow as u8) << 5
+    }
+
+    pub fn in_vblank_final_cycles(&self) -> bool {
+        self.scanline == 239 && (257..=259).contains(&self.scanline_cycle)
     }
 }
