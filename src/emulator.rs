@@ -22,8 +22,7 @@ pub mod setup;
 
 */
 
-const EXPONENTIAL_MOVING_AVG_BETA: f64 = 0.999;
-
+#[derive(Default)]
 pub struct Emulator {
     // The emulator isn't gonna have a NES unless it has a game cartridge
     // The cartridge is hardwired into the address bus so that seems fair
@@ -47,48 +46,58 @@ pub struct AudioStream {
     pub sample_rate: f32,
 }
 
+#[derive(Default)]
 struct RunningStats {
-    target_speed: f64,
     game_speed: f64,
     paused: bool,
-    // Should be used for counting the number of NES frames emulated
     frame: u64,
     frame_progress_at_current_speed: f64,
 }
 
+#[derive(Default)]
 struct RewindData {
     rewind_states: Vec<Nes>,
     rewind_state_index: f32,
 }
 
 impl Emulator {
+    const NTSC_FRAMERATE: f32 = 60.0;
+    const CPU_CYCLES_PER_FRAME: f32 = 29780.5;
+    const SQUARE_WAVE_CHANNEL_STEREO_PAN: f32 = 0.0;
+    //
+    const EXPONENTIAL_MOVING_AVG_BETA: f64 = 0.999;
+
+    /*
+
+       Instead of faffing around with running like 40 CPU cycles and then sampling the apu,
+       maybe we just have the apu shit out a new sample into a buffer every X cpu cycles, then
+       come in and sample that at 44khz. That's simpler than trying to run until a sample needs
+       to be taken. Hard to understand the code. Maybe we just run it until there are
+
+       Yeah how about put a sample into a ringbuffer every time a sample finishes, then
+
+    */
+
     pub fn new(audio_output: Option<AudioStream>) -> Self {
         let init_cycles_per_sample = match audio_output.as_ref() {
-            Some(s) => Self::cycles_per_sample(s.sample_rate, 1.0),
+            Some(s) => Self::cpu_cycles_to_run_before_next_audio_sample_due(s.sample_rate, 1.0),
             None => 0.0,
         };
 
         Emulator {
-            nes: None,
             audio_config: audio_output.map(|output| AudioConfig {
                 audio_output: output,
                 volume: 1.0,
-                avg_sample_rate: 1000.0,
+                avg_sample_rate: 0.0,
                 cpu_cycle_at_last_sample: 0,
                 cached_cycles_per_sample: init_cycles_per_sample,
-                stereo_pan: 0.0,
+                stereo_pan: Self::SQUARE_WAVE_CHANNEL_STEREO_PAN,
             }),
             stats: RunningStats {
                 game_speed: 1.0,
-                target_speed: 1.0,
-                paused: false,
-                frame: 0,
-                frame_progress_at_current_speed: 0.0,
+                ..Default::default()
             },
-            rewind_data: RewindData {
-                rewind_state_index: 0.0,
-                rewind_states: Vec::new(),
-            },
+            rewind_data: Default::default(),
             nes_frame: Rc::new(RefCell::new(vec![0u8; 256usize * 240 * 4])),
         }
     }
@@ -101,9 +110,6 @@ impl Emulator {
         self.nes.is_some()
     }
 
-    pub fn get_set_speed(&mut self, speed: Option<f64>) -> f64 {
-        Self::get_set(self.get_speed, self.set_speed)(speed)
-    }
     pub fn get_speed(&self) -> f64 {
         self.stats.game_speed
     }
@@ -111,6 +117,9 @@ impl Emulator {
         assert!(speed > 0.0);
         self.stats.game_speed = speed;
         self.stats.frame_progress_at_current_speed = 0.0;
+    }
+    pub fn get_set_speed(&mut self, speed: Option<f64>) -> f64 {
+        Self::get_set(Self::get_speed, Self::set_speed, speed)
     }
 
     // Todo: Check which of these is actually being used
@@ -156,7 +165,6 @@ impl Emulator {
             return false;
         }
 
-        const NTSC_FRAMERATE: f32 = 60.0;
         let length_of_one_frame = (self.stats.game_speed * NTSC_FRAMERATE).recip();
         let frame_progress_when_update_called = length_of_one_frame / time;
 
@@ -183,7 +191,10 @@ impl Emulator {
 
                 if let Some(stream) = &self.audio_output {
                     self.cached_cycles_per_sample =
-                        Self::cycles_per_sample(stream.sample_rate, self.game_speed as f32);
+                        Self::cpu_cycles_to_run_before_next_audio_sample_due(
+                            stream.sample_rate,
+                            self.game_speed as f32,
+                        );
                     self.avg_sample_rate = self.cached_cycles_per_sample as f64;
                 }
                 let frame_length = 1.0 / (self.game_speed * DEFAULT_FRAMERATE);
@@ -293,10 +304,8 @@ impl Emulator {
         }
     }
 
-    fn cycles_per_sample(sample_rate: f32, game_speed: f32) -> f32 {
-        const CPU_CYCLES_PER_FRAME: f32 = 29780.5;
-        const DEFAULT_FRAMERATE: f32 = 60.0;
-        let samples_per_frame = sample_rate / (game_speed * DEFAULT_FRAMERATE);
+    fn cpu_cycles_to_run_before_next_audio_sample_due(&self) -> f32 {
+        let samples_per_frame = self.audio_config.sample_rate / (game_speed * DEFAULT_FRAMERATE);
         CPU_CYCLES_PER_FRAME / samples_per_frame
     }
 
@@ -324,15 +333,11 @@ impl Emulator {
         }
     }
 
-    pub(crate) fn get_set<T>(
-        get: fn(&Self) -> T,
-        set: fn(&mut Self, T),
-    ) -> impl FnMut(Option<T>) -> T {
-        |value| {
-            if let Some(v) = value {
-                set(&mut Self, v)
-            }
-            get(&Self)
+    // This is just to make integration with egui widgets easier
+    pub(crate) fn get_set<T>(get: fn(&Self) -> T, set: fn(&mut Self, T), value: Option<T>) -> T {
+        if let Some(v) = value {
+            set(&mut Self, v)
         }
+        get(&Self)
     }
 }

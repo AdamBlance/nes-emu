@@ -3,10 +3,11 @@ pub mod cartridge;
 pub mod controller;
 pub mod cpu;
 mod mem;
-pub mod ppu;
 pub mod mem_consts;
+pub mod ppu;
+mod util;
 
-
+use self::cpu::Cpu;
 use crate::nes::apu::Apu;
 use crate::nes::cartridge::Cartridge;
 use crate::nes::controller::Controller;
@@ -67,4 +68,3 @@ impl Nes {
         }
     }
 }
-
