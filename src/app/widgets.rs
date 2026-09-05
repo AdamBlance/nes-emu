@@ -1,17 +1,7 @@
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
-pub enum Input {
-    Key(egui::Key),
-    ControllerButton(gilrs::ev::Button),
-    ControllerAxis(gilrs::ev::Axis, bool),
-    #[default]
-    Unspecified,
-}
+use eframe::egui;
+use serde::{Deserialize, Serialize};
 
-#[derive(PartialEq, Eq)]
-pub enum InputType {
-    Keyboard,
-    Controller,
-}
+
 
 const SPACING: f32 = 8.0;
 
@@ -58,7 +48,7 @@ impl<'a> InputSelect<'a> {
     }
 }
 
-impl<'a> Widget for InputSelect<'a> {
+impl<'a> egui::Widget for InputSelect<'a> {
     fn ui(self, ui: &mut Ui) -> Response {
         let text_layout = ui.painter().layout_no_wrap(
             self.stored_input

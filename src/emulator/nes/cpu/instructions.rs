@@ -1,13 +1,13 @@
-use crate::nes::cpu::instructions::branch::{BranchInstr, BranchOpc};
-use crate::nes::cpu::instructions::control::{ControlInstr, ControlOpc};
-use crate::nes::cpu::instructions::interrupts::{Interrupt, InterruptType};
-use crate::nes::cpu::instructions::jump::{JumpInstr, JumpOpc, JumpType};
-use crate::nes::cpu::instructions::memory::{
+use self::branch::{BranchInstr, BranchOpc};
+use self::control::{ControlInstr, ControlOpc};
+use self::interrupts::{Interrupt, InterruptType};
+use self::jump::{JumpInstr, JumpOpc, JumpType};
+use self::memory::{
     AddressingConfig, AddressingMode, MemoryAccessType, MemoryInstr, MemoryOpc,
 };
-use crate::nes::cpu::instructions::nonmemory::{NonMemoryInstr, NonMemoryOpc};
+use self::nonmemory::{NonMemoryInstr, NonMemoryOpc};
 use serde::{Deserialize, Serialize};
-use crate::nes::{cpu, Nes};
+use crate::emulator::nes::Nes;
 
 
 mod branch;

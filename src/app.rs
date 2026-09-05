@@ -1,49 +1,21 @@
 mod widgets;
 mod input;
 
-use eframe::egui::{Color32, ColorImage, TextureFilter, TextureOptions};
+use eframe::egui::{Color32, ColorImage, TextureFilter, TextureHandle, TextureOptions};
 use eframe::{egui, CreationContext, Storage};
 use gilrs::{Event, EventType, Gilrs};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::{fs, iter};
+use std::error::Error;
+use std::sync::mpsc;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use uuid::Uuid;
 use crate::app::widgets::Input;
-use crate::emulator::Emulator;
+use crate::emulator::{AudioStream, Emulator};
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ControllerConfig {
-    pub name: String,
-    pub input_mapping: InputMapping,
-}
-
-#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
-pub struct InputMapping {
-    pub up: Input,
-    pub down: Input,
-    pub left: Input,
-    pub right: Input,
-    pub b: Input,
-    pub a: Input,
-    pub start: Input,
-    pub select: Input,
-    pub pause: Input,
-    pub rewind: Input,
-    pub fast_forward: Input,
-}
-
-pub struct NesButtonState {
-    pub up: bool,
-    pub down: bool,
-    pub left: bool,
-    pub right: bool,
-    pub b: bool,
-    pub a: bool,
-    pub start: bool,
-    pub select: bool,
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct PersistentData {
@@ -65,22 +37,30 @@ impl Default for PersistentData {
 }
 
 struct InputConfig {
-    show_controller_config: bool,
-    // Which controllers 
+    // Which controllers
     controller_input_mapping: HashMap<Uuid, ControllerConfig>,
 }
 
-pub struct App {
-    pub emulator: Emulator,
+struct AppConfig {
+    pub show_controller_config: bool,
     pub show_cpu_debugger: bool,
     pub show_controller_config: bool,
     pub controllers_input_mapping: HashMap<Uuid, ControllerConfig>,
     pub keyboard_input_mapping: (InputMapping, InputMapping),
     pub selected_controllers: (Option<Uuid>, Option<Uuid>),
+}
+
+struct EmuState {
     pub held_input: HashSet<Input>,
     pub pressed_input: HashSet<Input>,
-    pub is_paused: bool,
     pub scrubbing_rate: f32,
+}
+
+pub struct App {
+    pub emulator: Emulator,
+    pub screen_texture: TextureHandle,
+    pub emu_config: AppConfig,
+    pub emu_state: EmuState,
     pub gilrs: Gilrs,
 }
 
@@ -91,11 +71,12 @@ impl App {
     pub fn new(eframe_creation_ctx: &CreationContext) -> Self {
         let screen_texture = eframe_creation_ctx.egui_ctx.load_texture(
             "emu",
-            ColorImage::new([256, 240], Color32::BLACK),
+            ColorImage::filled([256, 240], Color32::BLACK),
             TextureOptions {
                 magnification: TextureFilter::Nearest,
                 minification: TextureFilter::Nearest,
                 wrap_mode: Default::default(),
+                mipmap_mode: None,
             },
         );
 
@@ -116,16 +97,19 @@ impl App {
 
         Self {
             emulator,
-            show_cpu_debugger: false,
-            show_controller_config: false,
+            emu_config: AppConfig {
+                show_cpu_debugger: false,
+                show_controller_config: false,
+                keyboard_input_mapping: persistent_state.keyboard_input_mapping,
+                controllers_input_mapping: persistent_state.controllers_input_mapping,
+                selected_controllers: persistent_state.selected_controllers,
+            },
+            emu_state: EmuState {
+                held_input: HashSet::with_capacity(32),
+                pressed_input: HashSet::with_capacity(32),
+                scrubbing_rate: 0.0,
+            },
             gilrs: Gilrs::new().unwrap(),
-            keyboard_input_mapping: persistent_state.keyboard_input_mapping,
-            controllers_input_mapping: persistent_state.controllers_input_mapping,
-            selected_controllers: persistent_state.selected_controllers,
-            held_input: HashSet::with_capacity(32),
-            pressed_input: HashSet::with_capacity(32),
-            is_paused: false,
-            scrubbing_rate: 0.0,
         }
     }
 
@@ -312,4 +296,43 @@ impl eframe::App for App {
         Self::write_to_config_file(&new_config)
             .unwrap_or_else(|err| eprintln!("Couldn't save config state"));
     }
+}
+
+pub fn create_audio_stream() -> Result<AudioStream, Box<dyn Error>> {
+    let (tx, rx) = mpsc::sync_channel::<(f32, f32)>(4096);
+    let device = cpal::default_host()
+        .default_output_device()
+        .ok_or("No valid audio device")?;
+    let config = device.default_output_config()?.config();
+
+    let output = Ok(AudioStream {
+        sender: tx,
+        sample_rate: config.sample_rate.0 as f32,
+    });
+
+    std::thread::spawn(move || {
+        let mut prev_sample = (0.0, 0.0);
+        let output_stream = device
+            .build_output_stream(
+                config,
+                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    // Uses const generics to magically infer that we want &[f32; 2], wow!
+                    for [l_channel, r_channel] in data.array_chunks_mut() {
+                        (*l_channel, *r_channel) = match rx.recv() {
+                            Ok(sample) => {
+                                prev_sample = sample;
+                                sample
+                            }
+                            Err(_) => prev_sample,
+                        };
+                    }
+                },
+                |_err| panic!("Audio stream encountered an error: {_err}"),
+                None,
+            )
+            .unwrap();
+        output_stream.play().unwrap();
+        std::thread::park();
+    });
+    output
 }

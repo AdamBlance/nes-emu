@@ -1,4 +1,3 @@
-pub mod cartridge_def;
 pub mod mapper0;
 pub mod mapper1;
 pub mod mapper2;
@@ -92,18 +91,6 @@ impl CartMemory {
     }
 }
 
-pub const KB: usize = 0x400;
-
-/*
-
-    Passing cpu_cycle to keep track of system state won't be enough for all mappers.
-    MMC3 has a scanline counter that advances when it sees bit 12 of the PPU address bus go from
-    low to high. This has to be updated the moment this happens, not just at the next cartridge
-    access. This is because the mapper needs to be able to send an interrupt request to the CPU
-    regardless of when the last CHR read happened.
-    I'll need a method for updating state every PPU cycle and every CPU cycle.
-
-*/
 
 // All cartridges must implement this
 #[typetag::serde(tag = "type")]

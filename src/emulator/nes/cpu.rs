@@ -4,6 +4,7 @@ pub mod step;
 
 use crate::util::{concat_u8, get_bit};
 use serde::{Deserialize, Serialize};
+use crate::emulator::nes::cpu::instructions::Instr;
 use crate::nes::cpu::instructions::Instr;
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
@@ -11,7 +12,7 @@ pub struct Cpu {
     pub reg: Registers,
     pub interrupts: Interrupts,
     pub ireg: WorkingRegisters,
-    // pub instr: Instr,
+    pub instr: Instr,
     pub debug: CpuDebug,
 }
 

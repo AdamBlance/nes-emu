@@ -1,6 +1,5 @@
 use crate::app::App;
-use crate::setup;
-use crate::widgets::input_select::{InputSelect, InputType};
+use super::setup;
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{include_image, Image, ViewportBuilder, ViewportId};
@@ -49,10 +48,10 @@ impl App {
                 if ui
                     .add(match self.is_paused {
                         true => egui::Button::image(Image::new(include_image!(
-                            "../resources/play_light.png"
+                            "../../resources/play_light.png"
                         ))),
                         false => egui::Button::image(Image::new(include_image!(
-                            "../resources/pause_light.png"
+                            "../../resources/pause_light.png"
                         ))),
                     })
                     .clicked()
@@ -78,13 +77,13 @@ impl App {
             if self.scrubbing_rate < 0.0 && self.is_paused {
                 ui.put(
                     screen_centre_rect,
-                    Image::new(include_image!("../resources/rewind-svgrepo-com-light.svg")),
+                    Image::new(include_image!("../../resources/rewind-svgrepo-com-light.svg")),
                 );
             } else if self.scrubbing_rate > 0.0 && self.is_paused {
                 ui.put(
                     screen_centre_rect,
                     Image::new(include_image!(
-                        "../resources/fast-forward-svgrepo-com-light.svg"
+                        "../../resources/fast-forward-svgrepo-com-light.svg"
                     )),
                 );
             }
@@ -163,8 +162,8 @@ impl App {
                         let maybe_input = self.held_input.iter().next().copied();
 
                         ui.label("");
-                        ui.image(include_image!("../resources/keyboard-line.svg"));
-                        ui.image(include_image!("../resources/gamepad-line.svg"));
+                        ui.image(include_image!("../../resources/keyboard-line.svg"));
+                        ui.image(include_image!("../../resources/gamepad-line.svg"));
                         ui.end_row();
 
                         ui.label("UP:");
