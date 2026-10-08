@@ -39,7 +39,6 @@ struct AudioConfig {
     volume: f64,
     stereo_pan: f32,
     apu_buffer: Vec<(f32, f32)>,
-    resampled_audio: Vec<(f32, f32)>,
 }
 pub struct AudioStream {
     pub sender: SyncSender<(f32, f32)>,
@@ -59,6 +58,8 @@ struct RewindData {
     rewind_states: Vec<Nes>,
     rewind_state_index: f32,
 }
+
+
 
 impl Emulator {
     const NTSC_FRAMERATE: f32 = 60.0;
@@ -254,28 +255,26 @@ impl Emulator {
                     break;
                 }
             }
+        }
+    }
 
-            // Send the samples to the other thread when done with the frame
-            if let Some(AudioConfig {
-                mut apu_buffer,
-                audio_output:
-                    AudioStream {
-                        sample_rate,
-                        sender,
-                    },
-                ..
-            }) = self.audio_config
-            {
-                let resampled_audio = resample(
-                    &apu_buffer,
-                    Self::INTERNAL_APU_SAMPLE_RATE,
-                    sample_rate as u32,
-                );
-                for sample in resampled_audio.iter() {
-                    let _ = sender.try_send(*sample);
-                }
-                apu_buffer.clear();
+    fn resample_apu_audio_and_send_to_audio_stream(&mut self) {
+        // Send the samples to the other thread when done with the frame
+        if let Some(AudioConfig {
+            mut apu_buffer,
+            audio_stream
+            ..
+        }) = self.audio_config
+        {
+            let resampled_audio = resample(
+                &apu_buffer,
+                Self::INTERNAL_APU_SAMPLE_RATE,
+                sample_rate as u32,
+            );
+            for sample in resampled_audio.iter() {
+                let _ = sender.try_send(*sample);
             }
+            apu_buffer.clear();
         }
     }
 

@@ -1,6 +1,7 @@
 mod main_panel;
 
 use crate::app::App;
+use crate::app::input::Input;
 use crate::emulator::{Emulator, get_set, setup};
 use eframe::egui;
 use eframe::egui::load::SizedTexture;
