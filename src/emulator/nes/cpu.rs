@@ -4,15 +4,14 @@ pub mod step;
 
 use crate::util::{concat_u8, get_bit};
 use serde::{Deserialize, Serialize};
-use crate::emulator::nes::cpu::instructions::Instr;
+use crate::emulator::nes::cpu::instructions::ControlSequence;
 use crate::nes::cpu::instructions::Instr;
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Cpu {
     pub reg: Registers,
     pub interrupts: Interrupts,
-    pub ireg: WorkingRegisters,
-    pub instr: Instr,
+    pub ireg: InternalRegisters,
     pub debug: CpuDebug,
 }
 
@@ -42,7 +41,7 @@ pub struct Interrupts {
 }
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
-pub struct WorkingRegisters {
+pub struct InternalRegisters {
     pub data: u8,                  // Internal working register used by instructions
     pub lower_address: u8,         // Lower 8 bits of address bus
     pub upper_address: u8,         // Upper 8 bits of address bus
@@ -73,7 +72,7 @@ impl Cpu {
                 cycles: 8,
                 instruction_count: 0,
             },
-            instr: Instr::DUMMY_INSTR,
+            instr: ControlSequence::DUMMY_INSTR,
             ..Default::default()
         }
     }
@@ -114,6 +113,6 @@ impl Cpu {
 
     pub fn clear_internal_registers(&mut self) {
         // Persist open bus
-        self.ireg = WorkingRegisters { open_bus: self.ireg.open_bus, ..Default::default() };
+        self.ireg = InternalRegisters { open_bus: self.ireg.open_bus, ..Default::default() };
     }
 }

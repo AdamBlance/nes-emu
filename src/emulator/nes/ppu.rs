@@ -1,6 +1,7 @@
 mod consts;
 mod mem;
 mod step;
+mod control;
 
 pub use self::mem::{
     get_dynamic_latch, increment_v_after_ppudata_access, memory_mapped_register_read,

@@ -19,10 +19,10 @@ use crate::util::concat_u8;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
+use crate::emulator::nes::cpu::instructions::ControlSequence;
 
-#[derive(Serialize, Deserialize)]
-pub struct Nes {
-    // Hardware
+// Just a bunch of data, no behaviour
+struct NesRawState {
     pub cpu: Cpu,
     pub ppu: Ppu,
     pub apu: Apu,
@@ -30,6 +30,19 @@ pub struct Nes {
     pub cart: Box<dyn Cartridge>,
     pub con1: Controller,
     pub con2: Controller,
+}
+
+struct CpuStateMachine {
+    current_instruction: ControlSequence,
+}
+
+struct PpuStateMachine {
+    
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Nes {
+
     // External
     // #[serde(skip)]
     // #[serde(default = "frame_default")]
