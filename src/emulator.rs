@@ -6,7 +6,7 @@ use std::sync::mpsc::SyncSender;
 
 pub mod nes;
 pub mod setup;
-
+mod nes_state;
 /*
     Would be nice to create a state machine diagram to show how the program works when pausing,
     unpausing, opening the debugger, rewinding, scrubbing, stepping forward and backward through

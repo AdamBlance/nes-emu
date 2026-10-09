@@ -1,47 +1,60 @@
+use crate::nes::Nes;
 use crate::nes::cartridge::Mirroring;
 use crate::nes::mem_consts::*;
 use crate::nes::ppu::consts::*;
-use crate::nes::Nes;
-
 
 pub fn memory_mapped_register_read(addr: u16, nes: &mut Nes) -> u8 {
     match 0x2000 + (addr % 8) {
-        PPUCTRL_2000 | PPUMASK_2001 | OAMADDR_2003 | PPUSCROLL_2005 | PPUADDR_2006 => get_dynamic_latch(nes),
-        PPUSTATUS_2002 => {
-            // Upper 3 bits of PPUSTATUS are open bus
-            let status = nes.ppu.get_ppustatus_byte() | (get_dynamic_latch(nes) & 0b0001_1111);
-            nes.ppu.in_vblank = false;
-            nes.ppu.w = false;
-            set_dynamic_latch(status, nes);
-            status
+        PPUCTRL_2000 | PPUMASK_2001 | OAMADDR_2003 | PPUSCROLL_2005 | PPUADDR_2006 => {
+            get_dynamic_latch(nes)
         }
-        OAMDATA_2004 => {
-            set_dynamic_latch(nes.ppu.oam_addr, nes);
-            nes.ppu.oam_addr
-        }
-        PPUDATA_2007 if nes.ppu.v < 0x3F00 => {
-            let existing_data_in_read_buffer = nes.ppu.ppudata_buffer;
-            nes.ppu.ppudata_buffer = read_vram(nes.ppu.v, nes);
-            increment_v_after_ppudata_access(nes);
-            set_dynamic_latch(existing_data_in_read_buffer, nes);
-            existing_data_in_read_buffer
-        }
-        PPUDATA_2007 if nes.ppu.v >= 0x3F00 => {
-            let data_in_memory = read_vram(nes.ppu.v, nes);
-            // Some weird behaviour when the PPU reads from palette memory
-            nes.ppu.ppudata_buffer = read_vram(nes.ppu.v.wrapping_sub(0x1000), nes);
-            increment_v_after_ppudata_access(nes);
-            set_dynamic_latch(data_in_memory, nes);
-            data_in_memory
+        addr => {
+            let val = match addr {
+                // TODO: beware, not parsed as constants
+                PPUSTATUS_2002 => read_ppu_status(),
+                OAMDATA_2004 => nes.ppu.oam_addr,
+                PPUDATA_2007 if nes.ppu.v < 0x3F00 => read_ppu_data(),
+                PPUDATA_2007 if nes.ppu.v >= 0x3F00 => read_ppu_palette(),
+                _ => unreachable!(),
+            };
+            set_dynamic_latch(val);
+            val
         }
         _ => unreachable!(),
     }
 }
 
+fn read_ppu_status() {
+    // Upper 3 bits of PPUSTATUS are open bus
+    let status = nes.ppu.get_ppustatus_byte() | (get_dynamic_latch(nes) & 0b0001_1111);
+    nes.ppu.in_vblank = false;
+    nes.ppu.w = false;
+    status
+}
+
+fn read_ppu_data() {
+    let existing_data_in_read_buffer = nes.ppu.ppudata_buffer;
+    nes.ppu.ppudata_buffer = read_vram(nes.ppu.v, nes);
+    increment_v_after_ppudata_access(nes);
+    existing_data_in_read_buffer
+}
+
+fn read_ppu_palette() {
+    let data_in_memory = read_vram(nes.ppu.v, nes);
+    // Some weird behaviour when the PPU reads from palette memory
+    nes.ppu.ppudata_buffer = read_vram(nes.ppu.v.wrapping_sub(0x1000), nes);
+    increment_v_after_ppudata_access(nes);
+    data_in_memory
+}
+
 pub fn memory_mapped_register_write(addr: u16, val: u8, nes: &mut Nes) {
     const PPU_WARMUP: u64 = 29658;
-    if matches!(addr, PPUCTRL_2000 | PPUMASK_2001 | PPUSCROLL_2005 | PPUADDR_2006) && nes.cpu.debug.cycles < PPU_WARMUP {
-        return
+    if matches!(
+        addr,
+        PPUCTRL_2000 | PPUMASK_2001 | PPUSCROLL_2005 | PPUADDR_2006
+    ) && nes.cpu.debug.cycles < PPU_WARMUP
+    {
+        return;
     }
     set_dynamic_latch(val, nes);
     match 0x2000 + (addr % 8) {
@@ -50,10 +63,8 @@ pub fn memory_mapped_register_write(addr: u16, val: u8, nes: &mut Nes) {
             nes.ppu.t &= !NAMETABLE;
             nes.ppu.t |= (val as u16 & 0b11) << 10;
         }
-        PPUMASK_2001 =>
-            nes.ppu.set_ppumask_from_byte(val),
-        OAMADDR_2003 =>
-            nes.ppu.oam_addr = val,
+        PPUMASK_2001 => nes.ppu.set_ppumask_from_byte(val),
+        OAMADDR_2003 => nes.ppu.oam_addr = val,
         OAMDATA_2004 => {
             nes.ppu.oam[nes.ppu.oam_addr as usize] = val;
             nes.ppu.oam_addr = nes.ppu.oam_addr.wrapping_add(1);
@@ -100,7 +111,7 @@ pub fn read_vram(addr: u16, nes: &mut Nes) -> u8 {
         VRAM_START_2000..=VRAM_END_3EFF => {
             let mapped_vram_addr = mirroring_mapping(addr, nes.cart.mirroring());
             nes.ppu.vram[mapped_vram_addr as usize]
-        },
+        }
         PALETTE_RAM_START_3F00..=PALETTE_RAM_END_3FFF => {
             let colour = nes.ppu.palette_mem[map_vram_addr_to_palette_addr(addr)];
             if nes.ppu.greyscale {
@@ -120,9 +131,10 @@ pub fn write_vram(addr: u16, val: u8, nes: &mut Nes) {
             let mapped_vram_addr = mirroring_mapping(addr, nes.cart.mirroring());
             nes.ppu.vram[mapped_vram_addr as usize] = val
         }
-        PALETTE_RAM_START_3F00..=PALETTE_RAM_END_3FFF =>
-            nes.ppu.palette_mem[map_vram_addr_to_palette_addr(addr)] = val,
-        x => panic!("Invalid PPU address {x:016b}")
+        PALETTE_RAM_START_3F00..=PALETTE_RAM_END_3FFF => {
+            nes.ppu.palette_mem[map_vram_addr_to_palette_addr(addr)] = val
+        }
+        x => panic!("Invalid PPU address {x:016b}"),
     }
 }
 
@@ -134,7 +146,11 @@ pub fn increment_v_after_ppudata_access(nes: &mut Nes) {
 fn map_vram_addr_to_palette_addr(addr: u16) -> usize {
     let offset = ((addr - 0x3F00) % 0x20) as usize;
     // Shared first entry between sprites and background
-    if offset > 0xF && offset % 4 == 0 { offset - 0x10 } else { offset }
+    if offset > 0xF && offset % 4 == 0 {
+        offset - 0x10
+    } else {
+        offset
+    }
 }
 
 pub fn mirroring_mapping(addr: u16, mirroring: Mirroring) -> u16 {

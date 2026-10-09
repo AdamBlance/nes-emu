@@ -21,3 +21,4 @@ typetag = "0.2.23"
 dyn-clone = "1.0.20"
 gilrs = { version = "0.11.2", features = ["serde-serialize"] }
 uuid = { version = "1.26.0" , features = ["serde"]}
+modular-bitfield = "0.13.1"

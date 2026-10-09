@@ -1,6 +1,7 @@
 use super::channels::*;
-use crate::nes::mem::read_mem;
+use crate::emulator::nes::Nes;
 use crate::nes::Nes;
+use crate::nes::mem::read_mem;
 
 const STEP_1: u16 = 3729;
 const STEP_2: u16 = 7457;

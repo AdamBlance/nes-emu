@@ -2,13 +2,13 @@
 #![feature(map_try_insert)]
 #![allow(clippy::unusual_byte_groupings)]
 #![feature(try_blocks)]
+#![feature(associated_type_defaults)]
 
 mod app;
 mod emulator;
 
-use eframe::egui;
 use crate::app::App;
-
+use eframe::egui;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {

@@ -1,28 +1,42 @@
 mod consts;
+mod control;
 mod mem;
 mod step;
-mod control;
 
 pub use self::mem::{
     get_dynamic_latch, increment_v_after_ppudata_access, memory_mapped_register_read,
     memory_mapped_register_write, read_vram, set_dynamic_latch, write_vram,
 };
 pub use self::step::step_ppu;
+use crate::emulator::nes::util::U3;
 use crate::util::get_bit;
+use modular_bitfield::prelude::*;
+use modular_bitfield::{Specifier, bitfield};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Ppu {
-    // PPUCTRL register
-    pub nmi_enable: bool,
-    pub master_slave: bool,
-    pub tall_sprites: bool,
-    pub bg_ptable_select: bool,
-    pub sprite_ptable_select: bool,
-    pub increment_select: bool,
-    pub ntable_select: u8,
-    // PPUMASK register
+#[derive(Specifier)]
+enum VIncrement {
+    Inc1,
+    Inc32,
+}
+
+#[bitfield]
+#[derive(Clone)]
+struct PpuCtrl {
+    nmi_enable: bool,
+    master_slave: bool,
+    tall_sprites: bool,
+    bg_ptable: B1,
+    sprite_ptable: B1,
+    #[bits = 2]
+    increment: VIncrement,
+    ntable: B2,
+}
+
+#[bitfield]
+#[derive(Clone)]
+struct PpuMask {
     pub blue_emphasis: bool,
     pub green_emphasis: bool,
     pub red_emphasis: bool,
@@ -31,23 +45,50 @@ pub struct Ppu {
     pub show_leftmost_sprites: bool,
     pub show_leftmost_bg: bool,
     pub greyscale: bool,
-    // PPUSTATUS register
-    pub in_vblank: bool,
-    pub sprite_zero_hit: bool,
-    pub sprite_overflow: bool,
-    // OAMADDR register
-    pub oam_addr: u8,
-    // Memories
-    // TODO: Make Rc
-    pub vram: Vec<u8>,
-    pub oam: Vec<u8>,
-    pub s_oam: [u8; 32],
+}
+
+#[bitfield]
+struct PpuAddress {
+    _padding: B1,
+    fine_y_scroll: B3,
+    nametable: B2,
+    coarse_y_scroll: B5,
+    coarse_x_scroll: B5,
+}
+
+#[bitfield]
+#[derive(Clone)]
+struct PpuStatus {
+    in_vblank: bool,
+    sprite_zero_hit: bool,
+    sprite_overflow: bool,
+    _padding: B5,
+}
+
+#[derive(Clone)]
+struct Memory {
+    pub vram: [u8; 2048],
     pub palette_mem: [u8; 32],
-    // Rendering counters/indices/flags
-    pub t: u16,
-    pub v: u16,
-    pub x: u8,
+    pub oam: [u8; 256],
+    pub secondary_oam: [u8; 32],
+    pub oam_addr: u8,
+}
+
+#[derive(Clone)]
+struct Scroll {
+    pub t: PpuAddress,
+    pub v: PpuAddress,
+    pub x: U3,
     pub w: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Ppu {
+    ppu_ctrl: PpuCtrl,
+    ppu_mask: PpuMask,
+    ppu_status: PpuStatus,
+    memory: Memory,
+    scroll: Scroll,
     pub scanline: i32,
     pub scanline_cycle: i32,
     pub odd_frame: bool,
@@ -162,33 +203,6 @@ impl Ppu {
             dynamic_latch: 0,
             dynamic_latch_last_set_cycle: 0,
         }
-    }
-
-    pub fn set_ppuctrl_from_byte(&mut self, byte: u8) {
-        self.nmi_enable = get_bit(byte, 7);
-        self.master_slave = get_bit(byte, 6);
-        self.tall_sprites = get_bit(byte, 5);
-        self.bg_ptable_select = get_bit(byte, 4);
-        self.sprite_ptable_select = get_bit(byte, 3);
-        self.increment_select = get_bit(byte, 2);
-        self.ntable_select = byte & 0b0000_0011;
-    }
-
-    pub fn set_ppumask_from_byte(&mut self, byte: u8) {
-        self.blue_emphasis = get_bit(byte, 7);
-        self.green_emphasis = get_bit(byte, 6);
-        self.red_emphasis = get_bit(byte, 5);
-        self.show_sprites = get_bit(byte, 4);
-        self.show_bg = get_bit(byte, 3);
-        self.show_leftmost_sprites = get_bit(byte, 2);
-        self.show_leftmost_bg = get_bit(byte, 1);
-        self.greyscale = get_bit(byte, 0);
-    }
-
-    pub fn get_ppustatus_byte(&self) -> u8 {
-        (self.in_vblank as u8) << 7
-            | (self.sprite_zero_hit as u8) << 6
-            | (self.sprite_overflow as u8) << 5
     }
 
     pub fn in_vblank_final_cycles(&self) -> bool {

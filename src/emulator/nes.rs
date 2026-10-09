@@ -9,6 +9,7 @@ mod util;
 
 use self::cpu::Cpu;
 use crate::emulator::nes::apu::Apu;
+use crate::emulator::nes::cpu::instructions::ControlSequence;
 use crate::emulator::nes::ppu::Ppu;
 use crate::nes::apu::Apu;
 use crate::nes::cartridge::Cartridge;
@@ -19,33 +20,24 @@ use crate::util::concat_u8;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::emulator::nes::cpu::instructions::ControlSequence;
 
 // Just a bunch of data, no behaviour
-struct NesRawState {
-    pub cpu: Cpu,
-    pub ppu: Ppu,
-    pub apu: Apu,
-    pub wram: Vec<u8>,
-    pub cart: Box<dyn Cartridge>,
-    pub con1: Controller,
-    pub con2: Controller,
-}
 
 struct CpuStateMachine {
     current_instruction: ControlSequence,
 }
 
-struct PpuStateMachine {
-    
-}
+struct PpuStateMachine {}
 
 #[derive(Serialize, Deserialize)]
 pub struct Nes {
-
+    pub state: NesState,
+    pub cpu_control: CpuStateMachine,
+    pub ppu_control: PpuStateMachine,
+    pub apu_control: ApuStateMachine,
     // External
-    // #[serde(skip)]
-    // #[serde(default = "frame_default")]
+    #[serde(skip)]
+    #[serde(default = "frame_default")]
     pub frame: Option<Rc<RefCell<Vec<u8>>>>,
 }
 

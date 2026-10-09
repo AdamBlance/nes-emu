@@ -1,11 +1,12 @@
-pub mod instructions;
 mod addressing;
+pub mod instructions;
 pub mod step;
 
-use crate::util::{concat_u8, get_bit};
-use serde::{Deserialize, Serialize};
 use crate::emulator::nes::cpu::instructions::ControlSequence;
 use crate::nes::cpu::instructions::Instr;
+use crate::util::{concat_u8, get_bit};
+use modular_bitfield::bitfield;
+use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Cpu {
@@ -15,19 +16,61 @@ pub struct Cpu {
     pub debug: CpuDebug,
 }
 
+#[bitfield]
+#[derive(Clone, Copy, Default, Debug, Serialize, Deserialize)]
+pub struct Status {
+    was_negative: bool,
+    overflow: bool,
+    _padding: bool,
+    in_break: bool,
+    decimal: bool,
+    interrupt_disable: bool,
+    was_zero: bool,
+    carry_out: bool,
+}
+
+impl Status {
+    fn as_byte(&self) -> u8 {
+        const ALWAYS_SET_BIT: u8 = 0b0010_0000;
+        let [byte] = self.bytes;
+        byte | ALWAYS_SET_BIT
+    }
+}
+
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Registers {
     pub a: u8,
     pub x: u8,
     pub y: u8,
     pub s: u8,
-    pub p_n: bool,
-    pub p_v: bool,
-    pub p_d: bool,
-    pub p_i: bool,
-    pub p_z: bool,
-    pub p_c: bool,
-    pub pc: u16,
+    pub status: Status,
+
+    pub pc: MemAddress,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct MemAddress {
+    upper: u8,
+    lower: u8,
+}
+impl MemAddress {
+    fn with_upper(self, byte: u8) -> self {
+        MemAddress {
+            upper: byte,
+            ..self
+        }
+    }
+    pub(crate) fn with_lower(self, byte: u8) -> self {
+        MemAddress {
+            lower: byte,
+            ..self
+        }
+    }
+}
+impl From<MemAddress> for u16 {
+    fn from(value: MemAddress) -> Self {
+        todo!()
+    }
 }
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
@@ -42,16 +85,13 @@ pub struct Interrupts {
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct InternalRegisters {
-    pub data: u8,                  // Internal working register used by instructions
-    pub lower_address: u8,         // Lower 8 bits of address bus
-    pub upper_address: u8,         // Upper 8 bits of address bus
-    pub low_indirect_address: u8,  // Lower 8 bits of pointer (when using indirect addressing)
-    pub high_indirect_address: u8, // Upper 8 bits of pointer (when using indirect addressing)
-    pub branch_offset: u8,         // Value to offset PC by when branching
-    pub carry_out: bool,           // Set when lower 8 bits of address/PC/pointer overflows when offset is added
-    pub open_bus: u8,              // Data bus that can be read by reading unused memory locations
+    pub data: u8, // Internal working register used by instructions
+    pub address: MemAddress,
+    pub pointer_address: MemAddress,
+    pub branch_offset: u8, // Value to offset PC by when branching
+    pub carry_out: bool, // Set when lower 8 bits of address/PC/pointer overflows when offset is added
+    pub open_bus: u8,    // Data bus that can be read by reading unused memory locations
 }
-
 
 #[derive(Copy, Clone, Default, Debug, Serialize, Deserialize)]
 pub struct CpuDebug {
@@ -72,47 +112,15 @@ impl Cpu {
                 cycles: 8,
                 instruction_count: 0,
             },
-            instr: ControlSequence::DUMMY_INSTR,
             ..Default::default()
         }
     }
 
-    pub fn set_upper_pc(&mut self, byte: u8) {
-        self.reg.pc &= 0b00000000_11111111;
-        self.reg.pc |= (byte as u16) << 8;
-    }
-    pub fn set_lower_pc(&mut self, byte: u8) {
-        self.reg.pc &= 0b11111111_00000000;
-        self.reg.pc |= byte as u16;
-    }
-
-    pub fn get_p(&self) -> u8 {
-        (self.reg.p_n as u8) << 7 |
-        (self.reg.p_v as u8) << 6 |
-        // 1 << 5 |
-        (self.reg.p_d as u8) << 3 |
-        (self.reg.p_i as u8) << 2 |
-        (self.reg.p_z as u8) << 1 |
-        (self.reg.p_c as u8)
-    }
-    pub fn set_p(&mut self, byte: u8) {
-        self.reg.p_n = get_bit(byte, 7);
-        self.reg.p_v = get_bit(byte, 6);
-        self.reg.p_d = get_bit(byte, 3);
-        self.reg.p_i = get_bit(byte, 2);
-        self.reg.p_z = get_bit(byte, 1);
-        self.reg.p_c = get_bit(byte, 0);
-    }
-
-    pub fn get_address(&self) -> u16 {
-        concat_u8(self.ireg.upper_address, self.ireg.lower_address)
-    }
-    pub fn get_pointer(&self) -> u16 {
-        concat_u8(self.ireg.high_indirect_address, self.ireg.low_indirect_address)
-    }
-
     pub fn clear_internal_registers(&mut self) {
         // Persist open bus
-        self.ireg = InternalRegisters { open_bus: self.ireg.open_bus, ..Default::default() };
+        self.ireg = InternalRegisters {
+            open_bus: self.ireg.open_bus,
+            ..Default::default()
+        };
     }
 }

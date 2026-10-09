@@ -1,6 +1,9 @@
-use crate::nes::mem::{read_mem, write_mem};
 use crate::nes::Nes;
+use crate::nes::mem::{read_mem, write_mem};
 use crate::util::concat_u8;
+
+// Addressing operations the NES can do
+impl NesState {}
 
 // Program counter
 pub fn increment_pc(nes: &mut Nes) {
@@ -68,7 +71,11 @@ pub fn take_operand_as_high_indirect_address_byte(nes: &mut Nes) {
     nes.cpu.ireg.high_indirect_address = read_mem(nes.cpu.reg.pc, nes);
 }
 pub fn add_x_to_low_indirect_address_byte(nes: &mut Nes) {
-    nes.cpu.ireg.low_indirect_address = nes.cpu.ireg.low_indirect_address.wrapping_add(nes.cpu.reg.x);
+    nes.cpu.ireg.low_indirect_address = nes
+        .cpu
+        .ireg
+        .low_indirect_address
+        .wrapping_add(nes.cpu.reg.x);
 }
 
 // Data read
@@ -107,12 +114,12 @@ pub fn dummy_write_to_address(nes: &mut Nes) {
 // Relative addressing (branches)
 
 pub fn fetch_branch_offset_from_pc(nes: &mut Nes) {
-    nes.cpu.ireg.branch_offset = read_mem(nes.cpu.reg.pc, nes);
+    // nes.cpu.ireg.branch_offset = read_mem(nes.cpu.reg.pc, nes);
 }
 
 pub fn add_branch_offset_to_lower_pc_and_set_carry(nes: &mut Nes) {
-    let (new_pcl, overflow) = (nes.cpu.reg.pc as u8)
-        .overflowing_add_signed(nes.cpu.ireg.branch_offset as i8);
+    let (new_pcl, overflow) =
+        (nes.cpu.reg.pc as u8).overflowing_add_signed(nes.cpu.ireg.branch_offset as i8);
     nes.cpu.set_lower_pc(new_pcl);
     nes.cpu.ireg.carry_out = overflow;
 }

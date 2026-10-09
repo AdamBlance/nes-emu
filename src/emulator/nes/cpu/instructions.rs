@@ -2,21 +2,23 @@ use self::branch::{BranchInstr, BranchOpc};
 use self::control::{ControlInstr, ControlOpc};
 use self::interrupts::{Interrupt, InterruptType};
 use self::jump::{JumpInstr, JumpOpc, JumpType};
-use self::memory::{
-    AddressingConfig, AddressingMode, MemoryAccessType, MemoryInstr, MemoryOpc,
-};
+use self::memory::{AddressingConfig, AddressingMode, MemoryAccessType, MemoryInstr, MemoryOpc};
 use self::nonmemory::{NonMemoryInstr, NonMemoryOpc};
-use serde::{Deserialize, Serialize};
 use crate::emulator::nes::Nes;
-
+use serde::{Deserialize, Serialize};
 
 mod branch;
+mod common;
 mod control;
+pub mod interrupts;
 mod jump;
 mod memory;
 mod nonmemory;
-mod common;
-pub mod interrupts;
+
+trait ControlThingy {
+    fn next_cycle(&mut self, nes: &mut Nes) -> bool;
+    fn name(&self) -> &str;
+}
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum ControlSequence {
@@ -27,7 +29,7 @@ pub enum ControlSequence {
     NonMemory(NonMemoryInstr),
     Jam,
     // For the sake of simplicity, an interrupt is considered an instruction
-    Interrupt(Interrupt)
+    Interrupt(Interrupt),
 }
 
 impl Default for ControlSequence {
@@ -46,7 +48,7 @@ impl ControlSequence {
             Self::Memory(instr) => instr.is_finished(),
             Self::NonMemory(instr) => instr.is_finished(),
             Self::Interrupt(interrupt) => interrupt.is_finished(),
-            Self::Jam => true
+            Self::Jam => true,
         }
     }
     pub fn new_interrupt(interrupt_type: InterruptType) -> Self {
@@ -61,7 +63,7 @@ impl ControlSequence {
             ControlSequence::Memory(instr) => instr.do_next_instruction_cycle(nes),
             ControlSequence::NonMemory(instr) => instr.do_next_instruction_cycle(nes),
             ControlSequence::Interrupt(interrupt) => interrupt.do_next_interrupt_cycle(nes),
-            ControlSequence::Jam => panic!("JAM!")
+            ControlSequence::Jam => panic!("JAM!"),
         };
     }
     pub fn from_opcode(opcode: u8) -> Self {
@@ -624,7 +626,9 @@ impl ControlSequence {
                 MemoryOpc::ARR,
                 AddressingConfig::Immediate,
             )),
-            0x6C => ControlSequence::Jump(JumpInstr::new(JumpOpc::JMP, JumpType::JumpToPointerAddr)),
+            0x6C => {
+                ControlSequence::Jump(JumpInstr::new(JumpOpc::JMP, JumpType::JumpToPointerAddr))
+            }
             0x6D => ControlSequence::Memory(MemoryInstr::new(
                 MemoryOpc::ADC,
                 AddressingConfig::Addressed {
