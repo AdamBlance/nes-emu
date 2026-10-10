@@ -1,7 +1,8 @@
-use serde::{Deserialize, Serialize};
+use crate::emulator::nes::cpu::addressing::take_operand_as_low_address_byte;
+use crate::nes::Nes;
 use crate::nes::cpu::addressing::*;
 use operations::*;
-use crate::nes::Nes;
+use serde::{Deserialize, Serialize};
 
 mod operations;
 
@@ -9,23 +10,51 @@ mod operations;
 pub struct MemoryInstr {
     opc: MemoryOpc,
     config: AddressingConfig,
-    state: MemoryState
+    state: MemoryState,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum MemoryOpc {
-    LDA, LDX, LDY,
-    STA, STX, STY,
-    ASL, LSR, ROL, ROR,
-    AND, ORA, EOR, BIT,
-    ADC, SBC,
-    DEC, INC,
-    CMP, CPX, CPY,
+    LDA,
+    LDX,
+    LDY,
+    STA,
+    STX,
+    STY,
+    ASL,
+    LSR,
+    ROL,
+    ROR,
+    AND,
+    ORA,
+    EOR,
+    BIT,
+    ADC,
+    SBC,
+    DEC,
+    INC,
+    CMP,
+    CPX,
+    CPY,
     NOP,
-    LAS, LAX, SAX, SHA, SHX, SHY, SHS,
-    ANC, ARR, ASR,
-    DCP, RLA, RRA, SLO, SRE,
-    ISB, SBX, XAA,
+    LAS,
+    LAX,
+    SAX,
+    SHA,
+    SHX,
+    SHY,
+    SHS,
+    ANC,
+    ARR,
+    ASR,
+    DCP,
+    RLA,
+    RRA,
+    SLO,
+    SRE,
+    ISB,
+    SBX,
+    XAA,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -34,9 +63,8 @@ pub enum AddressingConfig {
     Addressed {
         addr_mode: AddressingMode,
         access_type: MemoryAccessType,
-    }
+    },
 }
-
 
 #[derive(Default, Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum AddressingMode {
@@ -58,7 +86,6 @@ pub enum MemoryAccessType {
     ReadModifyWrite,
 }
 
-
 type Cycle = u8;
 #[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize)]
 enum MemoryState {
@@ -66,7 +93,6 @@ enum MemoryState {
     PendingCarry,
     MemoryCycles(Cycle),
     Finished,
-
 }
 
 impl MemoryInstr {
@@ -74,7 +100,7 @@ impl MemoryInstr {
         Self {
             opc,
             config,
-            state: MemoryState::AddressResolution(0)
+            state: MemoryState::AddressResolution(0),
         }
     }
     fn opcode(&self) -> String {
@@ -83,15 +109,21 @@ impl MemoryInstr {
     pub(crate) fn do_next_instruction_cycle(&mut self, nes: &mut Nes) {
         self.state = match self.config {
             AddressingConfig::Immediate => Self::immediate_cycle(self.operation(), nes),
-            AddressingConfig::Addressed { addr_mode, access_type } => match self.state {
-                s @ MemoryState::AddressResolution(_) =>
-                    Self::address_resolution_cycles(addr_mode, s, nes),
-                MemoryState::PendingCarry =>
-                    Self::handle_upper_address_overflow(access_type, self.operation(), nes),
-                s @ MemoryState::MemoryCycles(_) =>
-                    Self::memory_cycles(s, access_type, self.operation(), nes),
+            AddressingConfig::Addressed {
+                addr_mode,
+                access_type,
+            } => match self.state {
+                s @ MemoryState::AddressResolution(_) => {
+                    Self::address_resolution_cycles(addr_mode, s, nes)
+                }
+                MemoryState::PendingCarry => {
+                    Self::handle_upper_address_overflow(access_type, self.operation(), nes)
+                }
+                s @ MemoryState::MemoryCycles(_) => {
+                    Self::memory_cycles(s, access_type, self.operation(), nes)
+                }
                 state => panic!("{state:?}"),
-            }
+            },
         };
     }
 
@@ -106,7 +138,11 @@ impl MemoryInstr {
         MemoryState::Finished
     }
 
-    fn address_resolution_cycles(addr_mode: AddressingMode, state: MemoryState, nes: &mut Nes) -> MemoryState {
+    fn address_resolution_cycles(
+        addr_mode: AddressingMode,
+        state: MemoryState,
+        nes: &mut Nes,
+    ) -> MemoryState {
         match addr_mode {
             AddressingMode::ZeroPage => Self::zero_page_cycle(nes),
             AddressingMode::ZeroPageX => Self::zero_page_x_cycles(state, nes),
@@ -251,7 +287,11 @@ impl MemoryInstr {
         }
     }
 
-    pub fn handle_upper_address_overflow(category: MemoryAccessType, operation: fn(&mut Nes), nes: &mut Nes) -> MemoryState {
+    pub fn handle_upper_address_overflow(
+        category: MemoryAccessType,
+        operation: fn(&mut Nes),
+        nes: &mut Nes,
+    ) -> MemoryState {
         match (category, nes.cpu.ireg.carry_out) {
             (MemoryAccessType::Read, true) => {
                 dummy_read_from_address(nes);
@@ -272,7 +312,12 @@ impl MemoryInstr {
         }
     }
 
-    fn memory_cycles(state: MemoryState, access_type: MemoryAccessType, operation: fn(&mut Nes), nes: &mut Nes) -> MemoryState {
+    fn memory_cycles(
+        state: MemoryState,
+        access_type: MemoryAccessType,
+        operation: fn(&mut Nes),
+        nes: &mut Nes,
+    ) -> MemoryState {
         match access_type {
             MemoryAccessType::Read => match state {
                 MemoryState::MemoryCycles(0) => {
@@ -281,7 +326,7 @@ impl MemoryInstr {
                     MemoryState::Finished
                 }
                 _ => panic!("{state:?}"),
-            }
+            },
             MemoryAccessType::Write => match state {
                 MemoryState::MemoryCycles(0) => {
                     operation(nes);
@@ -289,7 +334,7 @@ impl MemoryInstr {
                     MemoryState::Finished
                 }
                 _ => panic!("{state:?}"),
-            }
+            },
             MemoryAccessType::ReadModifyWrite => match state {
                 MemoryState::MemoryCycles(0) => {
                     read_from_address(nes);
@@ -305,7 +350,7 @@ impl MemoryInstr {
                     MemoryState::Finished
                 }
                 _ => panic!("{state:?}"),
-            }
+            },
         }
     }
 
@@ -356,5 +401,3 @@ impl MemoryInstr {
         }
     }
 }
-
-

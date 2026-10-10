@@ -155,7 +155,7 @@ fn map_vram_addr_to_palette_addr(addr: u16) -> usize {
 
 pub fn mirroring_mapping(addr: u16, mirroring: Mirroring) -> u16 {
     // The physical nametables sit at 0x2000..=0x23FF and 0x2400..=0x27FF
-    let truncated = addr & 0b0000_1111_1111_1111;
+    let truncated = addr & 0x0FFF;
     match mirroring {
         Mirroring::Vertical => truncated % 0x800,
         Mirroring::Horizontal => (truncated / 0x800) * 0x400 + (truncated % 0x400),

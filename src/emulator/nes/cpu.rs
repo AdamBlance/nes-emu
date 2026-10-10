@@ -44,32 +44,26 @@ pub struct Registers {
     pub y: u8,
     pub s: u8,
     pub status: Status,
-
     pub pc: MemAddress,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-struct MemAddress {
-    upper: u8,
-    lower: u8,
-}
+struct MemAddress(u16);
 impl MemAddress {
-    fn with_upper(self, byte: u8) -> self {
-        MemAddress {
-            upper: byte,
-            ..self
-        }
+    fn set_upper(&mut self, byte: u8) {
+        self.0 = (0x00FF & self.0) | ((byte as u16) << 8);
     }
-    pub(crate) fn with_lower(self, byte: u8) -> self {
-        MemAddress {
-            lower: byte,
-            ..self
-        }
+    fn set_lower(&mut self, byte: u8) -> self {
+        self.0 = (0xFF00 & self.0) | byte as u16;
     }
-}
-impl From<MemAddress> for u16 {
-    fn from(value: MemAddress) -> Self {
-        todo!()
+    fn upper(&self) -> u8 {
+        (self.0 >> 8) as u8
+    }
+    fn lower(&self) -> u8 {
+        self.0 as u8
+    }
+    fn increment(&mut self) {
+        self.0 = self.0.wrapping_add(1);
     }
 }
 

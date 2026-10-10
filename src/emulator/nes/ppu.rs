@@ -14,29 +14,30 @@ use modular_bitfield::prelude::*;
 use modular_bitfield::{Specifier, bitfield};
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::ops::{Add, AddAssign};
 
 #[derive(Specifier)]
 enum VIncrement {
-    Inc1,
-    Inc32,
+    Inc1 = 1,
+    Inc32 = 32,
 }
 
 #[bitfield]
 #[derive(Clone)]
-struct PpuCtrl {
-    nmi_enable: bool,
-    master_slave: bool,
-    tall_sprites: bool,
-    bg_ptable: B1,
-    sprite_ptable: B1,
+pub struct PpuCtrl {
+    pub nmi_enable: bool,
+    pub master_slave: bool,
+    pub tall_sprites: bool,
+    pub bg_ptable: B1,
+    pub sprite_ptable: B1,
     #[bits = 2]
-    increment: VIncrement,
-    ntable: B2,
+    pub increment: VIncrement,
+    pub ntable: B2,
 }
 
 #[bitfield]
 #[derive(Clone)]
-struct PpuMask {
+pub struct PpuMask {
     pub blue_emphasis: bool,
     pub green_emphasis: bool,
     pub red_emphasis: bool,
@@ -48,20 +49,40 @@ struct PpuMask {
 }
 
 #[bitfield]
-struct PpuAddress {
+#[derive(Clone)]
+pub struct PpuAddress {
     _padding: B1,
-    fine_y_scroll: B3,
-    nametable: B2,
-    coarse_y_scroll: B5,
-    coarse_x_scroll: B5,
+    pub fine_y_scroll: B3,
+    pub nametable: B2,
+    pub coarse_y_scroll: B5,
+    pub coarse_x_scroll: B5,
+}
+
+impl From<PpuAddress> for u16 {
+    fn from(value: PpuAddress) -> Self {
+        u16::from_ne_bytes(value.bytes)
+    }
+}
+
+impl Add<u8> for PpuAddress {
+    type Output = Self;
+    fn add(self, rhs: u8) -> Self::Output {
+        Self::from_bytes(u16::to_ne_bytes(self.into().wrapping_add(rhs as u16)))
+    }
+}
+
+impl AddAssign<u8> for PpuAddress {
+    fn add_assign(&mut self, rhs: u8) {
+        *self = *self + rhs;
+    }
 }
 
 #[bitfield]
 #[derive(Clone)]
 struct PpuStatus {
-    in_vblank: bool,
-    sprite_zero_hit: bool,
-    sprite_overflow: bool,
+    pub in_vblank: bool,
+    pub sprite_zero_hit: bool,
+    pub sprite_overflow: bool,
     _padding: B5,
 }
 
@@ -84,11 +105,11 @@ struct Scroll {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Ppu {
-    ppu_ctrl: PpuCtrl,
-    ppu_mask: PpuMask,
-    ppu_status: PpuStatus,
-    memory: Memory,
-    scroll: Scroll,
+    pub ppu_ctrl: PpuCtrl,
+    pub ppu_mask: PpuMask,
+    pub ppu_status: PpuStatus,
+    pub memory: Memory,
+    pub scroll: Scroll,
     pub scanline: i32,
     pub scanline_cycle: i32,
     pub odd_frame: bool,

@@ -2,15 +2,9 @@ use crate::emulator::nes_state::NesState;
 
 impl NesState {
     // Program counter
-    pub fn increment_pc(&mut self) {
-        self.cpu.reg.pc = self.cpu.reg.pc.wrapping_add(1);
-    }
-    pub fn copy_address_to_pc(&mut self) {
-        self.cpu.reg.pc = self.cpu.ireg.address;
-    }
     pub fn fetch_lower_pc_from_interrupt_vector(&mut self) {
         let lower = read_mem(self.cpu.interrupts.interrupt_vector, nes);
-        self.cpu.reg.pc = self.cpu.reg.pc.with_lower(lower);
+        self.cpu.reg.pc.set_lower(lower);
     }
     pub fn fetch_upper_pc_from_interrupt_vector(&mut self) {
         let upper = read_mem(self.cpu.interrupts.interrupt_vector + 1, nes);
