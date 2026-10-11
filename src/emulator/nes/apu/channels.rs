@@ -1,3 +1,5 @@
+use modular_bitfield::bitfield;
+use modular_bitfield::prelude::*;
 use serde::{Deserialize, Serialize};
 
 const H: bool = true;
@@ -28,8 +30,29 @@ pub static SAMPLE_RATE_TABLE: [u16; 16] = [
     428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106, 84, 72, 54,
 ];
 
+#[bitfield]
+struct SquareRegA {
+    pub duty_cycle: B2,
+    pub loop_envelope: bool,
+    pub is_volume_constant: bool,
+    pub envelope_decay_rate_or_constant_volume: B4,
+}
+
+#[bitfield]
+struct SquareRegB {
+    pub sweep_enabled: bool,
+    pub period_change: B3,
+    pub 
+    pub loop_envelope: bool,
+    pub is_volume_constant: bool,
+    pub envelope_decay_rate_or_constant_volume: B4,
+}
+
+
+
 #[derive(Copy, Clone, Default, Serialize, Deserialize)]
 pub struct Square {
+
     pub enabled: bool,
     pub length_counter_mute_signal: bool,
     pub sequencer_stage: u8,

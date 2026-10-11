@@ -6,6 +6,8 @@ use crate::emulator::nes_state::consts::*;
 use crate::emulator::nes_state::main_memory::U3;
 
 impl NesState {
+    // Reads
+
     pub fn memory_mapped_register_read(&mut self, addr: u16) -> u8 {
         match 0x2000 + (addr % 8) {
             PPUCTRL_2000 | PPUMASK_2001 | OAMADDR_2003 | PPUSCROLL_2005 | PPUADDR_2006 => {
@@ -51,6 +53,8 @@ impl NesState {
         val
     }
 
+    // Writes
+
     pub fn memory_mapped_register_write(&mut self, addr: u16, val: u8) {
         if self.cpu.debug.cycles < PPU_WARMUP
             && matches!(
@@ -64,47 +68,20 @@ impl NesState {
         self.set_dynamic_latch(val);
 
         match 0x2000 + (addr % 8) {
-            PPUCTRL_2000 => {
-                self.ppu.ppu_ctrl = PpuCtrl::from_bytes([val]);
-                self.ppu.scroll.t.set_nametable(val);
-            }
+            PPUCTRL_2000 => self.write_ppu_ctrl(val),
             PPUMASK_2001 => self.ppu.ppu_mask = PpuMask::from_bytes([val]),
             OAMADDR_2003 => self.ppu.memory.oam_addr = val,
-            OAMDATA_2004 => {
-                self.ppu.memory.oam[self.ppu.memory.oam_addr as usize] = val;
-                self.ppu.memory.oam_addr = self.ppu.memory.oam_addr.wrapping_add(1);
-            }
-            PPUSCROLL_2005 if !self.ppu.scroll.w => {
-                // Put x-scroll into t and x after first write
-                self.ppu.scroll.t.set_coarse_x_scroll(val >> 3);
-                self.ppu.scroll.x = U3::new(val & 0b111);
-                self.ppu.scroll.w = true;
-            }
-            PPUSCROLL_2005 if self.ppu.scroll.w => {
-                // Put y-scroll into t after second write
-                self.ppu.scroll.t.set_coarse_y_scroll(val >> 3);
-                self.ppu.scroll.t.set_fine_y_scroll(val & 0b111);
-                self.ppu.scroll.w = false;
-            }
-            PPUADDR_2006 if !self.ppu.scroll.w => {
-                // Write into upper 6 bits of t
-                let [_, lower] = self.ppu.scroll.t.into_bytes();
-                self.ppu.scroll.t = PpuAddress::from_bytes([val & 0x3F, lower]);
-                self.ppu.scroll.w = true;
-            }
-            PPUADDR_2006 if self.ppu.scroll.w => {
-                // Write into lower 8 bits of t
-                let [upper, _] = self.ppu.scroll.t.into_bytes();
-                self.ppu.scroll.t = PpuAddress::from_bytes([upper, val]);
-                self.ppu.scroll.v = self.ppu.scroll.t;
-                self.ppu.scroll.w = false;
-            }
-            PPUDATA_2007 => {
-                self.write_vram(nes.ppu.v, val, nes);
-                increment_v_after_ppudata_access(nes);
-            }
+            OAMDATA_2004 => self.write_oam_data(val),
+            PPUSCROLL_2005 => self.write_ppu_scroll(val),
+            PPUADDR_2006 => self.write_ppu_addr(val),
+            PPUDATA_2007 => self.write_ppu_data(val),
             _ => (),
         }
+    }
+
+    fn write_ppu_ctrl(&mut self, val: u8) {
+        self.ppu.ppu_ctrl = PpuCtrl::from_bytes([val]);
+        self.ppu.scroll.t.set_nametable(val);
     }
 
     fn write_ppu_scroll(&mut self, val: u8) {
@@ -132,6 +109,16 @@ impl NesState {
             self.ppu.scroll.v = self.ppu.scroll.t;
         }
         self.ppu.scroll.w = !self.ppu.scroll.w;
+    }
+
+    fn write_ppu_data(&mut self, val: u8) {
+        self.write_vram(self.ppu.scroll.v.into(), val);
+        self.ppu.scroll.v += self.ppu.ppu_ctrl.increment() as u8;
+    }
+
+    fn write_oam_data(&mut self, val: u8) {
+        self.ppu.memory.oam[self.ppu.memory.oam_addr as usize] = val;
+        self.ppu.memory.oam_addr = self.ppu.memory.oam_addr.wrapping_add(1);
     }
 
     // This latch is just a consequence of the capacitance of some really long traces inside the PPU

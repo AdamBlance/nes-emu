@@ -10,15 +10,18 @@ impl NesState {
         match addr {
             0x0000..=PATTERN_TABLE_END_1FFF => self.cart.read_chr(addr),
             VRAM_START_2000..=VRAM_END_3EFF => self.ppu.memory.vram[self.mirroring_mapping(addr)],
-            PALETTE_RAM_START_3F00..=PALETTE_RAM_END_3FFF => {
-                let colour = self.ppu.memory.palette_mem[self.map_vram_addr_to_palette_addr(addr)];
-                if self.ppu.ppu_mask.greyscale() {
-                    colour & 0x30
-                } else {
-                    colour
-                }
-            }
+            PALETTE_RAM_START_3F00..=PALETTE_RAM_END_3FFF => self.read_palette_ram(addr),
             x => panic!("Invalid PPU address {x:016b}"),
+        }
+    }
+
+    fn read_palette_ram(&mut self, addr: u16) -> u8 {
+        let mapped_addr = self.map_vram_addr_to_palette_addr(addr);
+        let colour = self.ppu.memory.palette_mem[mapped_addr];
+        if self.ppu.ppu_mask.greyscale() {
+            colour & 0x30
+        } else {
+            colour
         }
     }
 
@@ -47,7 +50,7 @@ impl NesState {
 
     pub fn mirroring_mapping(&self, addr: u16) -> usize {
         // The physical nametables sit at 0x2000..=0x23FF and 0x2400..=0x27FF
-        let truncated = addr & 0b0000_1111_1111_1111;
+        let truncated = addr as usize & 0x0FFF;
         match self.cart.mirroring() {
             Mirroring::Vertical => truncated % 0x800,
             Mirroring::Horizontal => (truncated / 0x800) * 0x400 + (truncated % 0x400),
